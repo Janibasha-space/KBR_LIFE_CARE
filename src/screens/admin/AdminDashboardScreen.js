@@ -1,0 +1,489 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Sizes } from '../../constants/theme';
+
+// Helper function to create transparent colors
+const getTransparentColor = (color, opacity) => `${color}${opacity}`;
+
+const AdminDashboardScreen = ({ navigation }) => {
+  const [adminName] = useState('Admin King');
+
+  const statsCards = [
+    {
+      id: 'users',
+      title: 'Total Users',
+      value: '1,247',
+      change: '+12.5% this month',
+      icon: 'people-outline',
+      backgroundColor: Colors.totalUsers,
+      iconColor: Colors.kbrRed,
+    },
+    {
+      id: 'appointments',
+      title: 'Appointments',
+      value: '856',
+      change: '45 today',
+      icon: 'calendar-outline',
+      backgroundColor: Colors.appointments,
+      iconColor: Colors.kbrBlue,
+    },
+    {
+      id: 'revenue',
+      title: 'Revenue',
+      value: '₹125,000',
+      change: '+8% this month',
+      icon: 'trending-up-outline',
+      backgroundColor: Colors.revenue,
+      iconColor: Colors.kbrGreen,
+    },
+    {
+      id: 'doctors',
+      title: 'Active Doctors',
+      value: '12',
+      change: 'All available',
+      icon: 'medical-outline',
+      backgroundColor: Colors.activeDoctors,
+      iconColor: Colors.kbrPurple,
+    },
+  ];
+
+  const recentAppointments = [
+    {
+      id: '1',
+      patientName: 'Rajesh Kumar',
+      doctor: 'Dr. K. Ramesh • General Medicine',
+      time: '2024-12-15 10:00 AM • ₹600',
+      status: 'confirmed',
+      avatar: 'R',
+    },
+    {
+      id: '2',
+      patientName: 'Priya Sharma',
+      doctor: 'Dr. K. Divyavani • Obstetrics & Gynecology',
+      time: '2024-12-15 11:30 AM • ₹800',
+      status: 'pending',
+      avatar: 'P',
+    },
+    {
+      id: '3',
+      patientName: 'Amit Patel',
+      doctor: 'Dr. Mahesh Kumar • Cardiology',
+      time: '2024-12-15 2:00 PM • ₹1200',
+      status: 'completed',
+      avatar: 'A',
+    },
+  ];
+
+  const renderStatsCard = (card) => (
+    <View key={card.id} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
+      <View style={styles.statsCardContent}>
+        <View style={styles.statsLeft}>
+          <Text style={styles.statsTitle}>{card.title}</Text>
+          <Text style={styles.statsValue}>{card.value}</Text>
+          <View style={styles.statsChange}>
+            <Ionicons name="trending-up" size={12} color={Colors.kbrGreen} />
+            <Text style={styles.statsChangeText}>{card.change}</Text>
+          </View>
+        </View>
+        <View style={[styles.statsIconContainer, { backgroundColor: getTransparentColor(card.iconColor, '20') }]}>
+          <Ionicons name={card.icon} size={24} color={card.iconColor} />
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderAppointmentItem = (appointment) => (
+    <View key={appointment.id} style={styles.appointmentItem}>
+      <View style={styles.appointmentLeft}>
+        <View style={[styles.avatar, { backgroundColor: Colors.kbrRed }]}>
+          <Text style={styles.avatarText}>{appointment.avatar}</Text>
+        </View>
+        <View style={styles.appointmentInfo}>
+          <View style={styles.appointmentHeader}>
+            <Text style={styles.patientName}>{appointment.patientName}</Text>
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: getStatusColor(appointment.status) }
+            ]}>
+              <Text style={styles.statusText}>{appointment.status}</Text>
+            </View>
+          </View>
+          <Text style={styles.doctorInfo}>{appointment.doctor}</Text>
+          <Text style={styles.appointmentTime}>{appointment.time}</Text>
+        </View>
+      </View>
+      <TouchableOpacity style={styles.moreButton}>
+        <Ionicons name="ellipsis-vertical" size={16} color={Colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'confirmed': return getTransparentColor(Colors.confirmed, '20');
+      case 'pending': return getTransparentColor(Colors.pending, '20');
+      case 'completed': return getTransparentColor(Colors.completed, '20');
+      default: return getTransparentColor(Colors.textSecondary, '20');
+    }
+  };
+
+  return (
+    <View style={styles.outerContainer}>
+      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={styles.container}>
+      {/* Enhanced Professional Admin Header */}
+      <View style={styles.header}>
+        {/* Top Header Row */}
+        <View style={styles.topHeaderRow}>
+          <View style={styles.hospitalBranding}>
+            <View style={styles.logoSection}>
+              <Ionicons name="shield-checkmark" size={24} color={Colors.white} />
+              <View style={styles.hospitalTextSection}>
+                <Text style={styles.hospitalName}>KBR LIFE CARE</Text>
+                <Text style={styles.hospitalSubtitle}>ADMIN DASHBOARD</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.headerActions}>
+            <View style={styles.adminInfo}>
+              <Text style={styles.adminRole}>Administrator</Text>
+              <Text style={styles.adminName}>{adminName}</Text>
+            </View>
+            <TouchableOpacity style={styles.profileButton}>
+              <Ionicons name="person-circle-outline" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Bottom Header Row */}
+        <View style={styles.bottomHeaderRow}>
+          <Text style={styles.welcomeMessage}>Hospital Management System</Text>
+          <View style={styles.statusIndicator}>
+            <View style={styles.onlineIndicator} />
+            <Text style={styles.statusText}>System Online • Live Dashboard</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Stats Cards */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsGrid}>
+            <View style={styles.statsRow}>
+              {renderStatsCard(statsCards[0])}
+              {renderStatsCard(statsCards[1])}
+            </View>
+            <View style={styles.statsRow}>
+              {renderStatsCard(statsCards[2])}
+              {renderStatsCard(statsCards[3])}
+            </View>
+          </View>
+        </View>
+
+        {/* Recent Appointments */}
+        <View style={styles.appointmentsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Appointments</Text>
+            <TouchableOpacity>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.appointmentsList}>
+            {recentAppointments.map(renderAppointmentItem)}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: Colors.kbrBlue,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  // Enhanced Professional Admin Header Styles
+  header: {
+    backgroundColor: Colors.kbrBlue,
+    paddingTop: 15,
+    paddingBottom: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  
+  // Top Header Row Styles
+  topHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: 12,
+  },
+  hospitalBranding: {
+    flex: 1,
+  },
+  logoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hospitalTextSection: {
+    marginLeft: 12,
+  },
+  hospitalName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.white,
+    letterSpacing: 0.5,
+    lineHeight: 24,
+  },
+  hospitalSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFD700',
+    letterSpacing: 1,
+    marginTop: -2,
+  },
+  
+  // Header Actions Styles
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  adminInfo: {
+    alignItems: 'flex-end',
+  },
+  adminRole: {
+    fontSize: 11,
+    color: '#E3F2FD',
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  adminName: {
+    fontSize: 14,
+    color: Colors.white,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  profileButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: 8,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    elevation: 2,
+  },
+  
+  // Bottom Header Row Styles
+  bottomHeaderRow: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  welcomeMessage: {
+    fontSize: 14,
+    color: Colors.white,
+    fontWeight: '500',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 11,
+    color: '#E3F2FD',
+    fontWeight: '400',
+    opacity: 0.9,
+  },
+  loginText: {
+    color: Colors.white,
+    marginLeft: 4,
+    fontSize: Sizes.small,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  statsSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingTop: Sizes.lg,
+    paddingBottom: Sizes.md,
+  },
+  statsGrid: {
+    gap: Sizes.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Sizes.md,
+  },
+  statsCard: {
+    flex: 1,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statsCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  statsLeft: {
+    flex: 1,
+  },
+  statsTitle: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  statsValue: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  statsChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statsChangeText: {
+    fontSize: Sizes.small,
+    color: Colors.kbrGreen,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  statsIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appointmentsSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingBottom: Sizes.xl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Sizes.md,
+  },
+  sectionTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+  },
+  viewAllText: {
+    fontSize: Sizes.medium,
+    color: Colors.kbrRed,
+    fontWeight: '500',
+  },
+  appointmentsList: {
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.md,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  appointmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  appointmentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
+  },
+  avatarText: {
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.white,
+  },
+  appointmentInfo: {
+    flex: 1,
+  },
+  appointmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  patientName: {
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 2,
+    borderRadius: Sizes.radiusSmall,
+  },
+  statusText: {
+    fontSize: Sizes.small,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  doctorInfo: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  appointmentTime: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+  },
+  moreButton: {
+    padding: Sizes.sm,
+  },
+});
+
+export default AdminDashboardScreen;
