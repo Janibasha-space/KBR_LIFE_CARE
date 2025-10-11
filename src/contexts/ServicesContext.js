@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 
-// Initial services data
+// Initial services data - matching UI screenshots exactly
 const initialServices = {
   medical: [
     {
@@ -8,34 +8,8 @@ const initialServices = {
       name: 'General Medicine',
       description: 'Primary healthcare and comprehensive medical consultation for all age groups',
       duration: '20 mins',
-      doctors: ['Dr. Smith', 'Dr. Johnson'],
+      doctors: ['Dr. K. Ramesh', 'Dr. Rajender Katroth'],
       tags: ['Health Check-ups', 'Chronic Disease Management', 'Preventive Care', 'Emergency Medicine'],
-    },
-    {
-      id: 'cardiology',
-      name: 'Cardiology',
-      description: 'Heart and cardiovascular system care',
-      duration: '30 mins',
-      doctors: ['Dr. Wilson', 'Dr. Brown'],
-      tags: ['Heart Health', 'ECG', 'Blood Pressure', 'Cardiac Surgery'],
-    },
-  ],
-  surgical: [
-    {
-      id: 'general-surgery',
-      name: 'General Surgery',
-      description: 'Comprehensive surgical procedures and care',
-      duration: '45 mins',
-      doctors: ['Dr. Davis', 'Dr. Miller'],
-      tags: ['Surgical Procedures', 'Post-Op Care', 'Emergency Surgery', 'Minimally Invasive'],
-    },
-    {
-      id: 'orthopedics',
-      name: 'Orthopedics',
-      description: 'Bone, joint, and muscle care',
-      duration: '35 mins',
-      doctors: ['Dr. Anderson', 'Dr. Taylor'],
-      tags: ['Bone Health', 'Joint Replacement', 'Sports Medicine', 'Fractures'],
     },
   ],
   specialized: [
@@ -56,6 +30,16 @@ const initialServices = {
       tags: ['Prenatal Care', 'Normal & C-Section Delivery', 'Menstrual Disorders', 'Family Planning'],
     },
   ],
+  surgical: [
+    {
+      id: 'trauma-maxillofacial',
+      name: 'Trauma & Maxillofacial Surgery',
+      description: 'Emergency trauma care and facial reconstruction surgery',
+      duration: '45 mins',
+      doctors: ['Dr. Davis', 'Dr. Miller'],
+      tags: ['Trauma Care', 'Facial Surgery', 'Emergency Surgery', 'Reconstruction'],
+    },
+  ],
 };
 
 // Create the context
@@ -65,9 +49,8 @@ const ServicesContext = createContext();
 export const ServicesProvider = ({ children }) => {
   const [services, setServices] = useState(initialServices);
   const [doctors, setDoctors] = useState([
-    'Dr. Smith', 'Dr. Johnson', 'Dr. Wilson', 'Dr. Brown', 'Dr. Davis', 
-    'Dr. Miller', 'Dr. Anderson', 'Dr. Taylor', 'Dr. Garcia', 'Dr. Martinez',
-    'Dr. Thompson', 'Dr. White'
+    'Dr. K. Ramesh', 'Dr. Rajender Katroth', 'Dr. Garcia', 'Dr. Martinez',
+    'Dr. Thompson', 'Dr. White', 'Dr. Davis', 'Dr. Miller', 'Dr. Vijay Shankar'
   ]);
 
   // Add a new service
@@ -128,8 +111,13 @@ export const ServicesProvider = ({ children }) => {
           }
         });
       }
+      // Only log in dev mode and occasionally to avoid spam
+      if (__DEV__ && Math.random() < 0.05) {
+        console.log(`📋 ${allServices.length} services loaded`);
+      }
     } catch (error) {
       console.error('Error in getAllServices:', error);
+      // Return empty array as fallback
     }
     return allServices;
   };
@@ -148,7 +136,9 @@ export const ServicesProvider = ({ children }) => {
         specialized: (services && services.specialized && Array.isArray(services.specialized)) ? services.specialized.length : 0,
       };
     } catch (error) {
-      console.error('Error in getServiceCounts:', error);
+      if (__DEV__) {
+        console.error('Error in getServiceCounts:', error);
+      }
       return { medical: 0, surgical: 0, specialized: 0 };
     }
   };

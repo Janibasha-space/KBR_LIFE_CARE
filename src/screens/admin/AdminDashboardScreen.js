@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import { useUser } from '../../contexts/UserContext';
 
 // Helper function to create transparent colors
 const getTransparentColor = (color, opacity) => `${color}${opacity}`;
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [adminName] = useState('Admin King');
+  const { isLoggedIn, userData } = useUser();
 
   const statsCards = [
     {
@@ -164,8 +166,19 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.adminRole}>Administrator</Text>
               <Text style={styles.adminName}>{adminName}</Text>
             </View>
-            <TouchableOpacity style={styles.profileButton}>
-              <Ionicons name="person-circle-outline" size={20} color={Colors.white} />
+            <TouchableOpacity 
+              style={styles.profileButton}
+              onPress={() => navigation.navigate('Profile')}
+            >
+              {userData?.profilePicture ? (
+                <Image 
+                  source={{ uri: userData.profilePicture }} 
+                  style={styles.profilePicture}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person-circle" size={24} color={Colors.white} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -342,6 +355,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     elevation: 2,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  profilePicture: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   
   // Bottom Header Row Styles

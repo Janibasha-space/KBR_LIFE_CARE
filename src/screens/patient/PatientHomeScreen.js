@@ -25,6 +25,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
+import { useUser } from '../../contexts/UserContext';
+import AppHeader from '../../components/AppHeader';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -150,6 +152,9 @@ const PatientHomeScreen = ({ navigation }) => {
   const { getAllServices } = useServices();
   const allServices = getAllServices();
   const services = allServices && allServices.length > 0 ? allServices.slice(0, 4) : []; // Show only first 4 services for home screen
+  
+  // Get user context
+  const { isLoggedIn, userData } = useUser();
 
   // Initialize loading state with network error handling
   useEffect(() => {
@@ -269,48 +274,29 @@ const PatientHomeScreen = ({ navigation }) => {
     <View style={styles.container}>
       <StatusBar backgroundColor="#4AA3DF" barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.logoSection}>
-              <Image 
-                source={require('../../../assets/hospital-logo.jpeg')}
-                style={styles.headerLogoImage}
-                resizeMode="contain"
-              />
-              <View style={styles.hospitalInfo}>
-                <Text style={styles.hospitalName}>KBR LIFE CARE HOSPITALS</Text>
-                <Text style={styles.hospitalSubtitle}>Excellence in Healthcare</Text>
-              </View>
-            </View>
-            
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => setShowNotifications(!showNotifications)}
-              >
-                <Ionicons name="notifications" size={20} color="#FFFFFF" />
-                <View style={styles.notificationBadge} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.signInButton}
-                onPress={() => setShowLoginModal(true)}
-              >
-                <Text style={styles.signInText}>Sign In</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        {/* App Header */}
+        <AppHeader 
+          subtitle="Excellence in Healthcare"
+          navigation={navigation}
+        />
+        
+        {/* Admin Portal & Notifications */}
+        <View style={styles.secondaryHeader}>
+          <TouchableOpacity
+            style={styles.adminPortalButton}
+            onPress={() => setShowAdminModal(true)}
+          >
+            <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+            <Text style={styles.adminPortalText}>Admin Portal</Text>
+          </TouchableOpacity>
           
-          <View style={styles.headerBottom}>
-            <TouchableOpacity
-              style={styles.adminPortalButton}
-              onPress={() => setShowAdminModal(true)}
-            >
-              <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
-              <Text style={styles.adminPortalText}>Admin Portal</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => setShowNotifications(!showNotifications)}
+          >
+            <Ionicons name="notifications" size={20} color="#FFFFFF" />
+            <View style={styles.notificationBadge} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -938,6 +924,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
+  
+  // Secondary Header Styles (for admin portal and notifications)
+  secondaryHeader: {
+    backgroundColor: '#4AA3DF',
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: Sizes.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  notificationButton: {
+    padding: Sizes.sm,
+    borderRadius: 20,
+    position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  
   scrollView: {
     flex: 1,
   },

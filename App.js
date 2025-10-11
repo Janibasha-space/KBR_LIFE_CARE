@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
+import { UserProvider } from './src/contexts/UserContext';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -42,8 +43,8 @@ function PatientTabNavigator() {
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Appointments') {
-            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'BookAppointment') {
+            iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Services') {
             iconName = focused ? 'medical' : 'medical-outline';
           } else if (route.name === 'Reports') {
@@ -72,7 +73,13 @@ function PatientTabNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={PatientHomeScreen} />
-      <Tab.Screen name="Appointments" component={AppointmentScreen} />
+      <Tab.Screen 
+        name="BookAppointment" 
+        component={BookAppointmentScreen}
+        options={{
+          title: 'Book Appointment'
+        }}
+      />
       <Tab.Screen name="Services" component={ServicesScreen} />
       <Tab.Screen name="Reports" component={MedicalReportsScreen} />
       <Tab.Screen name="Pharmacy" component={PharmacyScreen} />
@@ -131,25 +138,26 @@ function AdminTabNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ServicesProvider>
-        <NavigationContainer>
-          <StatusBar style="light" backgroundColor={Colors.primary} />
-          <Stack.Navigator 
-            initialRouteName="Splash"
-            screenOptions={{
-              headerShown: false
-            }}
-          >
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
-            <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
-            <Stack.Screen name="ServiceManagement" component={ServiceManagementScreen} />
-            <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />
-            <Stack.Screen name="Profile" component={ProfileScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </ServicesProvider>
+      <UserProvider>
+        <ServicesProvider>
+          <NavigationContainer>
+            <StatusBar style="light" backgroundColor={Colors.primary} />
+            <Stack.Navigator 
+              initialRouteName="Splash"
+              screenOptions={{
+                headerShown: false
+              }}
+            >
+              <Stack.Screen name="Splash" component={SplashScreen} />
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+              <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
+              <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
+              <Stack.Screen name="ServiceManagementScreen" component={ServiceManagementScreen} />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ServicesProvider>
+      </UserProvider>
     </SafeAreaProvider>
   );
 }

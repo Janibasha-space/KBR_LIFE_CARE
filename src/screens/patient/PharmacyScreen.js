@@ -12,28 +12,23 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import { useUser } from '../../contexts/UserContext';
+import AppHeader from '../../components/AppHeader';
 
 const PharmacyScreen = ({ navigation }) => {
+  const { isLoggedIn, userData } = useUser();
   return (
     <View style={styles.outerContainer}>
       <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Image 
-              source={require('../../../assets/hospital-logo.jpeg')}
-              style={styles.headerLogoImage}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
-              <Text style={styles.headerSubtitle}>Pharmacy</Text>
-            </View>
-          </View>
+        {/* App Header */}
+        <AppHeader 
+          subtitle="Pharmacy"
+          navigation={navigation}
+        />
+        
+        {/* Pharmacy Cart Button */}
+        <View style={styles.pharmacyHeaderBar}>
           <TouchableOpacity style={styles.cartButton}>
             <Ionicons name="basket-outline" size={20} color={Colors.white} />
           </TouchableOpacity>
@@ -210,9 +205,41 @@ const styles = StyleSheet.create({
     color: Colors.white,
     opacity: 0.9,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  profilePicture: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
   cartButton: {
     padding: 8,
   },
+  
+  // Pharmacy specific header bar
+  pharmacyHeaderBar: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: Sizes.sm,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  
   scrollView: {
     flex: 1,
   },

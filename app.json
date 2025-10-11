@@ -4,12 +4,12 @@
     "slug": "kbr-hospital-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/hospital-logo.jpeg",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "image": "./assets/Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#4A90E2"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -20,8 +20,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "foregroundImage": "./assets/hospital-logo.jpeg",
+        "backgroundColor": "#4A90E2"
       },
       "package": "com.kbrhospital.app"
     }

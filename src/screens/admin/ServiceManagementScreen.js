@@ -13,10 +13,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
+import { useUser } from '../../contexts/UserContext';
 import AddServiceModal from '../../components/AddServiceModal';
 
 const ServiceManagementScreen = ({ navigation }) => {
   const { services, doctors, addService, deleteService, getServiceCounts } = useServices();
+  const { isLoggedIn, userData } = useUser();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('medical');
 
@@ -171,12 +173,30 @@ const ServiceManagementScreen = ({ navigation }) => {
               <Text style={styles.headerSubtitle}>Service Management</Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={20} color={Colors.white} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {isLoggedIn && (
+              <TouchableOpacity 
+                style={styles.profileButton}
+                onPress={() => navigation.navigate('Profile')}
+              >
+                {userData?.profilePicture ? (
+                  <Image 
+                    source={{ uri: userData.profilePicture }} 
+                    style={styles.profilePicture}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={24} color={Colors.white} />
+                )}
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons name="add" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Category Tabs */}
@@ -260,6 +280,25 @@ const styles = StyleSheet.create({
     fontSize: Sizes.small,
     color: Colors.white,
     opacity: 0.9,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  profilePicture: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   addButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
