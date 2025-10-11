@@ -1,240 +1,584 @@
 ﻿/**
- * KBR LIFE CARE HOSPITALS - PATIENT HOME SCREEN
- * Enhanced Patient Home Screen matching screenshot design
- * Theme: Blue (#4A90E2), White (#FFFFFF), Professional styling
+ * KBR LIFE CARE HOSPITALS - COMPREHENSIVE HOME SCREEN
+ * React Native version of the complete KBR Hospital home page
+ * Features: Hero section, Doctors carousel, Services, Health packages, Tests, Contact
+ * Theme: Blue (#4AA3DF), White (#FFFFFF), Red (#C62828)
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  TouchableOpacity, 
-  ScrollView, 
-  Alert,
-  Modal,
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Image,
   TextInput,
-  StatusBar
+  Modal,
+  Alert,
+  Linking,
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors, Sizes } from '../../constants/theme';
+import { useServices } from '../../contexts/ServicesContext';
+
+const { width: screenWidth } = Dimensions.get('window');
+
+// Sample data - same as web version but adapted for React Native
+const doctors = [
+  {
+    id: 1,
+    name: "DR. K. RAMESH",
+    credentials: "M.B.B.S., M.D",
+    role: "General Physician",
+    fellowship: "Fellowship in Echocardiography",
+    image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80",
+    expertise: [
+      "Infectious diseases (Dengue, Malaria, RTIs, COVID-19)",
+      "Sepsis & Critical Care management",
+      "Chronic illnesses: Diabetes, Hypertension, Hypothyroidism",
+      "Medical emergencies: Poisonings, Snake bites, DKA",
+      "Preventive medicine & health screening"
+    ]
+  },
+  {
+    id: 2,
+    name: "DR. K. THUKARAM",
+    credentials: "B.D.S, M.D.S (Dental)",
+    role: "Orthodontics & Dentofacial Orthopaedics",
+    fellowship: "",
+    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&q=80",
+    expertise: [
+      "Orthodontic treatment, Invisalign/Aligners",
+      "Teeth whitening & cleaning, Laser dentistry",
+      "RCT (Root Canal), Cosmetic dentistry",
+      "Oral & Maxillofacial surgery, Dental implants",
+      "Pediatric dentistry & preventive care"
+    ]
+  },
+  {
+    id: 3,
+    name: "DR. K. DIVYAVANI",
+    credentials: "M.B.B.S, M.S (OBG)",
+    role: "Obstetrician & Gynaecologist",
+    fellowship: "",
+    image: "https://images.unsplash.com/photo-1594824804732-ca8ace6a77cf?w=400&q=80",
+    expertise: [
+      "24/7 elective & emergency delivery & LSCS",
+      "Antenatal check-ups, High-risk pregnancy care",
+      "Normal & painless delivery, Family-planning surgery",
+      "Ectopic pregnancy management",
+      "Gynecological surgeries & minimally invasive procedures"
+    ]
+  }
+];
+
+const healthPackages = [
+  {
+    id: 1,
+    name: "Basic Health Checkup",
+    price: "₹1,999",
+    popular: false,
+    features: [
+      "Complete Blood Count",
+      "Blood Sugar Test",
+      "Lipid Profile",
+      "Kidney Function Test",
+      "Doctor Consultation"
+    ]
+  },
+  {
+    id: 2,
+    name: "Comprehensive Health Package",
+    price: "₹4,999",
+    popular: true,
+    features: [
+      "All Basic Tests",
+      "Thyroid Profile",
+      "Liver Function Test",
+      "ECG",
+      "X-Ray Chest",
+      "USG Abdomen",
+      "Specialist Consultation"
+    ]
+  },
+  {
+    id: 3,
+    name: "Executive Health Checkup",
+    price: "₹8,999",
+    popular: false,
+    features: [
+      "All Comprehensive Tests",
+      "2D Echo",
+      "Stress Test",
+      "Cancer Markers",
+      "Full Body Checkup",
+      "Nutrition Counseling",
+      "Follow-up Consultation"
+    ]
+  }
+];
+
+const popularTests = [
+  { id: 1, name: "Complete Blood Count (CBC)", price: "₹350" },
+  { id: 2, name: "Lipid Profile", price: "₹500" },
+  { id: 3, name: "Thyroid Profile (T3, T4, TSH)", price: "₹450" },
+  { id: 4, name: "HbA1c (Diabetes)", price: "₹400" },
+  { id: 5, name: "Liver Function Test (LFT)", price: "₹600" },
+  { id: 6, name: "Kidney Function Test (KFT)", price: "₹550" }
+];
 
 const PatientHomeScreen = ({ navigation }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginTab, setLoginTab] = useState('signin');
+  const [currentDoctorIndex, setCurrentDoctorIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const autoPlayRef = useRef(null);
   
-  const handleServicePress = (serviceName) => {
-    if (serviceName === 'Book Appointment') {
-      Alert.alert(
-        'Book Appointment',
-        'Choose your preferred booking method:',
-        [
-          { text: 'Online Booking', onPress: () => navigation.navigate('BookAppointment') },
-          { text: 'Call Hospital', onPress: () => Alert.alert('Call Now', '+91 8466 999 000') },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-    } else if (serviceName === 'Services') {
-      navigation.navigate('Services');
-    } else if (serviceName === 'Reports') {
-      navigation.navigate('Reports');
-    } else if (serviceName === 'Pharmacy') {
-      navigation.navigate('Pharmacy');
+  // Get services from context
+  const { getAllServices } = useServices();
+  const allServices = getAllServices();
+  const services = allServices && allServices.length > 0 ? allServices.slice(0, 4) : []; // Show only first 4 services for home screen
+
+  // Initialize loading state with network error handling
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Quick initialization without network dependencies
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        // Even if there's an error, show the app
+        setIsLoading(false);
+      }
+    };
+    
+    initializeApp();
+  }, []);
+
+  // Doctor carousel auto-play
+  useEffect(() => {
+    if (isPlaying && !isLoading) {
+      autoPlayRef.current = setInterval(() => {
+        setCurrentDoctorIndex((prev) => (prev + 1) % doctors.length);
+      }, 3000);
+    }
+    return () => {
+      if (autoPlayRef.current) {
+        clearInterval(autoPlayRef.current);
+      }
+    };
+  }, [isPlaying, isLoading]);
+
+  const handleLogin = () => {
+    if (loginTab === 'signin') {
+      // Admin credentials
+      if (email === "admin@kbrhospitals.com" && password === "admin123") {
+        setShowLoginModal(false);
+        setShowAdminModal(false);
+        Alert.alert(
+          'Admin Login Successful! 🎉',
+          'Welcome to Admin Dashboard',
+          [{ text: 'Continue', onPress: () => navigation.navigate('AdminMain') }]
+        );
+      }
+      // Patient credentials
+      else if (email === "patient@kbr.com" && password === "patient123") {
+        setShowLoginModal(false);
+        Alert.alert(
+          'Patient Login Successful! 🎉',
+          'Welcome to Patient Portal',
+          [{ text: 'Continue' }]
+        );
+      }
+      else {
+        Alert.alert(
+          '❌ Invalid Credentials',
+          'Demo Accounts:\n👨‍⚕️ Admin: admin@kbrhospitals.com / admin123\n🏥 Patient: patient@kbr.com / patient123'
+        );
+      }
+    } else {
+      Alert.alert('✅ Account Created Successfully!', 'Welcome to KBR Life Care Hospitals!');
+      setShowLoginModal(false);
     }
   };
 
-  const handleLogin = (email, password) => {
-    // Admin login
-    if (email === 'admin@kbrhospitals.com' && password === 'admin123') {
-      setShowLoginModal(false);
-      Alert.alert(
-        'Admin Login Successful! 🎉',
-        'Welcome to KBR Hospital Admin Dashboard',
-        [
-          { 
-            text: 'Continue to Dashboard', 
-            onPress: () => navigation.navigate('AdminMain'),
-            style: 'default'
-          }
-        ]
-      );
-    }
-    // Patient login
-    else if (email === 'patient@kbr.com' && password === 'patient123') {
-      setShowLoginModal(false);
-      Alert.alert(
-        'Patient Login Successful! 🎉',
-        'Welcome to KBR Hospital Patient Portal',
-        [
-          { 
-            text: 'Continue', 
-            onPress: () => {
-              // Already on patient screens, just show success
-            },
-            style: 'default'
-          }
-        ]
-      );
-    }
-    // Invalid credentials
-    else {
-      Alert.alert(
-        '❌ Invalid Credentials',
-        'Please check your email and password.\n\nDemo Accounts:\n👨‍⚕️ Admin: admin@kbrhospitals.com / admin123\n🏥 Patient: patient@kbr.com / patient123',
-        [{ text: 'Try Again', style: 'default' }]
-      );
+  const handleServicePress = (serviceName) => {
+    switch (serviceName) {
+      case 'Book Appointment':
+        navigation.navigate('BookAppointment');
+        break;
+      case 'Services':
+        navigation.navigate('Services');
+        break;
+      case 'Reports':
+        navigation.navigate('Reports');
+        break;
+      case 'Pharmacy':
+        navigation.navigate('Pharmacy');
+        break;
+      default:
+        Alert.alert('Coming Soon', `${serviceName} feature will be available soon!`);
     }
   };
+
+  const makeCall = (phoneNumber) => {
+    Linking.openURL(`tel:${phoneNumber}`);
+  };
+
+  const sendEmail = (emailAddress) => {
+    Linking.openURL(`mailto:${emailAddress}`);
+  };
+
+  // Show loading screen while initializing
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar backgroundColor="#4AA3DF" barStyle="light-content" translucent={false} />
+        <SafeAreaView style={styles.loadingScreen}>
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingLogo}>
+              <Image 
+                source={require('../../../assets/hospital-logo.jpeg')}
+                style={styles.loadingLogoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.loadingTitle}>KBR LIFE CARE HOSPITALS</Text>
+            <Text style={styles.loadingSubtitle}>Loading your healthcare portal...</Text>
+            <ActivityIndicator size="large" color="#4AA3DF" style={styles.loadingSpinner} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#4A90E2" barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor="#4AA3DF" barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
-        {/* Enhanced Professional Header */}
+        {/* Header */}
         <View style={styles.header}>
-          {/* Top Header Row */}
-          <View style={styles.topHeaderRow}>
-            <View style={styles.hospitalBranding}>
-              <View style={styles.logoSection}>
-                <Ionicons name="medical" size={24} color="white" />
-                <View style={styles.hospitalTextSection}>
-                  <Text style={styles.hospitalName}>KBR LIFE CARE</Text>
-                  <Text style={styles.hospitalSubtitle}>HOSPITALS</Text>
-                </View>
+          <View style={styles.headerTop}>
+            <View style={styles.logoSection}>
+              <Image 
+                source={require('../../../assets/hospital-logo.jpeg')}
+                style={styles.headerLogoImage}
+                resizeMode="contain"
+              />
+              <View style={styles.hospitalInfo}>
+                <Text style={styles.hospitalName}>KBR LIFE CARE HOSPITALS</Text>
+                <Text style={styles.hospitalSubtitle}>Excellence in Healthcare</Text>
               </View>
             </View>
             
             <View style={styles.headerActions}>
-              <TouchableOpacity 
-                style={styles.adminButton}
-                onPress={() => {
-                  Alert.alert(
-                    '🔐 Admin Portal Access',
-                    'Direct admin login for hospital staff',
-                    [
-                      { 
-                        text: 'Admin Login', 
-                        onPress: () => setShowLoginModal(true)
-                      },
-                      { text: 'Cancel', style: 'cancel' }
-                    ]
-                  );
-                }}
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => setShowNotifications(!showNotifications)}
               >
-                <Ionicons name="shield-checkmark-outline" size={16} color="white" />
-                <Text style={styles.adminText}>Admin</Text>
+                <Ionicons name="notifications" size={20} color="#FFFFFF" />
+                <View style={styles.notificationBadge} />
               </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={styles.profileButton}
+              <TouchableOpacity
+                style={styles.signInButton}
                 onPress={() => setShowLoginModal(true)}
               >
-                <Ionicons name="person-circle-outline" size={20} color="white" />
+                <Text style={styles.signInText}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Bottom Header Row */}
-          <View style={styles.bottomHeaderRow}>
-            <Text style={styles.welcomeMessage}>Welcome to our healthcare family</Text>
-            <Text style={styles.tagline}>Your Health, Our Priority • 24/7 Emergency Care</Text>
+          
+          <View style={styles.headerBottom}>
+            <TouchableOpacity
+              style={styles.adminPortalButton}
+              onPress={() => setShowAdminModal(true)}
+            >
+              <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
+              <Text style={styles.adminPortalText}>Admin Portal</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Welcome Section */}
-          <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeText}>Welcome to KBR Hospital</Text>
-            <Text style={styles.subtitle}>Your health, our priority</Text>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Hero Section - Simplified for better loading */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroFallback}>
+              <View style={styles.heroIcon}>
+                <Image 
+                  source={require('../../../assets/hospital-logo.jpeg')}
+                  style={styles.heroLogoImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.heroTitle}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
+              <Text style={styles.heroSubtitle}>
+                We blend compassionate care with cutting-edge medicine, driven by a dedicated team prioritizing your well-being.
+              </Text>
+            </View>
           </View>
 
-          {/* Enhanced Service Cards */}
-          <View style={styles.servicesContainer}>
-            <TouchableOpacity 
-              style={[styles.serviceCard, styles.appointmentCard]} 
-              onPress={() => handleServicePress('Book Appointment')}
-            >
-              <View style={styles.iconContainer}>
-                <Ionicons name="calendar" size={32} color="#4A90E2" />
-              </View>
-              <Text style={styles.serviceTitle}>Book Appointment</Text>
-              <Text style={styles.serviceDescription}>Schedule with our experts</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.serviceCard, styles.servicesCard]} 
-              onPress={() => handleServicePress('Services')}
-            >
-              <View style={styles.iconContainer}>
-                <Ionicons name="medical" size={32} color="#4A90E2" />
-              </View>
-              <Text style={styles.serviceTitle}>Services</Text>
-              <Text style={styles.serviceDescription}>View all medical services</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.serviceCard, styles.reportsCard]} 
-              onPress={() => handleServicePress('Reports')}
-            >
-              <View style={styles.iconContainer}>
-                <Ionicons name="document-text" size={32} color="#4A90E2" />
-              </View>
-              <Text style={styles.serviceTitle}>Reports</Text>
-              <Text style={styles.serviceDescription}>Access your test results</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.serviceCard, styles.pharmacyCard]} 
-              onPress={() => handleServicePress('Pharmacy')}
-            >
-              <View style={styles.iconContainer}>
-                <Ionicons name="basket-outline" size={32} color="#4A90E2" />
-              </View>
-              <Text style={styles.serviceTitle}>Pharmacy</Text>
-              <Text style={styles.serviceDescription}>Order medicines online</Text>
-            </TouchableOpacity>
+          {/* Vision & Mission */}
+          <View style={styles.visionSection}>
+            <View style={styles.visionItem}>
+              <Text style={styles.visionTitle}>Our Vision</Text>
+              <Text style={styles.visionText}>
+                To be the preferred healthcare provider in Sangareddy and beyond, delivering world-class medical services with compassion, innovation, and excellence.
+              </Text>
+            </View>
+            <View style={styles.visionItem}>
+              <Text style={styles.visionTitle}>Our Mission</Text>
+              <Text style={styles.visionText}>
+                Providing accessible, affordable, and advanced healthcare through dedicated professionals, state-of-the-art facilities, and patient-centered approach.
+              </Text>
+            </View>
           </View>
 
-          {/* Additional Features */}
-          <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Why Choose KBR Hospital?</Text>
+          {/* Doctors Carousel */}
+          <View style={styles.doctorsSection}>
+            <Text style={styles.sectionTitle}>Meet Our Expert Doctors</Text>
+            <Text style={styles.sectionSubtitle}>Experienced specialists dedicated to your health</Text>
             
-            <View style={styles.featureItem}>
-              <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Expert Medical Care</Text>
-                <Text style={styles.featureSubtitle}>Experienced doctors and specialists</Text>
+            <View style={styles.doctorCard}>
+              <View style={styles.doctorImageContainer}>
+                <View style={styles.doctorImageWrapper}>
+                  <View style={styles.doctorPlaceholder}>
+                    <Ionicons name="person" size={60} color="#4AA3DF" />
+                  </View>
+                </View>
+                
+                <View style={styles.carouselControls}>
+                  <TouchableOpacity
+                    style={styles.controlButton}
+                    onPress={() => setCurrentDoctorIndex((prev) => (prev - 1 + doctors.length) % doctors.length)}
+                  >
+                    <Ionicons name="chevron-back" size={20} color="#4AA3DF" />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.controlButton, styles.playButton]}
+                    onPress={() => setIsPlaying(!isPlaying)}
+                  >
+                    <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.controlButton}
+                    onPress={() => setCurrentDoctorIndex((prev) => (prev + 1) % doctors.length)}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="#4AA3DF" />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.dotsIndicator}>
+                  {doctors.map((_, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dot,
+                        index === currentDoctorIndex && styles.activeDot
+                      ]}
+                      onPress={() => setCurrentDoctorIndex(index)}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
-
-            <View style={styles.featureItem}>
-              <Ionicons name="time" size={24} color="#F59E0B" />
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>24/7 Emergency Services</Text>
-                <Text style={styles.featureSubtitle}>Round-the-clock medical support</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureItem}>
-              <Ionicons name="location" size={24} color="#EF4444" />
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Prime Location</Text>
-                <Text style={styles.featureSubtitle}>Easily accessible in Sangareddy</Text>
+              
+              <View style={styles.doctorInfo}>
+                <Text style={styles.doctorName}>{doctors[currentDoctorIndex].name}</Text>
+                <Text style={styles.doctorCredentials}>{doctors[currentDoctorIndex].credentials}</Text>
+                <Text style={styles.doctorRole}>{doctors[currentDoctorIndex].role}</Text>
+                {doctors[currentDoctorIndex].fellowship && (
+                  <Text style={styles.doctorFellowship}>{doctors[currentDoctorIndex].fellowship}</Text>
+                )}
+                
+                <View style={styles.expertiseSection}>
+                  <Text style={styles.expertiseTitle}>Areas of Expertise:</Text>
+                  {doctors[currentDoctorIndex].expertise.map((item, index) => (
+                    <View key={index} style={styles.expertiseItem}>
+                      <Ionicons name="checkmark-circle" size={16} color="#4AA3DF" />
+                      <Text style={styles.expertiseText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.bookAppointmentButton}
+                  onPress={() => handleServicePress('Book Appointment')}
+                >
+                  <Text style={styles.bookAppointmentText}>Book Appointment</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
 
-          {/* Emergency Contact */}
-          <View style={styles.emergencySection}>
-            <Text style={styles.emergencyTitle}>Medical Emergency?</Text>
-            <Text style={styles.emergencySubtitle}>Call us immediately for urgent care</Text>
-            <TouchableOpacity 
-              style={styles.emergencyButton}
-              onPress={() => Alert.alert('Emergency Call', 'Calling +91 8466 999 000...')}
+          {/* Stats Section */}
+          <View style={styles.statsSection}>
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Ionicons name="people" size={32} color="#FFFFFF" />
+                <Text style={styles.statValue}>10,000+</Text>
+                <Text style={styles.statLabel}>Patients Treated</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="trophy" size={32} color="#FFFFFF" />
+                <Text style={styles.statValue}>15+</Text>
+                <Text style={styles.statLabel}>Years Experience</Text>
+              </View>
+            </View>
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Ionicons name="medical" size={32} color="#FFFFFF" />
+                <Text style={styles.statValue}>25+</Text>
+                <Text style={styles.statLabel}>Expert Doctors</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Ionicons name="heart" size={32} color="#FFFFFF" />
+                <Text style={styles.statValue}>98%</Text>
+                <Text style={styles.statLabel}>Success Rate</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Services Section */}
+          <View style={styles.servicesSection}>
+            <Text style={styles.sectionTitle}>Our Medical Services</Text>
+            <Text style={styles.sectionSubtitle}>Comprehensive healthcare solutions for you and your family</Text>
+            
+            <View style={styles.servicesGrid}>
+              {services.map((service) => (
+                <TouchableOpacity key={service.id} style={styles.serviceCard}>
+                  <View style={[styles.serviceIcon, { backgroundColor: service.color || '#E6F4FB' }]}>
+                    <Ionicons name={service.icon || 'medical-outline'} size={28} color="#333333" />
+                  </View>
+                  <Text style={styles.serviceTitle}>{service.name || 'Service'}</Text>
+                  <Text style={styles.serviceDescription}>{service.description || 'Description not available'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Health Packages - Simplified */}
+          <View style={styles.packagesSection}>
+            <Text style={styles.sectionTitle}>Health Packages</Text>
+            <Text style={styles.sectionSubtitle}>Comprehensive checkups tailored to your needs</Text>
+            
+            <View style={styles.quickPackagesGrid}>
+              <TouchableOpacity style={styles.quickPackageCard} onPress={() => setShowLoginModal(true)}>
+                <Text style={styles.quickPackageName}>Basic Checkup</Text>
+                <Text style={styles.quickPackagePrice}>₹1,999</Text>
+                <Text style={styles.quickPackageButton}>Book Now</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={[styles.quickPackageCard, styles.popularQuickPackage]} onPress={() => setShowLoginModal(true)}>
+                <View style={styles.quickPopularBadge}>
+                  <Text style={styles.quickPopularText}>Popular</Text>
+                </View>
+                <Text style={styles.quickPackageName}>Comprehensive</Text>
+                <Text style={styles.quickPackagePrice}>₹4,999</Text>
+                <Text style={styles.quickPackageButton}>Book Now</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.quickPackageCard} onPress={() => setShowLoginModal(true)}>
+                <Text style={styles.quickPackageName}>Executive</Text>
+                <Text style={styles.quickPackagePrice}>₹8,999</Text>
+                <Text style={styles.quickPackageButton}>Book Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Popular Tests - Simplified */}
+          <View style={styles.testsSection}>
+            <Text style={styles.sectionTitle}>Popular Diagnostic Tests</Text>
+            <Text style={styles.sectionSubtitle}>Quick and accurate test results</Text>
+            
+            <View style={styles.quickTestsContainer}>
+              <TouchableOpacity style={styles.quickTestCard}>
+                <Text style={styles.quickTestName}>CBC</Text>
+                <Text style={styles.quickTestPrice}>₹350</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickTestCard}>
+                <Text style={styles.quickTestName}>Lipid Profile</Text>
+                <Text style={styles.quickTestPrice}>₹500</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickTestCard}>
+                <Text style={styles.quickTestName}>Thyroid</Text>
+                <Text style={styles.quickTestPrice}>₹450</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickTestCard}>
+                <Text style={styles.quickTestName}>HbA1c</Text>
+                <Text style={styles.quickTestPrice}>₹400</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Contact Section */}
+          <View style={styles.contactSection}>
+            <Text style={styles.sectionTitle}>Get In Touch</Text>
+            <Text style={styles.sectionSubtitle}>We're here to help you 24/7</Text>
+            
+            <View style={styles.contactGrid}>
+              <TouchableOpacity style={styles.contactCard} onPress={() => makeCall('+918466999000')}>
+                <View style={[styles.contactIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="call" size={24} color="#C62828" />
+                </View>
+                <Text style={styles.contactTitle}>Phone</Text>
+                <Text style={styles.contactText}>+91 8466 999 000</Text>
+                <Text style={styles.contactSubtext}>24/7 Emergency</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.contactCard} onPress={() => sendEmail('info@kbrhospitals.com')}>
+                <View style={[styles.contactIcon, { backgroundColor: '#E6F4FB' }]}>
+                  <Ionicons name="mail" size={24} color="#4AA3DF" />
+                </View>
+                <Text style={styles.contactTitle}>Email</Text>
+                <Text style={styles.contactText}>info@kbrhospitals.com</Text>
+                <Text style={styles.contactSubtext}>support@kbrhospitals.com</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.contactCard}>
+                <View style={[styles.contactIcon, { backgroundColor: '#D1FAE5' }]}>
+                  <Ionicons name="location" size={24} color="#10B981" />
+                </View>
+                <Text style={styles.contactTitle}>Location</Text>
+                <Text style={styles.contactText}>Sangareddy</Text>
+                <Text style={styles.contactSubtext}>Telangana, India</Text>
+              </View>
+              
+              <View style={styles.contactCard}>
+                <View style={[styles.contactIcon, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="time" size={24} color="#F59E0B" />
+                </View>
+                <Text style={styles.contactTitle}>Hours</Text>
+                <Text style={styles.contactText}>Mon - Sun</Text>
+                <Text style={styles.contactSubtext}>24/7 Open</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Emergency Banner */}
+          <View style={styles.emergencyBanner}>
+            <Text style={styles.emergencyTitle}>Emergency? Call Us Now!</Text>
+            <Text style={styles.emergencySubtitle}>We're available 24/7 for medical emergencies</Text>
+            <TouchableOpacity
+              style={styles.emergencyCallButton}
+              onPress={() => makeCall('+918466999000')}
             >
-              <Ionicons name="call" size={20} color="white" />
-              <Text style={styles.emergencyButtonText}>Call Emergency: +91 8466 999 000</Text>
+              <Ionicons name="call" size={20} color="#C62828" />
+              <Text style={styles.emergencyCallText}>Call Emergency: +91 8466 999 000</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -249,18 +593,64 @@ const PatientHomeScreen = ({ navigation }) => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Sign In to KBR Hospital</Text>
+                <View style={styles.modalLogoSection}>
+                  <Image 
+                    source={require('../../../assets/hospital-logo.jpeg')}
+                    style={styles.modalLogoImage}
+                    resizeMode="contain"
+                  />
+                  <View>
+                    <Text style={styles.modalTitle}>Sign In to Continue</Text>
+                    <Text style={styles.modalSubtitle}>Access your KBR healthcare account</Text>
+                  </View>
+                </View>
                 <TouchableOpacity onPress={() => setShowLoginModal(false)}>
                   <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
               </View>
-              
-              <View style={styles.credentialsInfo}>
-                <Text style={styles.credentialsTitle}>🔑 Demo Credentials:</Text>
-                <Text style={styles.credentialsText}>Patient: patient@kbr.com / patient123</Text>
-                <Text style={styles.credentialsText}>Admin: admin@kbrhospitals.com / admin123</Text>
+
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, loginTab === 'signin' && styles.activeTab]}
+                  onPress={() => setLoginTab('signin')}
+                >
+                  <Text style={[styles.tabText, loginTab === 'signin' && styles.activeTabText]}>
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tab, loginTab === 'signup' && styles.activeTab]}
+                  onPress={() => setLoginTab('signup')}
+                >
+                  <Text style={[styles.tabText, loginTab === 'signup' && styles.activeTabText]}>
+                    Sign Up
+                  </Text>
+                </TouchableOpacity>
               </View>
-              
+
+              {loginTab === 'signin' && (
+                <View style={styles.credentialsInfo}>
+                  <View style={styles.credentialCard}>
+                    <Text style={styles.credentialTitle}>🔑 Admin Portal Access:</Text>
+                    <Text style={styles.credentialText}>admin@kbrhospitals.com</Text>
+                    <Text style={styles.credentialText}>admin123</Text>
+                  </View>
+                  <View style={styles.credentialCard}>
+                    <Text style={styles.credentialTitle}>🏥 Patient Portal Access:</Text>
+                    <Text style={styles.credentialText}>patient@kbr.com</Text>
+                    <Text style={styles.credentialText}>patient123</Text>
+                  </View>
+                </View>
+              )}
+
+              {loginTab === 'signup' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#999"
+                />
+              )}
+
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
@@ -270,340 +660,748 @@ const PatientHomeScreen = ({ navigation }) => {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-              
-              <TouchableOpacity 
-                style={styles.loginButton}
-                onPress={() => handleLogin(email, password)}
-              >
-                <Text style={styles.loginButtonText}>Sign In & Continue</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.quickFillButton}
-                onPress={() => {
-                  setEmail('admin@kbrhospitals.com');
-                  setPassword('admin123');
-                }}
-              >
-                <Text style={styles.quickFillText}>🔐 Quick Fill Admin Credentials</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.guestButton}
-                onPress={() => {
-                  setShowLoginModal(false);
-                  setEmail('');
-                  setPassword('');
-                  Alert.alert('Guest Mode', 'Browsing as guest. Some features may be limited.');
-                }}
-              >
-                <Text style={styles.guestButtonText}>Continue as Guest</Text>
+
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#999"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={18} color="#999" />
+                </TouchableOpacity>
+              </View>
+
+              {loginTab === 'signup' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your phone number"
+                  placeholderTextColor="#999"
+                  keyboardType="phone-pad"
+                />
+              )}
+
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+                <Text style={styles.loginButtonText}>
+                  {loginTab === 'signin' ? 'Sign In & Continue' : 'Create Account & Continue'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
+
+        {/* Admin Login Modal */}
+        <Modal
+          visible={showAdminModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowAdminModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.adminModalHeader}>
+                <Ionicons name="shield-checkmark" size={48} color="#C62828" />
+                <Text style={styles.adminModalTitle}>Admin Portal Login</Text>
+                <Text style={styles.adminModalSubtitle}>Authorized Access Only</Text>
+                <TouchableOpacity
+                  style={styles.adminModalClose}
+                  onPress={() => setShowAdminModal(false)}
+                >
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.adminCredentials}>
+                <Text style={styles.adminCredentialTitle}>🔑 Admin Credentials:</Text>
+                <Text style={styles.adminCredentialText}>admin@kbrhospitals.com</Text>
+                <Text style={styles.adminCredentialText}>admin123</Text>
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Enter admin email"
+                placeholderTextColor="#999"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter password"
+                  placeholderTextColor="#999"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={18} color="#999" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.adminLoginButton} onPress={handleLogin}>
+                <Text style={styles.adminLoginButtonText}>Access Admin Portal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Notifications Dropdown */}
+        {showNotifications && (
+          <View style={styles.notificationsDropdown}>
+            <View style={styles.notificationHeader}>
+              <Text style={styles.notificationTitle}>Notifications</Text>
+              <View style={styles.newBadge}>
+                <Text style={styles.newBadgeText}>3 New</Text>
+              </View>
+            </View>
+            <View style={styles.notificationItem}>
+              <View style={styles.notificationDot} />
+              <View style={styles.notificationContent}>
+                <Text style={styles.notificationText}>Appointment Confirmed</Text>
+                <Text style={styles.notificationSubtext}>Your appointment is confirmed for tomorrow at 2:00 PM</Text>
+                <Text style={styles.notificationTime}>2 minutes ago</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => setShowNotifications(false)}
+            >
+              <Text style={styles.viewAllText}>View All Notifications</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </SafeAreaView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // Loading Screen Styles
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#4AA3DF',
+  },
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Sizes.screenPadding,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  loadingLogoImage: {
+    width: 60,
+    height: 60,
+  },
+  loadingTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Sizes.sm,
+  },
+  loadingSubtitle: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Sizes.xl,
+  },
+  loadingSpinner: {
+    marginTop: Sizes.lg,
+  },
+  
+  // Main Screen Styles
   container: {
     flex: 1,
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#4AA3DF',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F5F5F5',
   },
-  
-  // Enhanced Professional Header Styles
   header: {
-    backgroundColor: '#4A90E2',
-    paddingTop: 15,
-    paddingBottom: 20,
+    backgroundColor: '#4AA3DF',
+    paddingBottom: Sizes.md,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
-  
-  // Top Header Row Styles
-  topHeaderRow: {
+  headerTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  hospitalBranding: {
-    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: Sizes.screenPadding,
+    paddingTop: Sizes.md,
   },
   logoSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  hospitalTextSection: {
-    marginLeft: 12,
+  headerLogoImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  hospitalInfo: {
+    marginLeft: Sizes.sm,
   },
   hospitalName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-    letterSpacing: 0.5,
-    lineHeight: 24,
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   hospitalSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#E3F2FD',
-    letterSpacing: 1,
-    marginTop: -2,
+    fontSize: Sizes.small,
+    color: Colors.white,
+    opacity: 0.9,
   },
-  
-  // Header Actions Styles
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Sizes.sm,
   },
-  
-  // Bottom Header Row Styles
-  bottomHeaderRow: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    marginTop: 8,
-  },
-  welcomeMessage: {
-    fontSize: 14,
-    color: 'white',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  tagline: {
-    fontSize: 12,
-    color: '#E3F2FD',
-    fontWeight: '400',
-    opacity: 0.9,
-  },
-  
-  // Admin Button Styles
-  adminButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(220, 53, 69, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  actionButton: {
+    padding: Sizes.sm,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    position: 'relative',
   },
-  adminText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-    marginLeft: 4,
-    letterSpacing: 0.3,
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C62828',
   },
-  
-  // Profile Button Styles  
-  profileButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    padding: 8,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  signInButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Sizes.md,
+    paddingVertical: Sizes.sm,
+    borderRadius: 20,
   },
   signInText: {
-    color: 'white',
-    fontSize: 12,
+    color: Colors.white,
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+  },
+  headerBottom: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingTop: Sizes.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  adminPortalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    backgroundColor: '#C62828',
+    paddingHorizontal: Sizes.md,
+    paddingVertical: Sizes.sm,
+    borderRadius: Sizes.radiusMedium,
+  },
+  adminPortalText: {
+    color: Colors.white,
+    fontSize: Sizes.medium,
     fontWeight: '600',
     marginLeft: 4,
   },
-  
-  // Content
-  content: {
+  scrollView: {
     flex: 1,
-    padding: 20,
   },
   
-  // Welcome Section
-  welcomeSection: {
-    marginBottom: 30,
+  // Hero Section - Simplified for better performance
+  heroSection: {
+    height: 300,
+    backgroundColor: 'linear-gradient(135deg, #4AA3DF 0%, #2563EB 100%)',
+    position: 'relative',
+  },
+  heroFallback: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 10,
+    backgroundColor: '#4AA3DF',
+    padding: Sizes.screenPadding,
   },
-  welcomeText: {
-    fontSize: 24,
+  heroIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Sizes.lg,
+    overflow: 'hidden',
+  },
+  heroLogoImage: {
+    width: 60,
+    height: 60,
+  },
+  heroOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: Sizes.screenPadding,
+  },
+  heroContent: {
+    maxWidth: '100%',
+  },
+  heroTitle: {
+    fontSize: Sizes.large,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    color: Colors.white,
+    marginBottom: Sizes.sm,
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  heroSubtitle: {
+    fontSize: Sizes.medium,
+    color: Colors.white,
+    lineHeight: 20,
     textAlign: 'center',
   },
   
-  // Services Container
-  servicesContainer: {
+  // Vision Section
+  visionSection: {
+    backgroundColor: Colors.white,
+    padding: Sizes.screenPadding,
+  },
+  visionItem: {
+    marginBottom: Sizes.md,
+  },
+  visionTitle: {
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
+    textDecorationLine: 'underline',
+  },
+  visionText: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  
+  // Doctors Section
+  doctorsSection: {
+    backgroundColor: '#F8FAFC',
+    padding: Sizes.screenPadding,
+  },
+  sectionTitle: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Sizes.sm,
+  },
+  sectionSubtitle: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Sizes.lg,
+  },
+  doctorCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  doctorImageContainer: {
+    alignItems: 'center',
+    marginBottom: Sizes.lg,
+  },
+  doctorImageWrapper: {
+    width: 200,
+    height: 200,
+    borderRadius: Sizes.radiusLarge,
+    backgroundColor: '#E6F4FB',
+    marginBottom: Sizes.md,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  doctorPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E6F4FB',
+  },
+  carouselControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Sizes.md,
+    marginBottom: Sizes.md,
+  },
+  controlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E6F4FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playButton: {
+    backgroundColor: '#4AA3DF',
+  },
+  dotsIndicator: {
+    flexDirection: 'row',
+    gap: Sizes.sm,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.border,
+  },
+  activeDot: {
+    backgroundColor: '#4AA3DF',
+    width: 20,
+  },
+  doctorInfo: {
+    alignItems: 'center',
+  },
+  doctorName: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  doctorCredentials: {
+    fontSize: Sizes.medium,
+    color: '#4AA3DF',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  doctorRole: {
+    fontSize: Sizes.regular,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Sizes.sm,
+  },
+  doctorFellowship: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: Sizes.md,
+  },
+  expertiseSection: {
+    width: '100%',
+    marginBottom: Sizes.lg,
+  },
+  expertiseTitle: {
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
+  },
+  expertiseItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: Sizes.sm,
+  },
+  expertiseText: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginLeft: Sizes.sm,
+    flex: 1,
+  },
+  bookAppointmentButton: {
+    backgroundColor: '#4AA3DF',
+    paddingHorizontal: Sizes.lg,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+  },
+  bookAppointmentText: {
+    color: Colors.white,
+    fontSize: Sizes.regular,
+    fontWeight: '600',
+  },
+  
+  // Stats Section
+  statsSection: {
+    backgroundColor: '#4AA3DF',
+    padding: Sizes.screenPadding,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Sizes.md,
+    marginBottom: Sizes.md,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: Sizes.lg,
+    borderRadius: Sizes.radiusMedium,
+  },
+  statValue: {
+    fontSize: Sizes.xxlarge,
+    fontWeight: 'bold',
+    color: Colors.white,
+    marginTop: Sizes.sm,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: Sizes.medium,
+    color: Colors.white,
+    textAlign: 'center',
+  },
+  
+  // Services Section
+  servicesSection: {
+    backgroundColor: Colors.white,
+    padding: Sizes.screenPadding,
+  },
+  servicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 30,
   },
   serviceCard: {
     width: '47%',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    padding: Sizes.lg,
+    borderRadius: Sizes.radiusLarge,
     alignItems: 'center',
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
+    marginBottom: Sizes.md,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 0.5,
-    borderColor: '#E0E0E0',
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  appointmentCard: {
-    borderTopColor: '#4A90E2',
-    borderTopWidth: 3,
-  },
-  servicesCard: {
-    borderTopColor: '#2196F3',
-    borderTopWidth: 3,
-  },
-  reportsCard: {
-    borderTopColor: '#FF9800',
-    borderTopWidth: 3,
-  },
-  pharmacyCard: {
-    borderTopColor: '#4CAF50',
-    borderTopWidth: 3,
-  },
-  iconContainer: {
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 25,
-    backgroundColor: '#F8F9FA',
+  serviceIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: Sizes.radiusLarge,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Sizes.md,
   },
   serviceTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 5,
-    textAlign: 'center',
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
   },
   serviceDescription: {
-    fontSize: 11,
-    color: '#666',
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 16,
   },
   
-  // Features Section
-  featuresSection: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
+  // Packages Section - Simplified
+  packagesSection: {
+    backgroundColor: '#F8FAFC',
+    padding: Sizes.screenPadding,
+  },
+  quickPackagesGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  quickPackageCard: {
+    backgroundColor: Colors.white,
+    padding: Sizes.lg,
+    borderRadius: Sizes.radiusLarge,
+    width: '31%',
+    alignItems: 'center',
+    marginBottom: Sizes.md,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    position: 'relative',
+  },
+  popularQuickPackage: {
+    borderColor: '#4AA3DF',
+  },
+  quickPopularBadge: {
+    position: 'absolute',
+    top: -8,
+    backgroundColor: '#C62828',
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  quickPopularText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  quickPackageName: {
+    fontSize: Sizes.medium,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
+    textAlign: 'center',
+  },
+  quickPackagePrice: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: '#4AA3DF',
+    marginBottom: Sizes.sm,
+  },
+  quickPackageButton: {
+    fontSize: Sizes.small,
+    color: '#4AA3DF',
+    fontWeight: '600',
+  },
+  
+  // Tests Section - Simplified
+  testsSection: {
+    backgroundColor: Colors.white,
+    padding: Sizes.screenPadding,
+  },
+  quickTestsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  quickTestCard: {
+    width: '48%',
+    backgroundColor: '#E6F4FB',
+    padding: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: Sizes.md,
+    alignItems: 'center',
+  },
+  quickTestName: {
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  quickTestPrice: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: '#4AA3DF',
+  },
+  
+  // Contact Section
+  contactSection: {
+    backgroundColor: '#F8FAFC',
+    padding: Sizes.screenPadding,
+  },
+  contactGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  contactCard: {
+    width: '48%',
+    backgroundColor: Colors.white,
+    padding: Sizes.lg,
+    borderRadius: Sizes.radiusLarge,
+    alignItems: 'center',
+    marginBottom: Sizes.md,
+    shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  featureItem: {
-    flexDirection: 'row',
+  contactIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    marginBottom: 15,
-    paddingVertical: 5,
+    justifyContent: 'center',
+    marginBottom: Sizes.md,
   },
-  featureText: {
-    marginLeft: 15,
-    flex: 1,
+  contactTitle: {
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
   },
-  featureTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+  contactText: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: 4,
   },
-  featureSubtitle: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
+  contactSubtext: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
   },
   
-  // Emergency Section
-  emergencySection: {
+  // Emergency Banner
+  emergencyBanner: {
     backgroundColor: '#C62828',
-    borderRadius: 12,
-    padding: 20,
+    margin: Sizes.screenPadding,
+    padding: Sizes.lg,
+    borderRadius: Sizes.radiusLarge,
     alignItems: 'center',
-    marginBottom: 20,
   },
   emergencyTitle: {
-    fontSize: 18,
+    fontSize: Sizes.large,
     fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 5,
+    color: Colors.white,
+    marginBottom: Sizes.sm,
   },
   emergencySubtitle: {
-    fontSize: 13,
+    fontSize: Sizes.medium,
     color: '#FFEBEE',
-    marginBottom: 15,
     textAlign: 'center',
+    marginBottom: Sizes.lg,
   },
-  emergencyButton: {
+  emergencyCallButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    paddingHorizontal: Sizes.lg,
+    paddingVertical: Sizes.md,
     borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  emergencyButtonText: {
+  emergencyCallText: {
     color: '#C62828',
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 8,
+    fontSize: Sizes.medium,
+    fontWeight: 'bold',
+    marginLeft: Sizes.sm,
   },
   
   // Modal Styles
@@ -612,106 +1410,268 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Sizes.screenPadding,
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 25,
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
     width: '100%',
-    maxWidth: 380,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 10,
+    maxWidth: 400,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 10,
+    justifyContent: 'space-between',
+    marginBottom: Sizes.lg,
+    paddingBottom: Sizes.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: Colors.border,
+  },
+  modalLogoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modalLogoImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: Sizes.md,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: Sizes.large,
     fontWeight: 'bold',
-    color: '#333',
+    color: Colors.textPrimary,
+  },
+  modalSubtitle: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    marginBottom: Sizes.lg,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Sizes.md,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.border,
+  },
+  activeTab: {
+    borderBottomColor: '#4AA3DF',
+    backgroundColor: '#E6F4FB',
+  },
+  tabText: {
+    fontSize: Sizes.regular,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  activeTabText: {
+    color: '#4AA3DF',
   },
   credentialsInfo: {
-    backgroundColor: '#E3F2FD',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4A90E2',
+    marginBottom: Sizes.lg,
   },
-  credentialsTitle: {
-    fontSize: 12,
+  credentialCard: {
+    backgroundColor: '#E6F4FB',
+    padding: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: Sizes.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4AA3DF',
+  },
+  credentialTitle: {
+    fontSize: Sizes.small,
     fontWeight: 'bold',
     color: '#1565C0',
-    marginBottom: 8,
+    marginBottom: Sizes.sm,
   },
-  credentialsText: {
-    fontSize: 11,
+  credentialText: {
+    fontSize: Sizes.small,
     color: '#1976D2',
     fontFamily: 'monospace',
     marginBottom: 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    fontSize: 16,
+    borderColor: Colors.border,
+    borderRadius: Sizes.radiusMedium,
+    padding: Sizes.md,
+    marginBottom: Sizes.md,
+    fontSize: Sizes.regular,
     backgroundColor: '#FAFAFA',
   },
-  loginButton: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 15,
-    borderRadius: 8,
+  passwordContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#4A90E2',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: Sizes.md,
+    backgroundColor: '#FAFAFA',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: Sizes.md,
+    fontSize: Sizes.regular,
+  },
+  passwordToggle: {
+    padding: Sizes.md,
+  },
+  loginButton: {
+    backgroundColor: '#4AA3DF',
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    alignItems: 'center',
   },
   loginButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: Colors.white,
+    fontSize: Sizes.regular,
     fontWeight: '600',
   },
-  quickFillButton: {
+  
+  // Admin Modal
+  adminModalHeader: {
+    alignItems: 'center',
+    marginBottom: Sizes.lg,
+    paddingBottom: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    position: 'relative',
+  },
+  adminModalClose: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+  },
+  adminModalTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginTop: Sizes.md,
+  },
+  adminModalSubtitle: {
+    fontSize: Sizes.medium,
+    color: '#C62828',
+    marginTop: 4,
+  },
+  adminCredentials: {
     backgroundColor: '#FFF3E0',
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#FFB74D',
+    padding: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: Sizes.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
   },
-  quickFillText: {
+  adminCredentialTitle: {
+    fontSize: Sizes.small,
+    fontWeight: 'bold',
     color: '#E65100',
-    fontSize: 12,
+    marginBottom: Sizes.sm,
+  },
+  adminCredentialText: {
+    fontSize: Sizes.small,
+    color: '#F57C00',
+    fontFamily: 'monospace',
+    marginBottom: 2,
+  },
+  adminLoginButton: {
+    backgroundColor: '#C62828',
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    alignItems: 'center',
+  },
+  adminLoginButtonText: {
+    color: Colors.white,
+    fontSize: Sizes.regular,
     fontWeight: '600',
   },
-  guestButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+  
+  // Notifications Dropdown
+  notificationsDropdown: {
+    position: 'absolute',
+    top: 80,
+    right: Sizes.screenPadding,
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    width: 300,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
   },
-  guestButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '500',
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.md,
+    paddingBottom: Sizes.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notificationTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+  },
+  newBadge: {
+    backgroundColor: '#C62828',
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  newBadgeText: {
+    color: Colors.white,
+    fontSize: Sizes.small,
+    fontWeight: '600',
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notificationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C62828',
+    marginTop: 6,
+    marginRight: Sizes.sm,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationText: {
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  notificationSubtext: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  notificationTime: {
+    fontSize: Sizes.small,
+    color: '#4AA3DF',
+  },
+  viewAllButton: {
+    paddingVertical: Sizes.md,
+    alignItems: 'center',
+  },
+  viewAllText: {
+    color: '#4AA3DF',
+    fontSize: Sizes.medium,
+    fontWeight: '600',
   },
 });
 

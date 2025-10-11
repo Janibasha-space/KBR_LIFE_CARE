@@ -8,198 +8,182 @@ import {
   SafeAreaView,
   TextInput,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 
-// Helper function to create transparent colors
-const getTransparentColor = (color, opacity) => `${color}${opacity}`;
-
 const MedicalReportsScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All Reports');
-  const [selectedFilter, setSelectedFilter] = useState('All Reports');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('Date');
-
-  const tabs = ['All Reports', 'Recent', 'Invoices', 'Categories'];
-
-  const reports = [
-    {
-      id: '1',
-      title: 'Complete Blood Count (CBC)',
-      doctor: 'Dr. Sarah Johnson',
-      date: 'Dec 10, 2024',
-      time: '10:30 AM',
-      description: 'All parameters within normal range',
-      size: '2.3 MB • 3 pages',
-      status: 'available',
-      icon: 'water-outline',
-      color: Colors.kbrRed,
-    },
-    {
-      id: '2',
-      title: 'Chest X-Ray',
-      doctor: 'Dr. Michael Brown',
-      date: 'Dec 8, 2024',
-      time: '2:15 PM',
-      description: 'No abnormalities detected',
-      size: '5.1 MB • 2 pages',
-      status: 'available',
-      icon: 'medical-outline',
-      color: Colors.kbrBlue,
-    },
-  ];
-
-  const renderTabButton = (tab, index) => (
-    <TouchableOpacity
-      key={`tab-${index}`}
-      style={[
-        styles.tabButton,
-        activeTab === tab && styles.activeTabButton
-      ]}
-      onPress={() => setActiveTab(tab)}
-    >
-      <Text style={[
-        styles.tabButtonText,
-        activeTab === tab && styles.activeTabButtonText
-      ]}>
-        {tab}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const renderReportCard = (report, index) => (
-    <View key={`report-${report.id}-${index}`} style={styles.reportCard}>
-      <View style={styles.reportHeader}>
-        <View style={styles.reportLeft}>
-          <View style={[styles.reportIconContainer, { backgroundColor: getTransparentColor(report.color, '15') }]}>
-            <Ionicons name={report.icon} size={24} color={report.color} />
-          </View>
-          <View style={styles.reportInfo}>
-            <View style={styles.reportTitleRow}>
-              <Text style={styles.reportTitle}>{report.title || 'No Title'}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: getTransparentColor(Colors.kbrGreen, '15') }]}>
-                <Text style={[styles.statusText, { color: Colors.kbrGreen }]}>
-                  {report.status || 'Unknown'}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.reportDoctor}>{report.doctor || 'Unknown Doctor'}</Text>
-            <View style={styles.reportDateTime}>
-              <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.reportDate}>{report.date || 'No Date'}</Text>
-              <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.reportTime}>{report.time || 'No Time'}</Text>
-            </View>
-            <Text style={styles.reportDescription}>{report.description || 'No Description'}</Text>
-            <Text style={styles.reportSize}>{report.size || 'Unknown Size'}</Text>
-          </View>
-        </View>
-      </View>
-      
-      <View style={styles.reportActions}>
-        <TouchableOpacity style={styles.viewButton}>
-          <Ionicons name="eye-outline" size={16} color={Colors.white} />
-          <Text style={styles.viewButtonText}>View</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="download-outline" size={16} color={Colors.kbrRed} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share-outline" size={16} color={Colors.kbrRed} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   return (
     <View style={styles.outerContainer}>
       <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.white} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <View style={styles.headerLogo}>
-            <Ionicons name="medical" size={20} color={Colors.white} />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
-            <Text style={styles.headerSubtitle}>Reports</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.loginButton}>
-          <Ionicons name="log-in-outline" size={16} color={Colors.white} />
-          <Text style={styles.loginText}>Login</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Title Section */}
-        <View style={styles.titleSection}>
-          <Text style={styles.mainTitle}>Medical Reports</Text>
-          <Text style={styles.subtitle}>Access and manage all your medical reports</Text>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search reports or doctors..."
-              placeholderTextColor={Colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Image 
+              source={require('../../../assets/hospital-logo.jpeg')}
+              style={styles.headerLogoImage}
+              resizeMode="contain"
             />
-          </View>
-        </View>
-
-        {/* Filters */}
-        <View style={styles.filtersSection}>
-          <View style={styles.filterRow}>
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="funnel-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.filterText}>{selectedFilter}</Text>
-              <Ionicons name="chevron-down-outline" size={16} color={Colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.filterButton}>
-              <Text style={styles.filterText}>{selectedDateFilter}</Text>
-              <Ionicons name="chevron-down-outline" size={16} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Statistics */}
-        <View style={styles.statsSection}>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: getTransparentColor(Colors.kbrGreen, '15') }]}>
-              <Text style={[styles.statNumber, { color: Colors.kbrGreen }]}>7</Text>
-              <Text style={styles.statLabel}>Available Reports</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: getTransparentColor(Colors.warning, '15') }]}>
-              <Text style={[styles.statNumber, { color: Colors.warning }]}>1</Text>
-              <Text style={styles.statLabel}>Pending Reports</Text>
+            <View>
+              <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
+              <Text style={styles.headerSubtitle}>Reports</Text>
             </View>
           </View>
+          <TouchableOpacity style={styles.loginButton}>
+            <Ionicons name="log-in-outline" size={16} color={Colors.white} />
+            <Text style={styles.loginText}>Login</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Tabs */}
-        <View style={styles.tabsSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.tabsContainer}>
-              {tabs.map((tab, index) => renderTabButton(tab, index))}
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Title Section */}
+          <View style={styles.titleSection}>
+            <Text style={styles.mainTitle}>Medical Reports</Text>
+            <Text style={styles.subtitle}>Access and manage all your medical reports</Text>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchSection}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search reports or doctors..."
+                placeholderTextColor={Colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
-          </ScrollView>
-        </View>
+          </View>
 
-        {/* Reports List */}
-        <View style={styles.reportsSection}>
-          {reports.map((report, index) => renderReportCard(report, index))}
-        </View>
-      </ScrollView>    </SafeAreaView>
+          {/* Statistics */}
+          <View style={styles.statsSection}>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: Colors.kbrGreen + '15' }]}>
+                <Text style={[styles.statNumber, { color: Colors.kbrGreen }]}>7</Text>
+                <Text style={styles.statLabel}>Available Reports</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: Colors.warning + '15' }]}>
+                <Text style={[styles.statNumber, { color: Colors.warning }]}>1</Text>
+                <Text style={styles.statLabel}>Pending Reports</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabsSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity style={[styles.tabButton, styles.activeTabButton]}>
+                  <Text style={styles.activeTabButtonText}>All Reports</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.tabButton}>
+                  <Text style={styles.tabButtonText}>Recent</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.tabButton}>
+                  <Text style={styles.tabButtonText}>Invoices</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.tabButton}>
+                  <Text style={styles.tabButtonText}>Categories</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+
+          {/* Reports List */}
+          <View style={styles.reportsSection}>
+            {/* Report Card 1 */}
+            <View style={styles.reportCard}>
+              <View style={styles.reportHeader}>
+                <View style={styles.reportLeft}>
+                  <View style={[styles.reportIconContainer, { backgroundColor: Colors.kbrRed + '15' }]}>
+                    <Ionicons name="water-outline" size={24} color={Colors.kbrRed} />
+                  </View>
+                  <View style={styles.reportInfo}>
+                    <View style={styles.reportTitleRow}>
+                      <Text style={styles.reportTitle}>Complete Blood Count (CBC)</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: Colors.kbrGreen + '15' }]}>
+                        <Text style={[styles.statusText, { color: Colors.kbrGreen }]}>available</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.reportDoctor}>Dr. Sarah Johnson</Text>
+                    <View style={styles.reportDateTime}>
+                      <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+                      <Text style={styles.reportDate}>Dec 10, 2024</Text>
+                      <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
+                      <Text style={styles.reportTime}>10:30 AM</Text>
+                    </View>
+                    <Text style={styles.reportDescription}>All parameters within normal range</Text>
+                    <Text style={styles.reportSize}>2.3 MB • 3 pages</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.reportActions}>
+                <TouchableOpacity style={styles.viewButton}>
+                  <Ionicons name="eye-outline" size={16} color={Colors.white} />
+                  <Text style={styles.viewButtonText}>View</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="download-outline" size={16} color={Colors.kbrRed} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="share-outline" size={16} color={Colors.kbrRed} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Report Card 2 */}
+            <View style={styles.reportCard}>
+              <View style={styles.reportHeader}>
+                <View style={styles.reportLeft}>
+                  <View style={[styles.reportIconContainer, { backgroundColor: Colors.kbrBlue + '15' }]}>
+                    <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
+                  </View>
+                  <View style={styles.reportInfo}>
+                    <View style={styles.reportTitleRow}>
+                      <Text style={styles.reportTitle}>Chest X-Ray</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: Colors.kbrGreen + '15' }]}>
+                        <Text style={[styles.statusText, { color: Colors.kbrGreen }]}>available</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.reportDoctor}>Dr. Michael Brown</Text>
+                    <View style={styles.reportDateTime}>
+                      <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+                      <Text style={styles.reportDate}>Dec 8, 2024</Text>
+                      <Ionicons name="time-outline" size={14} color={Colors.textSecondary} />
+                      <Text style={styles.reportTime}>2:15 PM</Text>
+                    </View>
+                    <Text style={styles.reportDescription}>No abnormalities detected</Text>
+                    <Text style={styles.reportSize}>5.1 MB • 2 pages</Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.reportActions}>
+                <TouchableOpacity style={styles.viewButton}>
+                  <Ionicons name="eye-outline" size={16} color={Colors.white} />
+                  <Text style={styles.viewButtonText}>View</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="download-outline" size={16} color={Colors.kbrRed} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="share-outline" size={16} color={Colors.kbrRed} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -227,13 +211,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: Sizes.md,
   },
-  headerLogo: {
+  headerLogoImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: Sizes.sm,
   },
   headerTitle: {
@@ -299,29 +280,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginLeft: Sizes.sm,
   },
-  filtersSection: {
-    paddingHorizontal: Sizes.screenPadding,
-    marginBottom: Sizes.md,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: Sizes.sm,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Sizes.md,
-    paddingVertical: Sizes.sm,
-    borderRadius: Sizes.radiusMedium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterText: {
-    fontSize: Sizes.medium,
-    color: Colors.textPrimary,
-    marginHorizontal: Sizes.xs,
-  },
   statsSection: {
     paddingHorizontal: Sizes.screenPadding,
     marginBottom: Sizes.lg,
@@ -373,7 +331,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   activeTabButtonText: {
+    fontSize: Sizes.medium,
     color: Colors.white,
+    fontWeight: '500',
   },
   reportsSection: {
     paddingHorizontal: Sizes.screenPadding,

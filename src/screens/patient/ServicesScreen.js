@@ -8,64 +8,101 @@ import {
   SafeAreaView,
   TextInput,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import { useServices } from '../../contexts/ServicesContext';
 
 const ServicesScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { getServiceCounts } = useServices();
+  
+  let serviceCounts;
+  try {
+    serviceCounts = getServiceCounts();
+  } catch (error) {
+    console.error('Error getting service counts:', error);
+    serviceCounts = { medical: 0, surgical: 0, specialized: 0 };
+  }
 
   const specialtyCategories = [
     {
       id: 'medical',
-      title: 'Medical Specialities',
-      count: 6,
+      title: 'Medical',
+      subtitle: 'Specialties',
+      count: serviceCounts.medical,
       icon: 'medical-outline',
-      color: Colors.kbrBlue,
-      backgroundColor: Colors.kbrBlue,
+      color: '#FFFFFF',
+      backgroundColor: '#4285F4', // Blue
+      description: 'Comprehensive medical care across all specialties',
     },
     {
       id: 'surgical',
-      title: 'Surgical Specialities',
-      count: 6,
+      title: 'Surgical',
+      subtitle: 'Specialties',
+      count: serviceCounts.surgical,
       icon: 'cut-outline',
-      color: Colors.kbrRed,
-      backgroundColor: Colors.kbrRed,
+      color: '#FFFFFF',
+      backgroundColor: '#EA4335', // Red
+      description: 'Advanced surgical procedures and treatments',
     },
     {
       id: 'specialized',
       title: 'Specialized Care',
-      count: 6,
-      icon: 'person-outline',
-      color: Colors.kbrGreen,
-      backgroundColor: Colors.kbrGreen,
+      subtitle: '',
+      count: serviceCounts.specialized,
+      icon: 'star',
+      color: '#FFFFFF',
+      backgroundColor: '#34A853', // Green
+      description: 'Specialized treatments and expert care',
     },
   ];
 
   const renderSpecialtyCard = (specialty) => (
     <TouchableOpacity
       key={specialty.id}
-      style={[styles.specialtyCard, { backgroundColor: specialty.backgroundColor }]}
+      style={[styles.specialtyCard, { backgroundColor: specialty.backgroundColor || '#4285F4' }]}
       activeOpacity={0.8}
+      onPress={() => navigation.navigate('BookAppointment', { category: specialty.id })}
     >
       <View style={styles.specialtyContent}>
         <View style={styles.specialtyLeft}>
-          <View style={[styles.specialtyIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Ionicons name={specialty.icon} size={24} color={Colors.white} />
+          <View style={styles.specialtyIconContainer}>
+            <Ionicons name={specialty.icon || 'medical-outline'} size={28} color={specialty.color || '#FFFFFF'} />
           </View>
           <View style={styles.specialtyInfo}>
-            <Text style={styles.specialtyTitle}>{specialty.title}</Text>
-            <Text style={styles.specialtyCount}>{specialty.count} specialities available</Text>
+            <Text style={styles.specialtyTitle}>{specialty.title || 'Specialty'}</Text>
+            {specialty.subtitle && <Text style={styles.specialtySubtitle}>{specialty.subtitle}</Text>}
+            <Text style={styles.specialtyCount}>{(specialty.count || 0)} specialties available</Text>
           </View>
         </View>
         <View style={styles.specialtyRight}>
           <View style={styles.seeDetailsButton}>
-            <Ionicons name="ellipse" size={8} color={Colors.white} />
+            <View style={styles.seeDetailsDot} />
             <Text style={styles.seeDetailsText}>See Details</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={Colors.white} />
         </View>
       </View>
+    </TouchableOpacity>
+  );
+
+  const renderEmergencyCard = () => (
+    <TouchableOpacity
+      style={styles.emergencyCard}
+      activeOpacity={0.8}
+      onPress={() => {
+        // Handle emergency call
+      }}
+    >
+      <View style={styles.emergencyIconContainer}>
+        <Ionicons name="medical" size={24} color="#FFFFFF" />
+      </View>
+      <Text style={styles.emergencyTitle}>24/7 Emergency Services</Text>
+      <Text style={styles.emergencyDescription}>
+        Round-the-clock emergency care for all medical emergencies
+      </Text>
     </TouchableOpacity>
   );
 
@@ -79,9 +116,11 @@ const ServicesScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <View style={styles.headerLogo}>
-            <Ionicons name="medical" size={20} color={Colors.white} />
-          </View>
+          <Image 
+            source={require('../../../assets/hospital-logo.jpeg')}
+            style={styles.headerLogoImage}
+            resizeMode="contain"
+          />
           <View>
             <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
             <Text style={styles.headerSubtitle}>Services</Text>
@@ -94,13 +133,13 @@ const ServicesScreen = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Title Section */}
+        {/* Page Title */}
         <View style={styles.titleSection}>
           <View style={styles.titleRow}>
-            <Ionicons name="star" size={20} color={Colors.warning} />
-            <Text style={styles.mainTitle}>Our Specialities</Text>
+            <Ionicons name="star" size={20} color="#FFA500" />
+            <Text style={styles.pageTitle}>Our Specialties</Text>
           </View>
-          <Text style={styles.subtitle}>Comprehensive medical care across all specialities</Text>
+          <Text style={styles.pageSubtitle}>Comprehensive medical care across all specialties</Text>
         </View>
 
         {/* Search Bar */}
@@ -122,25 +161,17 @@ const ServicesScreen = ({ navigation }) => {
           {specialtyCategories.map(renderSpecialtyCard)}
         </View>
 
-        {/* Expand Categories Button */}
+        {/* Expand All Categories Button */}
         <View style={styles.expandSection}>
           <TouchableOpacity style={styles.expandButton}>
-            <Text style={styles.expandButtonText}>Expand All Categories</Text>
+            <Text style={styles.expandText}>Expand All Categories</Text>
             <Ionicons name="add" size={20} color={Colors.kbrRed} />
           </TouchableOpacity>
         </View>
 
         {/* Emergency Services */}
         <View style={styles.emergencySection}>
-          <TouchableOpacity style={styles.emergencyCard}>
-            <View style={styles.emergencyIconContainer}>
-              <Ionicons name="medical" size={32} color={Colors.white} />
-            </View>
-            <Text style={styles.emergencyTitle}>24/7 Emergency Services</Text>
-            <Text style={styles.emergencyDescription}>
-              Round-the-clock emergency care for all medical emergencies
-            </Text>
-          </TouchableOpacity>
+          {renderEmergencyCard()}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -171,13 +202,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: Sizes.md,
   },
-  headerLogo: {
+  headerLogoImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: Sizes.sm,
   },
   headerTitle: {
@@ -209,36 +237,36 @@ const styles = StyleSheet.create({
   titleSection: {
     paddingHorizontal: Sizes.screenPadding,
     paddingVertical: Sizes.lg,
+    backgroundColor: Colors.white,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Sizes.sm,
+    marginBottom: Sizes.xs,
   },
-  mainTitle: {
-    fontSize: Sizes.title,
+  pageTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
     color: Colors.textPrimary,
-    marginLeft: Sizes.sm,
+    marginLeft: Sizes.xs,
   },
-  subtitle: {
-    fontSize: Sizes.regular,
+  pageSubtitle: {
+    fontSize: Sizes.medium,
     color: Colors.textSecondary,
     lineHeight: 22,
   },
   searchSection: {
     paddingHorizontal: Sizes.screenPadding,
-    marginBottom: Sizes.lg,
+    paddingVertical: Sizes.md,
+    backgroundColor: Colors.white,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: '#F5F5F5',
     borderRadius: Sizes.radiusMedium,
     paddingHorizontal: Sizes.md,
     paddingVertical: Sizes.sm,
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -251,7 +279,8 @@ const styles = StyleSheet.create({
   },
   specialtiesSection: {
     paddingHorizontal: Sizes.screenPadding,
-    gap: Sizes.md,
+    backgroundColor: Colors.white,
+    paddingBottom: Sizes.lg,
   },
   specialtyCard: {
     borderRadius: Sizes.radiusLarge,
@@ -277,6 +306,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Sizes.md,
@@ -285,13 +315,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   specialtyTitle: {
-    fontSize: Sizes.large,
+    fontSize: 18,
     fontWeight: 'bold',
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  specialtySubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.white,
     marginBottom: 4,
   },
   specialtyCount: {
-    fontSize: Sizes.medium,
+    fontSize: Sizes.small,
     color: Colors.white,
     opacity: 0.9,
   },
@@ -302,31 +338,44 @@ const styles = StyleSheet.create({
   seeDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: Sizes.sm,
-    paddingVertical: Sizes.xs,
-    borderRadius: Sizes.radiusSmall,
-    marginRight: Sizes.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: Sizes.xs,
+  },
+  seeDetailsDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.white,
+    marginRight: 6,
   },
   seeDetailsText: {
-    color: Colors.white,
     fontSize: Sizes.small,
-    marginLeft: 4,
+    color: Colors.white,
+    fontWeight: '500',
   },
   expandSection: {
     paddingHorizontal: Sizes.screenPadding,
-    paddingVertical: Sizes.lg,
+    paddingVertical: Sizes.md,
+    backgroundColor: Colors.white,
     alignItems: 'center',
   },
   expandButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Sizes.lg,
-    paddingVertical: Sizes.sm,
-    borderRadius: Sizes.radiusMedium,
     borderWidth: 1,
     borderColor: Colors.kbrRed,
+    borderRadius: Sizes.radiusMedium,
+    paddingHorizontal: Sizes.lg,
+    paddingVertical: Sizes.sm,
+  },
+  expandText: {
+    fontSize: Sizes.medium,
+    color: Colors.kbrRed,
+    fontWeight: '500',
+    marginRight: Sizes.xs,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -341,41 +390,42 @@ const styles = StyleSheet.create({
   },
   emergencySection: {
     paddingHorizontal: Sizes.screenPadding,
-    paddingBottom: Sizes.xl,
+    paddingBottom: Sizes.xxl,
+    backgroundColor: Colors.white,
   },
   emergencyCard: {
-    backgroundColor: Colors.kbrRed,
+    backgroundColor: '#EA4335',
     borderRadius: Sizes.radiusLarge,
     padding: Sizes.xl,
     alignItems: 'center',
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   emergencyIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Sizes.md,
   },
   emergencyTitle: {
-    fontSize: Sizes.xlarge,
+    fontSize: 20,
     fontWeight: 'bold',
     color: Colors.white,
     textAlign: 'center',
-    marginBottom: Sizes.sm,
+    marginBottom: Sizes.xs,
   },
   emergencyDescription: {
-    fontSize: Sizes.regular,
+    fontSize: Sizes.medium,
     color: Colors.white,
-    opacity: 0.9,
     textAlign: 'center',
-    lineHeight: 22,
+    opacity: 0.9,
+    lineHeight: 20,
   },
 });
 

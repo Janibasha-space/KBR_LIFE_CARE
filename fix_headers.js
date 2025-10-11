@@ -1,58 +1,75 @@
-// Utility script to fix headers across all screens
+// KBR LIFE CARE HOSPITALS - Header Fix Utility
+// This utility helps fix header imports and styling across screens
+
 const fs = require('fs');
 const path = require('path');
 
-// Screen files that need header fixes
-const screenFiles = [
-  'src/screens/patient/BookAppointmentScreen.js',
-  'src/screens/patient/AppointmentScreen.js',
-  'src/screens/patient/MedicalReportsScreen.js',
-  'src/screens/patient/PharmacyScreen.js',
-  'src/screens/patient/ProfileScreen.js',
-  'src/screens/admin/PaymentManagementScreen.js',
-  'src/screens/admin/PatientManagementScreen.js',
-  'src/screens/admin/DischargeManagementScreen.js',
-  'src/screens/admin/AdminPharmacyScreen.js'
-];
-
-function fixScreenFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    console.log(`File not found: ${filePath}`);
-    return;
-  }
-
-  let content = fs.readFileSync(filePath, 'utf8');
-  
-  // Add StatusBar import if not present
-  if (!content.includes('StatusBar')) {
+// Fix header imports and styling
+function fixHeadersInFile(filePath) {
+  try {
+    let content = fs.readFileSync(filePath, 'utf8');
+    
+    // Ensure proper imports
+    if (!content.includes('import { Colors, Sizes }')) {
+      content = content.replace(
+        "import { Ionicons } from '@expo/vector-icons';",
+        `import { Ionicons } from '@expo/vector-icons';
+import { Colors, Sizes } from '../../constants/theme';`
+      );
+    }
+    
+    // Fix hospital logo path
     content = content.replace(
-      /} from 'react-native';/,
-      `  StatusBar,\n} from 'react-native';`
+      /require\('\.\.\/\.\.\/\.\.\/assets\/hospital-logo\.png'\)/g,
+      "require('../../../assets/hospital-logo.jpeg')"
     );
+    
+    // Ensure proper header styling
+    if (!content.includes('backgroundColor: Colors.kbrBlue')) {
+      content = content.replace(
+        'backgroundColor: Colors.primary',
+        'backgroundColor: Colors.kbrBlue || "#4AA3DF"'
+      );
+    }
+    
+    fs.writeFileSync(filePath, content, 'utf8');
+    console.log(`Fixed headers in: ${filePath}`);
+  } catch (error) {
+    console.error(`Error fixing headers in ${filePath}:`, error.message);
   }
-  
-  // Fix return statement
-  content = content.replace(
-    /return \(\s*<SafeAreaView/,
-    `return (\n    <View style={styles.outerContainer}>\n      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />\n      <SafeAreaView`
-  );
-  
-  // Fix closing tags
-  content = content.replace(
-    /\s*<\/SafeAreaView>\s*\);/,
-    `    </SafeAreaView>\n    </View>\n  );`
-  );
-  
-  // Add outerContainer style
-  content = content.replace(
-    /const styles = StyleSheet\.create\(\{\s*container: \{/,
-    `const styles = StyleSheet.create({\n  outerContainer: {\n    flex: 1,\n    backgroundColor: Colors.kbrBlue,\n  },\n  container: {`
-  );
-  
-  fs.writeFileSync(filePath, content, 'utf8');
-  console.log(`Fixed: ${filePath}`);
 }
 
-// Fix all screen files
-screenFiles.forEach(fixScreenFile);
-console.log('Header fix completed for all screens!');
+// Process all screen files
+function fixAllHeaders() {
+  const screenDirs = [
+    './src/screens/patient',
+    './src/screens/admin',
+    './src/screens'
+  ];
+  
+  screenDirs.forEach(dir => {
+    try {
+      const files = fs.readdirSync(dir);
+      files.forEach(file => {
+        if (file.endsWith('.js') && !file.includes('_backup') && !file.includes('_old')) {
+          fixHeadersInFile(path.join(dir, file));
+        }
+      });
+    } catch (error) {
+      console.log(`Directory ${dir} not found or inaccessible`);
+    }
+  });
+}
+
+// Export functions
+module.exports = {
+  fixHeadersInFile,
+  fixAllHeaders
+};
+
+// Run if called directly
+if (require.main === module) {
+  console.log('Fixing headers in all screens...');
+  fixAllHeaders();
+  console.log('Header fixes completed!');
+}

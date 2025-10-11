@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
+import { ServicesProvider } from './src/contexts/ServicesContext';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -22,6 +23,7 @@ import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
 
 // Admin screens
 import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
+import ServiceManagementScreen from './src/screens/admin/ServiceManagementScreen';
 import PatientManagementScreen from './src/screens/admin/PatientManagementScreen';
 import PaymentManagementScreen from './src/screens/admin/PaymentManagementScreen';
 import DischargeManagementScreen from './src/screens/admin/DischargeManagementScreen';
@@ -129,22 +131,25 @@ function AdminTabNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="light" backgroundColor={Colors.primary} />
-        <Stack.Navigator 
-          initialRouteName="Splash"
-          screenOptions={{
-            headerShown: false
-          }}
-        >
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
-          <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
-          <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <ServicesProvider>
+        <NavigationContainer>
+          <StatusBar style="light" backgroundColor={Colors.primary} />
+          <Stack.Navigator 
+            initialRouteName="Splash"
+            screenOptions={{
+              headerShown: false
+            }}
+          >
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
+            <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
+            <Stack.Screen name="ServiceManagement" component={ServiceManagementScreen} />
+            <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ServicesProvider>
     </SafeAreaProvider>
   );
 }

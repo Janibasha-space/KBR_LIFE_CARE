@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   TextInput,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
@@ -23,9 +24,11 @@ const PharmacyScreen = ({ navigation }) => {
             <Ionicons name="arrow-back" size={24} color={Colors.white} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <View style={styles.headerLogo}>
-              <Ionicons name="medical" size={20} color={Colors.white} />
-            </View>
+            <Image 
+              source={require('../../../assets/hospital-logo.jpeg')}
+              style={styles.headerLogoImage}
+              resizeMode="contain"
+            />
             <View>
               <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
               <Text style={styles.headerSubtitle}>Pharmacy</Text>
@@ -191,13 +194,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: Sizes.md,
   },
-  headerLogo: {
+  headerLogoImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: Sizes.sm,
   },
   headerTitle: {

@@ -7,128 +7,141 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import { useServices } from '../../contexts/ServicesContext';
 
 // Helper function to create transparent colors
 const getTransparentColor = (color, opacity) => `${color}${opacity}`;
 
-const BookAppointmentScreen = ({ navigation }) => {
+const BookAppointmentScreen = ({ navigation, route }) => {
   const [selectedService, setSelectedService] = useState(null);
+  const { getAllServices } = useServices();
+  
+  // Get services from context
+  const allServices = getAllServices();
+  
+  // Filter services by category if passed from ServicesScreen
+  const categoryFilter = route?.params?.category;
+  const services = categoryFilter 
+    ? allServices.filter(service => service.category === categoryFilter)
+    : allServices;
 
-  const services = [
-    {
-      id: 'general',
-      title: 'General Medicine',
-      description: 'Primary healthcare and comprehensive medical consultation for all age groups',
-      duration: '20 mins',
-      icon: 'medical-outline',
-      color: Colors.kbrBlue,
-    },
-    {
-      id: 'diabetology',
-      title: 'Diabetology',
-      description: 'Specialized care for diabetes management and metabolic disorders',
-      duration: '30 mins',
-      icon: 'pulse-outline',
-      color: Colors.kbrBlue,
-    },
-    {
-      id: 'gynecology',
-      title: 'Obstetrics & Gynecology',
-      description: "Complete women's health services and reproductive care",
-      duration: '30 mins',
-      icon: 'person-outline',
-      color: Colors.kbrBlue,
-    },
-  ];
+  const renderServiceCard = (service) => {
+    // Safety checks
+    if (!service || !service.id) {
+      return null;
+    }
 
-  const renderServiceCard = (service) => (
-    <TouchableOpacity
-      key={service.id}
-      style={[
-        styles.serviceCard,
-        selectedService === service.id && styles.selectedServiceCard
-      ]}
-      onPress={() => setSelectedService(service.id)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.serviceContent}>
-        <View style={styles.serviceLeft}>
-          <View style={[styles.serviceIconContainer, { backgroundColor: getTransparentColor(service.color, '15') }]}>
-            <Ionicons name={service.icon} size={24} color={service.color} />
-          </View>
-          <View style={styles.serviceInfo}>
-            <Text style={styles.serviceTitle}>{service.title}</Text>
-            <Text style={styles.serviceDescription}>{service.description}</Text>
+    return (
+      <View key={service.id} style={styles.serviceCard}>
+        <View style={styles.serviceHeader}>
+          <View style={styles.serviceLeft}>
+            <View style={[styles.serviceIconContainer, { backgroundColor: getTransparentColor(service.color || '#4285F4', '15') }]}>
+              <Ionicons name={service.icon || 'medical-outline'} size={24} color={service.color || '#4285F4'} />
+            </View>
+            <View style={styles.serviceInfo}>
+              <Text style={styles.serviceTitle}>{String(service.name || 'Service')}</Text>
+              <Text style={styles.serviceDescription}>{String(service.description || 'Description')}</Text>
+            </View>
           </View>
         </View>
-        <View style={styles.serviceRight}>
-          <Text style={styles.serviceDuration}>{service.duration}</Text>
+      
+        {/* Service Tags */}
+        <View style={styles.tagsContainer}>
+          {(service.tags && Array.isArray(service.tags)) ? service.tags.map((tag, index) => (
+            <View key={index} style={styles.tagItem}>
+              <Text style={styles.tagText}>{String(tag || '')}</Text>
+            </View>
+          )) : null}
         </View>
+
+        {/* Book Appointment Button */}
+        <TouchableOpacity 
+          style={styles.bookButton}
+          onPress={() => {
+            // Handle book appointment
+            console.log('Book appointment for:', service.name);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.bookButtonText}>Book Appointment</Text>
+          <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.outerContainer}>
       <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
       <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.white} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <View style={styles.headerLogo}>
-            <Ionicons name="medical" size={20} color={Colors.white} />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Image 
+              source={require('../../../assets/hospital-logo.jpeg')}
+              style={styles.headerLogoImage}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
+              <Text style={styles.headerSubtitle}>Book Appointment</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
-            <Text style={styles.headerSubtitle}>Book Appointment</Text>
+          <TouchableOpacity style={styles.loginButton}>
+            <Ionicons name="log-in-outline" size={16} color={Colors.white} />
+            <Text style={styles.loginText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Progress Header */}
+          <View style={styles.progressSection}>
+            <Text style={styles.progressTitle}>Book Appointment</Text>
+            <Text style={styles.progressStep}>Step 1 of 6</Text>
           </View>
-        </View>
-        <TouchableOpacity style={styles.loginButton}>
-          <Ionicons name="log-in-outline" size={16} color={Colors.white} />
-          <Text style={styles.loginText}>Login</Text>
-        </TouchableOpacity>
-      </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Progress Header */}
-        <View style={styles.progressSection}>
-          <Text style={styles.progressTitle}>Book Appointment</Text>
-          <Text style={styles.progressStep}>Step 1 of 6</Text>
-        </View>
-
-        {/* Section Title */}
-        <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionTitle}>Select Service</Text>
-          <Text style={styles.sectionSubtitle}>Choose the medical service you need</Text>
-        </View>
-
-        {/* Services List */}
-        <View style={styles.servicesSection}>
-          {services.map(renderServiceCard)}
-        </View>
-
-        {/* Continue Button */}
-        {selectedService && (
-          <View style={styles.buttonSection}>
-            <TouchableOpacity 
-              style={styles.continueButton}
-              onPress={() => {
-                // Navigate to next step
-                console.log('Continue to next step with service:', selectedService);
-              }}
-            >
-              <Text style={styles.continueButtonText}>Continue</Text>
-              <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-            </TouchableOpacity>
+          {/* Section Title */}
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionTitle}>Select Service</Text>
+            <Text style={styles.sectionSubtitle}>Choose the medical service you need</Text>
           </View>
-        )}
-      </ScrollView>    </SafeAreaView>
+
+          {/* Services List */}
+          <View style={styles.servicesSection}>
+            {services && services.length > 0 ? (
+              services.map(renderServiceCard)
+            ) : (
+              <View style={styles.noServicesContainer}>
+                <Text style={styles.noServicesText}>No services available</Text>
+                <Text style={styles.noServicesSubtext}>Please check back later or contact support</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Continue Button */}
+          {selectedService && (
+            <View style={styles.buttonSection}>
+              <TouchableOpacity 
+                style={styles.continueButton}
+                onPress={() => {
+                  // Navigate to next step
+                  console.log('Continue to next step with service:', selectedService);
+                }}
+              >
+                <Text style={styles.continueButtonText}>Continue</Text>
+                <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -156,13 +169,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: Sizes.md,
   },
-  headerLogo: {
+  headerLogoImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: Sizes.sm,
   },
   headerTitle: {
@@ -233,8 +243,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: Sizes.radiusLarge,
     padding: Sizes.lg,
-    marginBottom: Sizes.md,
-    borderWidth: 2,
+    marginBottom: Sizes.lg,
+    borderWidth: 1,
     borderColor: Colors.border,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
@@ -242,14 +252,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  selectedServiceCard: {
-    borderColor: Colors.kbrBlue,
-    backgroundColor: Colors.kbrBlue + '05',
-  },
-  serviceContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  serviceHeader: {
+    marginBottom: Sizes.md,
   },
   serviceLeft: {
     flexDirection: 'row',
@@ -277,15 +281,38 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 20,
   },
-  serviceRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginLeft: Sizes.sm,
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: Sizes.md,
+    gap: Sizes.xs,
   },
-  serviceDuration: {
-    fontSize: Sizes.medium,
+  tagItem: {
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: Sizes.xs,
+    marginBottom: Sizes.xs,
+  },
+  tagText: {
+    fontSize: Sizes.small,
     color: Colors.textSecondary,
     fontWeight: '500',
+  },
+  bookButton: {
+    backgroundColor: Colors.kbrBlue,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Sizes.sm,
+    borderRadius: Sizes.radiusMedium,
+    gap: Sizes.xs,
+  },
+  bookButtonText: {
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    color: Colors.white,
   },
   buttonSection: {
     paddingHorizontal: Sizes.screenPadding,
@@ -310,6 +337,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.white,
     marginRight: Sizes.sm,
+  },
+  noServicesContainer: {
+    alignItems: 'center',
+    paddingVertical: Sizes.xxl,
+  },
+  noServicesText: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: Sizes.sm,
+  },
+  noServicesSubtext: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
 });
 

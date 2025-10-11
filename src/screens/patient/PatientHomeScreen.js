@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import { useServices } from '../../contexts/ServicesContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -122,37 +123,6 @@ const healthPackages = [
   }
 ];
 
-const services = [
-  {
-    id: 1,
-    icon: "heart",
-    title: "Cardiology",
-    description: "Expert heart care with advanced diagnostics",
-    color: "#FEE2E2"
-  },
-  {
-    id: 2,
-    icon: "people",
-    title: "General Medicine",
-    description: "Comprehensive primary healthcare",
-    color: "#E6F4FB"
-  },
-  {
-    id: 3,
-    icon: "medical",
-    title: "Dental Care",
-    description: "Complete oral health solutions",
-    color: "#FEF3C7"
-  },
-  {
-    id: 4,
-    icon: "checkmark-circle",
-    title: "Diagnostics",
-    description: "State-of-the-art testing facilities",
-    color: "#D1FAE5"
-  }
-];
-
 const popularTests = [
   { id: 1, name: "Complete Blood Count (CBC)", price: "₹350" },
   { id: 2, name: "Lipid Profile", price: "₹500" },
@@ -175,6 +145,11 @@ const PatientHomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
   const autoPlayRef = useRef(null);
+  
+  // Get services from context
+  const { getAllServices } = useServices();
+  const allServices = getAllServices();
+  const services = allServices && allServices.length > 0 ? allServices.slice(0, 4) : []; // Show only first 4 services for home screen
 
   // Initialize loading state with network error handling
   useEffect(() => {
@@ -275,7 +250,11 @@ const PatientHomeScreen = ({ navigation }) => {
         <SafeAreaView style={styles.loadingScreen}>
           <View style={styles.loadingContent}>
             <View style={styles.loadingLogo}>
-              <Ionicons name="medical" size={48} color="#4AA3DF" />
+              <Image 
+                source={require('../../../assets/hospital-logo.jpeg')}
+                style={styles.loadingLogoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.loadingTitle}>KBR LIFE CARE HOSPITALS</Text>
             <Text style={styles.loadingSubtitle}>Loading your healthcare portal...</Text>
@@ -294,9 +273,11 @@ const PatientHomeScreen = ({ navigation }) => {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.logoSection}>
-              <View style={styles.logoPlaceholder}>
-                <Ionicons name="medical" size={24} color="#4AA3DF" />
-              </View>
+              <Image 
+                source={require('../../../assets/hospital-logo.jpeg')}
+                style={styles.headerLogoImage}
+                resizeMode="contain"
+              />
               <View style={styles.hospitalInfo}>
                 <Text style={styles.hospitalName}>KBR LIFE CARE HOSPITALS</Text>
                 <Text style={styles.hospitalSubtitle}>Excellence in Healthcare</Text>
@@ -337,7 +318,11 @@ const PatientHomeScreen = ({ navigation }) => {
           <View style={styles.heroSection}>
             <View style={styles.heroFallback}>
               <View style={styles.heroIcon}>
-                <Ionicons name="medical" size={48} color="#4AA3DF" />
+                <Image 
+                  source={require('../../../assets/hospital-logo.jpeg')}
+                  style={styles.heroLogoImage}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.heroTitle}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
               <Text style={styles.heroSubtitle}>
@@ -476,11 +461,11 @@ const PatientHomeScreen = ({ navigation }) => {
             <View style={styles.servicesGrid}>
               {services.map((service) => (
                 <TouchableOpacity key={service.id} style={styles.serviceCard}>
-                  <View style={[styles.serviceIcon, { backgroundColor: service.color }]}>
-                    <Ionicons name={service.icon} size={28} color="#333333" />
+                  <View style={[styles.serviceIcon, { backgroundColor: service.color || '#E6F4FB' }]}>
+                    <Ionicons name={service.icon || 'medical-outline'} size={28} color="#333333" />
                   </View>
-                  <Text style={styles.serviceTitle}>{service.title}</Text>
-                  <Text style={styles.serviceDescription}>{service.description}</Text>
+                  <Text style={styles.serviceTitle}>{service.name || 'Service'}</Text>
+                  <Text style={styles.serviceDescription}>{service.description || 'Description not available'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -609,9 +594,11 @@ const PatientHomeScreen = ({ navigation }) => {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalLogoSection}>
-                  <View style={styles.modalLogoPlaceholder}>
-                    <Ionicons name="medical" size={24} color="#4AA3DF" />
-                  </View>
+                  <Image 
+                    source={require('../../../assets/hospital-logo.jpeg')}
+                    style={styles.modalLogoImage}
+                    resizeMode="contain"
+                  />
                   <View>
                     <Text style={styles.modalTitle}>Sign In to Continue</Text>
                     <Text style={styles.modalSubtitle}>Access your KBR healthcare account</Text>
@@ -829,6 +816,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  loadingLogoImage: {
+    width: 60,
+    height: 60,
   },
   loadingTitle: {
     fontSize: Sizes.large,
@@ -877,13 +869,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  logoPlaceholder: {
+  headerLogoImage: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   hospitalInfo: {
     marginLeft: Sizes.sm,
@@ -974,6 +963,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Sizes.lg,
+    overflow: 'hidden',
+  },
+  heroLogoImage: {
+    width: 60,
+    height: 60,
   },
   heroOverlay: {
     position: 'absolute',
@@ -1440,14 +1434,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  modalLogoPlaceholder: {
+  modalLogoImage: {
     width: 48,
     height: 48,
     borderRadius: 24,
     marginRight: Sizes.md,
-    backgroundColor: '#E6F4FB',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   modalTitle: {
     fontSize: Sizes.large,

@@ -9,6 +9,7 @@ import {
   Linking,
   StatusBar,
   ImageBackground,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -80,12 +81,11 @@ const SplashScreen = ({ navigation }) => {
             {/* Hospital Logo */}
             <View style={styles.logoContainer}>
               <View style={styles.logoCircle}>
-                <View style={styles.logoBackground}>
-                  <View style={styles.crossVertical} />
-                  <View style={styles.crossHorizontal} />
-                  <Text style={styles.logoText}>KBR</Text>
-                  <Text style={styles.logoSubtext}>Life Care Hospitals</Text>
-                </View>
+                <Image 
+                  source={require('../../assets/hospital-logo.jpeg')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
             </View>
 
@@ -167,47 +167,14 @@ const styles = StyleSheet.create({
     elevation: 15,
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.8)',
+    overflow: 'hidden',
   },
-  logoBackground: {
+  logoImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
   },
-  crossVertical: {
-    position: 'absolute',
-    width: 12,
-    height: 40,
-    backgroundColor: '#DC143C',
-    borderRadius: 6,
-    top: 20,
-  },
-  crossHorizontal: {
-    position: 'absolute',
-    width: 40,
-    height: 12,
-    backgroundColor: '#DC143C',
-    borderRadius: 6,
-    top: 34,
-  },
-  logoText: {
-    position: 'absolute',
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#DC143C',
-    top: 65,
-    letterSpacing: 1,
-  },
-  logoSubtext: {
-    position: 'absolute',
-    fontSize: 8,
-    color: '#9C27B0',
-    top: 85,
-    fontWeight: '500',
-  },
+
   
   // Text Styles
   textContainer: {

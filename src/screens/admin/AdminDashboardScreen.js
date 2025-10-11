@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
@@ -146,7 +147,11 @@ const AdminDashboardScreen = ({ navigation }) => {
         <View style={styles.topHeaderRow}>
           <View style={styles.hospitalBranding}>
             <View style={styles.logoSection}>
-              <Ionicons name="shield-checkmark" size={24} color={Colors.white} />
+              <Image 
+                source={require('../../../assets/hospital-logo.jpeg')}
+                style={styles.adminLogoImage}
+                resizeMode="contain"
+              />
               <View style={styles.hospitalTextSection}>
                 <Text style={styles.hospitalName}>KBR LIFE CARE</Text>
                 <Text style={styles.hospitalSubtitle}>ADMIN DASHBOARD</Text>
@@ -187,6 +192,47 @@ const AdminDashboardScreen = ({ navigation }) => {
               {renderStatsCard(statsCards[2])}
               {renderStatsCard(statsCards[3])}
             </View>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => navigation.navigate('ServiceManagement')}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrBlue + '15' }]}>
+                <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
+              </View>
+              <Text style={styles.quickActionTitle}>Manage Services</Text>
+              <Text style={styles.quickActionSubtitle}>Add, edit, or remove services</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrGreen + '15' }]}>
+                <Ionicons name="people-outline" size={24} color={Colors.kbrGreen} />
+              </View>
+              <Text style={styles.quickActionTitle}>Manage Doctors</Text>
+              <Text style={styles.quickActionSubtitle}>Add or assign doctors</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrRed + '15' }]}>
+                <Ionicons name="calendar-outline" size={24} color={Colors.kbrRed} />
+              </View>
+              <Text style={styles.quickActionTitle}>View Appointments</Text>
+              <Text style={styles.quickActionSubtitle}>Manage all appointments</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrPurple + '15' }]}>
+                <Ionicons name="analytics-outline" size={24} color={Colors.kbrPurple} />
+              </View>
+              <Text style={styles.quickActionTitle}>Reports</Text>
+              <Text style={styles.quickActionSubtitle}>View analytics & reports</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -244,6 +290,11 @@ const styles = StyleSheet.create({
   logoSection: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  adminLogoImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   hospitalTextSection: {
     marginLeft: 12,
@@ -391,6 +442,49 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  quickActionsSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: Sizes.lg,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Sizes.md,
+  },
+  quickActionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    width: '47%',
+    alignItems: 'center',
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Sizes.sm,
+  },
+  quickActionTitle: {
+    fontSize: Sizes.medium,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Sizes.xs,
+  },
+  quickActionSubtitle: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16,
   },
   appointmentsSection: {
     paddingHorizontal: Sizes.screenPadding,
