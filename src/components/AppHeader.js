@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../constants/theme';
 import { useUser } from '../contexts/UserContext';
+import { useTheme } from '../contexts/ThemeContext';
+import AuthModal from './AuthModal';
 
 const AppHeader = ({ 
   title, 
@@ -20,6 +22,8 @@ const AppHeader = ({
   customBackAction = null 
 }) => {
   const { isLoggedIn, userData, logoutUser } = useUser();
+  const { theme } = useTheme();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleBackPress = () => {
     if (customBackAction) {
@@ -29,61 +33,22 @@ const AppHeader = ({
     } else if (navigation?.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation?.navigate('Home');
+      navigation?.navigate('PatientMain', { screen: 'Home' });
     }
   };
 
   const handleAuthPress = () => {
     if (isLoggedIn) {
-      // Show profile menu
-      Alert.alert(
-        `Hello, ${userData?.name || userData?.username || 'User'}!`,
-        'What would you like to do?',
-        [
-          {
-            text: 'View Profile',
-            onPress: () => navigation?.navigate('Profile'),
-          },
-          {
-            text: 'My Appointments', 
-            onPress: () => {
-              // Navigate to appointments - we'll need to handle this since we removed the tab
-              // For now, let's create a separate appointments screen
-              Alert.alert('Info', 'Appointments can be viewed in the Book Appointment section');
-            }
-          },
-          {
-            text: 'Logout',
-            style: 'destructive',
-            onPress: () => {
-              Alert.alert(
-                'Logout',
-                'Are you sure you want to logout?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Logout',
-                    style: 'destructive',
-                    onPress: () => {
-                      logoutUser();
-                      navigation?.navigate('Home');
-                    },
-                  },
-                ]
-              );
-            },
-          },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
+      // Navigate directly to profile
+      navigation?.navigate('Profile');
     } else {
-      // Navigate to login/booking screen
-      navigation?.navigate('BookAppointment');
+      // Show login modal
+      setShowAuthModal(true);
     }
   };
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { backgroundColor: theme.primary }]}>
       <View style={styles.leftSection}>
         {showBackButton && (
           <TouchableOpacity 
@@ -100,30 +65,43 @@ const AppHeader = ({
             resizeMode="contain"
           />
           <View style={styles.titleContainer}>
-            <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
+            <Text style={[styles.headerTitle, { color: theme.white }]}>KBR LIFE CARE HOSPITALS</Text>
             {subtitle && (
-              <Text style={styles.headerSubtitle}>{subtitle}</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.white }]}>{subtitle}</Text>
             )}
           </View>
         </View>
       </View>
       
       <TouchableOpacity 
-        style={styles.authButton}
+        style={styles.profileIconButton}
         onPress={handleAuthPress}
       >
         {isLoggedIn ? (
-          <>
-            <Ionicons name="person-circle" size={20} color={Colors.white} />
-            <Text style={styles.authText}>Profile</Text>
-          </>
+          userData?.userData?.profileImage ? (
+            <Image 
+              source={{ uri: userData.userData.profileImage }} 
+              style={styles.profileIconImage}
+              onError={() => console.log('Profile image failed to load:', userData.userData.profileImage)}
+            />
+          ) : (
+            <View style={styles.profileIconPlaceholder}>
+              <Ionicons name="person" size={20} color={theme.white} />
+            </View>
+          )
         ) : (
-          <>
-            <Ionicons name="log-in-outline" size={16} color={Colors.white} />
-            <Text style={styles.authText}>Sign In</Text>
-          </>
+          <View style={styles.loginIconContainer}>
+            <Ionicons name="log-in-outline" size={20} color={theme.white} />
+          </View>
         )}
       </TouchableOpacity>
+
+      {/* Auth Modal */}
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        navigation={navigation}
+      />
     </View>
   );
 };
@@ -170,21 +148,34 @@ const styles = StyleSheet.create({
     color: Colors.white,
     opacity: 0.9,
   },
-  authButton: {
-    flexDirection: 'row',
+  profileIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  profileIconImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  profileIconPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: Sizes.sm,
-    paddingVertical: Sizes.xs,
-    borderRadius: Sizes.radiusSmall,
-    minWidth: 80,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  authText: {
-    color: Colors.white,
-    marginLeft: 4,
-    fontSize: Sizes.small,
-    fontWeight: '500',
+  loginIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

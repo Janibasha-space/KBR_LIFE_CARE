@@ -13,14 +13,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
 const PharmacyScreen = ({ navigation }) => {
-  const { isLoggedIn, userData } = useUser();
+  const { theme } = useTheme();
+  
   return (
-    <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
+    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         {/* App Header */}
         <AppHeader 
           subtitle="Pharmacy"

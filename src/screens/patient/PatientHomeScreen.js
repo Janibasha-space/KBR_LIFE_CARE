@@ -26,6 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -155,6 +156,9 @@ const PatientHomeScreen = ({ navigation }) => {
   
   // Get user context
   const { isLoggedIn, userData } = useUser();
+  
+  // Get theme context
+  const { theme } = useTheme();
 
   // Initialize loading state with network error handling
   useEffect(() => {
@@ -271,9 +275,13 @@ const PatientHomeScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor="#4AA3DF" barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.safeArea}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar 
+        backgroundColor={theme.primary} 
+        barStyle="light-content" 
+        translucent={false} 
+      />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
         {/* App Header */}
         <AppHeader 
           subtitle="Excellence in Healthcare"
@@ -299,9 +307,9 @@ const PatientHomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
           {/* Hero Section - Simplified for better loading */}
-          <View style={styles.heroSection}>
+          <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
             <View style={styles.heroFallback}>
               <View style={styles.heroIcon}>
                 <Image 
@@ -310,24 +318,24 @@ const PatientHomeScreen = ({ navigation }) => {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.heroTitle}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
-              <Text style={styles.heroSubtitle}>
+              <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
+              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
                 We blend compassionate care with cutting-edge medicine, driven by a dedicated team prioritizing your well-being.
               </Text>
             </View>
           </View>
 
           {/* Vision & Mission */}
-          <View style={styles.visionSection}>
-            <View style={styles.visionItem}>
-              <Text style={styles.visionTitle}>Our Vision</Text>
-              <Text style={styles.visionText}>
+          <View style={[styles.visionSection, { backgroundColor: theme.background }]}>
+            <View style={[styles.visionItem, { backgroundColor: theme.cardBackground }]}>
+              <Text style={[styles.visionTitle, { color: theme.textPrimary }]}>Our Vision</Text>
+              <Text style={[styles.visionText, { color: theme.textSecondary }]}>
                 To be the preferred healthcare provider in Sangareddy and beyond, delivering world-class medical services with compassion, innovation, and excellence.
               </Text>
             </View>
-            <View style={styles.visionItem}>
-              <Text style={styles.visionTitle}>Our Mission</Text>
-              <Text style={styles.visionText}>
+            <View style={[styles.visionItem, { backgroundColor: theme.cardBackground }]}>
+              <Text style={[styles.visionTitle, { color: theme.textPrimary }]}>Our Mission</Text>
+              <Text style={[styles.visionText, { color: theme.textSecondary }]}>
                 Providing accessible, affordable, and advanced healthcare through dedicated professionals, state-of-the-art facilities, and patient-centered approach.
               </Text>
             </View>

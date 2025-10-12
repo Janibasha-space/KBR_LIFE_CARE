@@ -14,12 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
 const ServicesScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const { getServiceCounts } = useServices();
-  const { isLoggedIn, userData } = useUser();
+  const { theme } = useTheme();
   
   let serviceCounts;
   try {
@@ -110,33 +111,33 @@ const ServicesScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
+    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         {/* App Header */}
         <AppHeader 
           subtitle="Services"
           navigation={navigation}
         />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
         {/* Page Title */}
-        <View style={styles.titleSection}>
+        <View style={[styles.titleSection, { backgroundColor: theme.background }]}>
           <View style={styles.titleRow}>
             <Ionicons name="star" size={20} color="#FFA500" />
-            <Text style={styles.pageTitle}>Our Specialties</Text>
+            <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Our Specialties</Text>
           </View>
-          <Text style={styles.pageSubtitle}>Comprehensive medical care across all specialties</Text>
+          <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>Comprehensive medical care across all specialties</Text>
         </View>
 
         {/* Search Bar */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
+        <View style={[styles.searchSection, { backgroundColor: theme.background }]}>
+          <View style={[styles.searchContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+            <Ionicons name="search-outline" size={20} color={theme.textSecondary} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.textPrimary }]}
               placeholder="Search for services or treatments..."
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={theme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />

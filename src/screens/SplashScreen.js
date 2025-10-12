@@ -61,7 +61,7 @@ const SplashScreen = ({ navigation }) => {
     <>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ImageBackground 
-        source={require('../assets/Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png')}
+        source={require('../../assets/Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >

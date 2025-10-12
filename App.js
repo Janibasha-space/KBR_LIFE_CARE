@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UserProvider } from './src/contexts/UserContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -21,6 +22,7 @@ import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
 import PharmacyScreen from './src/screens/patient/PharmacyScreen';
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
+import EditProfileScreen from './src/screens/patient/EditProfileScreen';
 
 // Admin screens
 import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
@@ -138,8 +140,9 @@ function AdminTabNavigator() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <UserProvider>
-        <ServicesProvider>
+      <ThemeProvider>
+        <UserProvider>
+          <ServicesProvider>
           <NavigationContainer>
             <StatusBar style="light" backgroundColor={Colors.primary} />
             <Stack.Navigator 
@@ -154,10 +157,13 @@ export default function App() {
               <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
               <Stack.Screen name="ServiceManagementScreen" component={ServiceManagementScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
+              <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             </Stack.Navigator>
           </NavigationContainer>
-        </ServicesProvider>
-      </UserProvider>
+          </ServicesProvider>
+        </UserProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
