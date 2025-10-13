@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
+import { ROUTES } from './src/constants/navigation';
 import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UserProvider } from './src/contexts/UserContext';
 
@@ -18,7 +19,12 @@ import PatientHomeScreen from './src/screens/patient/PatientHomeScreen';
 import AppointmentScreen from './src/screens/patient/AppointmentScreen';
 import ServicesScreen from './src/screens/patient/ServicesScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
+import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
 import PharmacyScreen from './src/screens/patient/PharmacyScreen';
+import PharmacyCartScreen from './src/screens/patient/PharmacyCartScreen';
+import CheckoutScreen from './src/screens/patient/CheckoutScreen';
+import PharmacyOrdersScreen from './src/screens/patient/PharmacyOrdersScreen';
+import PharmacyOrderDetailScreen from './src/screens/patient/PharmacyOrderDetailScreen';
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
 
@@ -154,6 +160,11 @@ export default function App() {
               <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
               <Stack.Screen name="ServiceManagementScreen" component={ServiceManagementScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CART} component={PharmacyCartScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CHECKOUT} component={CheckoutScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDERS} component={PharmacyOrdersScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDER_DETAIL} component={PharmacyOrderDetailScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </ServicesProvider>
