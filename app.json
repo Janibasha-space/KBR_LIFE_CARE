@@ -25,6 +25,10 @@
         "backgroundColor": "#4A90E2"
       },
       "package": "com.kbrhospital.app"
-    }
+    },
+    "plugins": [
+      "expo-build-properties",
+      "expo-font"
+    ]
   }
 }

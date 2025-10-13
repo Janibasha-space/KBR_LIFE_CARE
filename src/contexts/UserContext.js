@@ -76,6 +76,24 @@ export const UserProvider = ({ children }) => {
     setTokenCounter(1);
   };
 
+  // Update user data
+  const updateUser = async (updatedUserData) => {
+    return new Promise((resolve, reject) => {
+      try {
+        setUser(prev => ({
+          ...prev,
+          userData: {
+            ...prev.userData,
+            ...updatedUserData,
+          },
+        }));
+        resolve({ success: true });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
   // Register new user (during booking flow)
   const registerUser = async (mobileNumber, username, password) => {
     try {
@@ -338,6 +356,7 @@ export const UserProvider = ({ children }) => {
     // Authentication methods
     loginUser,
     logoutUser,
+    updateUser,
     registerUser,
     checkMobileExists,
     

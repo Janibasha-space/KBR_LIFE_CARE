@@ -17,11 +17,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
 const MedicalReportsScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All Reports');
+<<<<<<< HEAD
   const [selectedCategory, setSelectedCategory] = useState(null);
   const { isLoggedIn, userData } = useUser();
   
@@ -279,11 +281,14 @@ const MedicalReportsScreen = ({ navigation }) => {
       Alert.alert('Share Failed', 'Could not share the report. Please try again later.');
     }
   };
+=======
+  const { theme } = useTheme();
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
 
   return (
-    <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
+    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         {/* App Header */}
         <AppHeader 
           subtitle="Reports"

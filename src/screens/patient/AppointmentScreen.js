@@ -180,7 +180,7 @@ const AppointmentScreen = ({ navigation }) => {
         <SafeAreaView style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+            <TouchableOpacity onPress={() => navigation.navigate('PatientMain', { screen: 'Home' })}>
               <Ionicons name="arrow-back" size={24} color={Colors.white} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>

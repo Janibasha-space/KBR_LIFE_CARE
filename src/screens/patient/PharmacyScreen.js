@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+=======
+import React, { useState } from 'react';
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
 import {
   View,
   Text,
@@ -10,14 +14,18 @@ import {
   StatusBar,
   Image,
   Alert,
+<<<<<<< HEAD
   ToastAndroid,
   Platform,
   FlatList,
+=======
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { ROUTES } from '../../constants/navigation';
 import { useUser } from '../../contexts/UserContext';
+<<<<<<< HEAD
 import { useFocusEffect } from '@react-navigation/native';
 import AppHeader from '../../components/AppHeader';
 
@@ -208,12 +216,64 @@ const PharmacyScreen = ({ navigation, route = {} }) => {
       setCartItems([...cartItems, {...medicine, quantity: 1}]);
       Alert.alert('Added to Cart', 'Item added to your cart');
     }
+=======
+import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/AppContext';
+import AppHeader from '../../components/AppHeader';
+
+const PharmacyScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const { userData } = useUser();
+  const { pharmacy, purchaseMedicine } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle medicine purchase
+  const handlePurchaseMedicine = (medicine) => {
+    Alert.prompt(
+      'Purchase Medicine',
+      `How many ${medicine.name} would you like to buy?\nPrice: ₹${medicine.salePrice} per unit\nStock: ${medicine.stock} available`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Buy',
+          onPress: (quantity) => {
+            const qty = parseInt(quantity);
+            if (isNaN(qty) || qty <= 0) {
+              Alert.alert('Error', 'Please enter a valid quantity');
+              return;
+            }
+            if (qty > medicine.stock) {
+              Alert.alert('Error', `Only ${medicine.stock} units available`);
+              return;
+            }
+            
+            // Process purchase
+            purchaseMedicine(medicine.id, qty, {
+              patientName: userData?.name || 'Patient',
+              patientId: userData?.id || 'PATIENT-001',
+              paymentMethod: 'Online'
+            });
+            
+            Alert.alert(
+              'Purchase Successful',
+              `${qty} units of ${medicine.name} purchased for ₹${(medicine.salePrice * qty).toFixed(2)}`
+            );
+          },
+        },
+      ],
+      'plain-text',
+      '1'
+    );
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
   };
   
   return (
-    <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
+    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         {/* App Header */}
         <AppHeader 
           subtitle="Pharmacy"
@@ -303,8 +363,13 @@ const PharmacyScreen = ({ navigation, route = {} }) => {
                 style={styles.searchInput}
                 placeholder="Search medicines..."
                 placeholderTextColor={Colors.textSecondary}
+<<<<<<< HEAD
                 value={searchText}
                 onChangeText={setSearchText}
+=======
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
               />
               {searchText ? (
                 <TouchableOpacity onPress={() => setSearchText('')}>
@@ -370,8 +435,9 @@ const PharmacyScreen = ({ navigation, route = {} }) => {
             <Text style={styles.deliveryText}>Free delivery on orders above ₹500</Text>
           </View>
 
-          {/* Medicines List */}
+          {/* Medicines List - Dynamic from AppContext */}
           <View style={styles.medicinesSection}>
+<<<<<<< HEAD
             {filteredMedicines.length > 0 ? (
               filteredMedicines.map(medicine => (
                 <View key={medicine.id} style={styles.medicineCard}>
@@ -419,6 +485,52 @@ const PharmacyScreen = ({ navigation, route = {} }) => {
                 </TouchableOpacity>
               </View>
             )}
+=======
+            {pharmacy.inventory
+              .filter(medicine => 
+                medicine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                medicine.category.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .filter(medicine => medicine.stock > 0) // Only show available medicines
+              .map((medicine) => (
+              <View key={medicine.id} style={styles.medicineCard}>
+                <View style={styles.medicineLeft}>
+                  <View style={styles.medicineIconContainer}>
+                    <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
+                  </View>
+                  <View style={styles.medicineInfo}>
+                    <View style={styles.medicineHeader}>
+                      <Text style={styles.medicineName}>{medicine.name}</Text>
+                      {medicine.category === 'Antibiotic' || medicine.category === 'Cardiovascular' ? (
+                        <View style={styles.prescriptionBadge}>
+                          <Text style={styles.prescriptionText}>Rx</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.medicineBrand}>{medicine.manufacturer}</Text>
+                    <Text style={styles.medicineDescription}>
+                      {medicine.category === 'Pain Relief' ? 'For fever and pain relief' :
+                       medicine.category === 'Antibiotic' ? 'Antibiotic for bacterial infections' :
+                       medicine.category === 'Cardiovascular' ? 'For cholesterol management' :
+                       `${medicine.category} medicine`}
+                    </Text>
+                    <Text style={styles.medicineCategory}>{medicine.category}</Text>
+                    <View style={styles.pricingRow}>
+                      <Text style={styles.medicinePrice}>₹{medicine.salePrice}</Text>
+                      <Text style={styles.stockInfo}>{medicine.stock} in stock</Text>
+                    </View>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.addButton}
+                  onPress={() => handlePurchaseMedicine(medicine)}
+                >
+                  <Ionicons name="add" size={16} color={Colors.white} />
+                  <Text style={styles.addButtonText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -730,6 +842,17 @@ const styles = StyleSheet.create({
     fontSize: Sizes.large,
     fontWeight: 'bold',
     color: Colors.textPrimary,
+  },
+  pricingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Sizes.xs,
+  },
+  stockInfo: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
   addButton: {
     backgroundColor: Colors.kbrRed,

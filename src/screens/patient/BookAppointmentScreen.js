@@ -18,7 +18,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
-import UserContext, { useUser } from '../../contexts/UserContext';
+import { useUser } from '../../contexts/UserContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/AppContext';
 import { LoadingOverlay } from '../../components/Loading';
 import { bookingStyles } from '../../styles/bookingStyles';
 import AppHeader from '../../components/AppHeader';
@@ -36,10 +38,18 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     registerUser, 
     sendOTP, 
     verifyOTP,
-    addAppointment,
     checkAppointmentConflict,
     handleAppointmentConflict
   } = useUser();
+  const { theme } = useTheme();
+  
+  // Use AppContext for appointments and doctors
+  const { 
+    doctors,
+    addAppointment,
+    tests,
+    bookTest
+  } = useApp();
 
   // Booking state management
   const [currentStep, setCurrentStep] = useState(1);
@@ -72,6 +82,25 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       });
     }
   }, [bookingStarted, navigation]);
+
+  // Check if user tries to proceed without login
+  useEffect(() => {
+    if (bookingStarted && currentStep > 1 && !isLoggedIn) {
+      Alert.alert(
+        'Login Required',
+        'You need to be logged in to continue booking. Please login from the header.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setBookingStarted(false);
+              setCurrentStep(1);
+            },
+          },
+        ]
+      );
+    }
+  }, [bookingStarted, currentStep, isLoggedIn]);
   
   const [bookingData, setBookingData] = useState({
     service: null,
@@ -379,8 +408,48 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     }
   };
 
+  // Check if user is logged in before allowing booking beyond step 1
+  const requireLogin = (stepNumber) => {
+    if (!isLoggedIn && stepNumber > 1) {
+      return (
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#f5f5f5'}}>
+          <Ionicons name="lock-closed-outline" size={64} color={Colors.kbrBlue} />
+          <Text style={{fontSize: 20, fontWeight: 'bold', color: '#333', marginTop: 20, textAlign: 'center'}}>
+            Login Required
+          </Text>
+          <Text style={{fontSize: 16, color: '#666', marginTop: 10, textAlign: 'center', lineHeight: 22}}>
+            Please login to your account to continue with the appointment booking process.
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: Colors.kbrBlue,
+              paddingHorizontal: 30,
+              paddingVertical: 15,
+              borderRadius: 25,
+              marginTop: 30,
+            }}
+            onPress={() => {
+              setBookingStarted(false);
+              setCurrentStep(1);
+              navigation.navigate('PatientMain', { screen: 'Home' });
+            }}
+          >
+            <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold'}}>
+              Go to Home & Login
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return null;
+  };
+
   // Render step content based on current step
   const renderStepContent = () => {
+    // Check login requirement first
+    const loginCheck = requireLogin(currentStep);
+    if (loginCheck) return loginCheck;
+
     switch (currentStep) {
       case 1:
         return <Step1SelectService />;
@@ -389,11 +458,6 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       case 3:
         return <Step3SelectDateTime />;
       case 4:
-        // For non-logged users, show login/signup after date selection
-        if (!isLoggedIn) {
-          return <Step4LoginSignup />;
-        }
-        // For logged users, go directly to patient details
         return <Step4PatientDetails />;
       case 5:
         return <Step5VerifyMobile />;
@@ -742,198 +806,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     );
   };
 
-  // Step 4: Login/Signup (for non-logged users)
-  const Step4LoginSignup = () => {
-    const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
-    const [authData, setAuthData] = useState({
-      email: '',
-      username: '',
-      password: '',
-      confirmPassword: '',
-    });
 
-    const handleAuth = async () => {
-      if (authMode === 'login') {
-        // Handle login with email and password
-        if (!authData.email || !authData.password) {
-          Alert.alert('Error', 'Please enter both email and password');
-          return;
-        }
-        // Mock login logic - in real app, validate with backend
-        const mockUser = {
-          id: Date.now().toString(),
-          email: authData.email,
-          username: authData.email.split('@')[0],
-          name: authData.email.split('@')[0],
-        };
-        loginUser(mockUser);
-        goToNextStep();
-      } else {
-        // Handle signup
-        if (!authData.email || !authData.username || !authData.password || !authData.confirmPassword) {
-          Alert.alert('Error', 'Please fill in all fields');
-          return;
-        }
-        if (authData.password !== authData.confirmPassword) {
-          Alert.alert('Error', 'Passwords do not match');
-          return;
-        }
-        try {
-          // Create new user with email
-          const newUser = {
-            id: Date.now().toString(),
-            email: authData.email,
-            username: authData.username,
-            name: authData.username,
-            password: authData.password, // In real app, this would be hashed
-            createdAt: new Date().toISOString(),
-          };
-          loginUser(newUser);
-          Alert.alert('Success', 'Account created successfully');
-          goToNextStep();
-        } catch (error) {
-          Alert.alert('Error', 'Registration failed. Please try again.');
-        }
-      }
-    };
 
-    return (
-      <View style={{flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 20, paddingTop: 20}}>
-        <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
-          {authMode === 'login' ? 'Sign In' : 'Create Account'}
-        </Text>
-        <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
-          {authMode === 'login' ? 'Sign in to continue booking' : 'Create an account to book appointment'}
-        </Text>
-
-        {/* Auth Mode Toggle */}
-        <View style={{flexDirection: 'row', marginBottom: 30, backgroundColor: '#fff', borderRadius: 25, padding: 4}}>
-          <TouchableOpacity
-            style={{
-              flex: 1,
-              paddingVertical: 12,
-              borderRadius: 20,
-              backgroundColor: authMode === 'login' ? Colors.kbrBlue : 'transparent',
-            }}
-            onPress={() => setAuthMode('login')}
-          >
-            <Text style={{
-              textAlign: 'center',
-              color: authMode === 'login' ? '#fff' : '#6B7280',
-              fontWeight: '600',
-            }}>
-              Sign In
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              flex: 1,
-              paddingVertical: 12,
-              borderRadius: 20,
-              backgroundColor: authMode === 'signup' ? Colors.kbrBlue : 'transparent',
-            }}
-            onPress={() => setAuthMode('signup')}
-          >
-            <Text style={{
-              textAlign: 'center',
-              color: authMode === 'signup' ? '#fff' : '#6B7280',
-              fontWeight: '600',
-            }}>
-              Sign Up
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Auth Form */}
-        <View style={{backgroundColor: '#fff', borderRadius: 12, padding: 20}}>
-          <TextInput
-            style={{
-              borderWidth: 1,
-              borderColor: '#E5E7EB',
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 15,
-              fontSize: 16,
-              marginBottom: 15,
-            }}
-            placeholder="Email Address"
-            value={authData.email}
-            onChangeText={(text) => setAuthData(prev => ({...prev, email: text}))}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          {authMode === 'signup' && (
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 15,
-                fontSize: 16,
-                marginBottom: 15,
-              }}
-              placeholder="Username"
-              value={authData.username}
-              onChangeText={(text) => setAuthData(prev => ({...prev, username: text}))}
-            />
-          )}
-
-          <TextInput
-            style={{
-              borderWidth: 1,
-              borderColor: '#E5E7EB',
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 15,
-              fontSize: 16,
-              marginBottom: authMode === 'signup' ? 15 : 0,
-            }}
-            placeholder="Password"
-            value={authData.password}
-            onChangeText={(text) => setAuthData(prev => ({...prev, password: text}))}
-            secureTextEntry
-          />
-
-          {authMode === 'signup' && (
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 15,
-                fontSize: 16,
-              }}
-              placeholder="Confirm Password"
-              value={authData.confirmPassword}
-              onChangeText={(text) => setAuthData(prev => ({...prev, confirmPassword: text}))}
-              secureTextEntry
-            />
-          )}
-        </View>
-
-        {/* Continue Button */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: Colors.kbrBlue,
-            paddingVertical: 15,
-            borderRadius: 25,
-            marginTop: 30,
-            alignItems: 'center',
-          }}
-          onPress={handleAuth}
-        >
-          <Text style={{color: '#fff', fontSize: 16, fontWeight: '600'}}>
-            {authMode === 'login' ? 'Sign In' : 'Create Account'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // Step 4/5: Patient Details (Image 4)
+  // Step 4: Patient Details (Image 4)
   const Step4PatientDetails = () => {
     const [formData, setFormData] = useState({
       bookingFor: 'myself',
@@ -1619,7 +1494,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 width: '100%',
                 alignItems: 'center'
               }}
-              onPress={() => navigation.navigate('PatientMain')}
+              onPress={() => navigation.navigate('PatientMain', { screen: 'Home' })}
             >
               <Text style={{fontSize: 16, fontWeight: '600', color: '#374151'}}>
                 Go to Home
@@ -1632,9 +1507,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   };
 
   return (
-    <View style={{flex: 1}}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={{flex: 1, backgroundColor: '#f5f5f5'}}>
+    <View style={{flex: 1, backgroundColor: theme.background}}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
+      <SafeAreaView style={{flex: 1, backgroundColor: theme.background}}>
         {/* App Header */}
         <AppHeader 
           subtitle="Book Appointment"
