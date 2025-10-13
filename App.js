@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
+import { ROUTES } from './src/constants/navigation';
 import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UserProvider } from './src/contexts/UserContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -28,7 +29,12 @@ import PatientHomeScreen from './src/screens/patient/PatientHomeScreen';
 import AppointmentScreen from './src/screens/patient/AppointmentScreen';
 import ServicesScreen from './src/screens/patient/ServicesScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
+import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
 import PharmacyScreen from './src/screens/patient/PharmacyScreen';
+import PharmacyCartScreen from './src/screens/patient/PharmacyCartScreen';
+import CheckoutScreen from './src/screens/patient/CheckoutScreen';
+import PharmacyOrdersScreen from './src/screens/patient/PharmacyOrdersScreen';
+import PharmacyOrderDetailScreen from './src/screens/patient/PharmacyOrderDetailScreen';
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
 import EditProfileScreen from './src/screens/patient/EditProfileScreen';
@@ -353,11 +359,19 @@ export default function App() {
               <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
               <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
+<<<<<<< HEAD
+              <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CART} component={PharmacyCartScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CHECKOUT} component={CheckoutScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDERS} component={PharmacyOrdersScreen} />
+              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDER_DETAIL} component={PharmacyOrderDetailScreen} />
+=======
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
               <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} />
               <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
               <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+>>>>>>> afd317c33577e2532f721c0ce3059108e611e679
             </Stack.Navigator>
               </NavigationContainer>
             </AppProvider>

@@ -3,6 +3,7 @@
     "name": "KBR Hospital",
     "slug": "kbr-hospital-app",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/hospital-logo.jpeg",
     "userInterfaceStyle": "light",
