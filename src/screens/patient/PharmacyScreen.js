@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,62 @@ import {
   TextInput,
   StatusBar,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
 
 const PharmacyScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const { userData } = useUser();
+  const { pharmacy, purchaseMedicine } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle medicine purchase
+  const handlePurchaseMedicine = (medicine) => {
+    Alert.prompt(
+      'Purchase Medicine',
+      `How many ${medicine.name} would you like to buy?\nPrice: ₹${medicine.salePrice} per unit\nStock: ${medicine.stock} available`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Buy',
+          onPress: (quantity) => {
+            const qty = parseInt(quantity);
+            if (isNaN(qty) || qty <= 0) {
+              Alert.alert('Error', 'Please enter a valid quantity');
+              return;
+            }
+            if (qty > medicine.stock) {
+              Alert.alert('Error', `Only ${medicine.stock} units available`);
+              return;
+            }
+            
+            // Process purchase
+            purchaseMedicine(medicine.id, qty, {
+              patientName: userData?.name || 'Patient',
+              patientId: userData?.id || 'PATIENT-001',
+              paymentMethod: 'Online'
+            });
+            
+            Alert.alert(
+              'Purchase Successful',
+              `${qty} units of ${medicine.name} purchased for ₹${(medicine.salePrice * qty).toFixed(2)}`
+            );
+          },
+        },
+      ],
+      'plain-text',
+      '1'
+    );
+  };
   
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
@@ -73,6 +120,8 @@ const PharmacyScreen = ({ navigation }) => {
                 style={styles.searchInput}
                 placeholder="Search medicines..."
                 placeholderTextColor={Colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
               />
             </View>
             <TouchableOpacity style={styles.filterButton}>
@@ -88,79 +137,52 @@ const PharmacyScreen = ({ navigation }) => {
             <Text style={styles.deliveryText}>Free delivery on orders above ₹500</Text>
           </View>
 
-          {/* Medicines List */}
+          {/* Medicines List - Dynamic from AppContext */}
           <View style={styles.medicinesSection}>
-            {/* Medicine Card 1 */}
-            <View style={styles.medicineCard}>
-              <View style={styles.medicineLeft}>
-                <View style={styles.medicineIconContainer}>
-                  <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
-                </View>
-                <View style={styles.medicineInfo}>
-                  <View style={styles.medicineHeader}>
-                    <Text style={styles.medicineName}>Paracetamol 500mg</Text>
+            {pharmacy.inventory
+              .filter(medicine => 
+                medicine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                medicine.category.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .filter(medicine => medicine.stock > 0) // Only show available medicines
+              .map((medicine) => (
+              <View key={medicine.id} style={styles.medicineCard}>
+                <View style={styles.medicineLeft}>
+                  <View style={styles.medicineIconContainer}>
+                    <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
                   </View>
-                  <Text style={styles.medicineBrand}>Apollo Pharmacy</Text>
-                  <Text style={styles.medicineDescription}>For fever and pain relief</Text>
-                  <Text style={styles.medicineCategory}>Analgesic</Text>
-                  <Text style={styles.medicinePrice}>₹3</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.addButton}>
-                <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Medicine Card 2 */}
-            <View style={styles.medicineCard}>
-              <View style={styles.medicineLeft}>
-                <View style={styles.medicineIconContainer}>
-                  <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
-                </View>
-                <View style={styles.medicineInfo}>
-                  <View style={styles.medicineHeader}>
-                    <Text style={styles.medicineName}>Amoxicillin 250mg</Text>
-                    <View style={styles.prescriptionBadge}>
-                      <Text style={styles.prescriptionText}>Rx</Text>
+                  <View style={styles.medicineInfo}>
+                    <View style={styles.medicineHeader}>
+                      <Text style={styles.medicineName}>{medicine.name}</Text>
+                      {medicine.category === 'Antibiotic' || medicine.category === 'Cardiovascular' ? (
+                        <View style={styles.prescriptionBadge}>
+                          <Text style={styles.prescriptionText}>Rx</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.medicineBrand}>{medicine.manufacturer}</Text>
+                    <Text style={styles.medicineDescription}>
+                      {medicine.category === 'Pain Relief' ? 'For fever and pain relief' :
+                       medicine.category === 'Antibiotic' ? 'Antibiotic for bacterial infections' :
+                       medicine.category === 'Cardiovascular' ? 'For cholesterol management' :
+                       `${medicine.category} medicine`}
+                    </Text>
+                    <Text style={styles.medicineCategory}>{medicine.category}</Text>
+                    <View style={styles.pricingRow}>
+                      <Text style={styles.medicinePrice}>₹{medicine.salePrice}</Text>
+                      <Text style={styles.stockInfo}>{medicine.stock} in stock</Text>
                     </View>
                   </View>
-                  <Text style={styles.medicineBrand}>Sun Pharma</Text>
-                  <Text style={styles.medicineDescription}>Antibiotic for bacterial infections</Text>
-                  <Text style={styles.medicineCategory}>Antibiotic</Text>
-                  <Text style={styles.medicinePrice}>₹12</Text>
                 </View>
+                <TouchableOpacity 
+                  style={styles.addButton}
+                  onPress={() => handlePurchaseMedicine(medicine)}
+                >
+                  <Ionicons name="add" size={16} color={Colors.white} />
+                  <Text style={styles.addButtonText}>Add</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.addButton}>
-                <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Medicine Card 3 */}
-            <View style={styles.medicineCard}>
-              <View style={styles.medicineLeft}>
-                <View style={styles.medicineIconContainer}>
-                  <Ionicons name="medical-outline" size={24} color={Colors.kbrBlue} />
-                </View>
-                <View style={styles.medicineInfo}>
-                  <View style={styles.medicineHeader}>
-                    <Text style={styles.medicineName}>Atorvastatin 10mg</Text>
-                    <View style={styles.prescriptionBadge}>
-                      <Text style={styles.prescriptionText}>Rx</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.medicineBrand}>Cipla</Text>
-                  <Text style={styles.medicineDescription}>For cholesterol management</Text>
-                  <Text style={styles.medicineCategory}>Cardiovascular</Text>
-                  <Text style={styles.medicinePrice}>₹8</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.addButton}>
-                <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -423,6 +445,17 @@ const styles = StyleSheet.create({
     fontSize: Sizes.large,
     fontWeight: 'bold',
     color: Colors.textPrimary,
+  },
+  pricingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Sizes.xs,
+  },
+  stockInfo: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
   addButton: {
     backgroundColor: Colors.kbrRed,

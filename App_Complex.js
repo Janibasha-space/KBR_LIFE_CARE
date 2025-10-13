@@ -3,12 +3,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { 
-  createDrawerNavigator, 
-  DrawerContentScrollView, 
-  DrawerItemList, 
-  DrawerItem 
-} from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
@@ -231,7 +226,7 @@ function AdminTabNavigator() {
         headerShown: false,
       })}
     >
-            <Tab.Screen name="Dashboard" component={AdminDashboardScreen} />
+      <Tab.Screen name="Dashboard" component={AdminDashboardScreen} />
       <Tab.Screen name="Patients" component={PatientManagementScreen} />
       <Tab.Screen name="Appointments" component={AppointmentManagementScreen} />
       <Tab.Screen name="Payments" component={PaymentManagementScreen} />

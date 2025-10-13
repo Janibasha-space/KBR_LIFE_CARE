@@ -155,10 +155,92 @@ const PatientHomeScreen = ({ navigation }) => {
   const services = allServices && allServices.length > 0 ? allServices.slice(0, 4) : []; // Show only first 4 services for home screen
   
   // Get user context
-  const { isLoggedIn, userData } = useUser();
+  const { isLoggedIn, userData, loginUser } = useUser();
   
   // Get theme context
   const { theme } = useTheme();
+
+  // Patient admission status - Mock data for demonstration
+  // Only show this data when user is logged in
+  const [patientStatus, setPatientStatus] = useState(() => {
+    // Only return admission data if user is logged in and is a patient
+    if (!isLoggedIn || !userData) {
+      return { isAdmitted: false };
+    }
+    
+    // Mock admission data for logged-in patients
+    // In real app, this would come from API based on user ID
+    return {
+      isAdmitted: true, // This would be fetched from backend
+      admissionType: 'IP', // IP or OP
+      roomNumber: '201',
+      roomType: 'Private Deluxe',
+      bedNumber: 'A1',
+      admissionDate: '2024-01-10',
+      estimatedDischargeDate: '2024-01-18',
+      currentDoctor: 'Dr. K. Ramesh',
+      department: 'General Medicine',
+      treatments: [
+        { id: 1, name: 'IV Antibiotics', status: 'Ongoing', time: '8:00 AM, 2:00 PM, 8:00 PM' },
+        { id: 2, name: 'Blood Pressure Monitoring', status: 'Daily', time: '6:00 AM, 12:00 PM, 6:00 PM' },
+        { id: 3, name: 'Physical Therapy', status: 'Scheduled', time: '10:00 AM' }
+      ],
+      upcomingTests: [
+        { id: 1, name: 'Blood Test', scheduledTime: '2024-01-16 7:00 AM', department: 'Lab' },
+        { id: 2, name: 'X-Ray Chest', scheduledTime: '2024-01-16 10:00 AM', department: 'Radiology' }
+      ],
+      meals: {
+        breakfast: 'Served at 8:00 AM',
+        lunch: 'Served at 12:30 PM',
+        dinner: 'Served at 7:00 PM'
+      },
+      visitors: {
+        allowedHours: '10:00 AM - 8:00 PM',
+        maxVisitors: 2
+      },
+      emergencyContact: '+91 98765 43210'
+    };
+  });
+
+  // Update patient status when login state changes
+  useEffect(() => {
+    if (!isLoggedIn || !userData) {
+      setPatientStatus({ isAdmitted: false });
+    } else {
+      // In real app, fetch patient admission status from API
+      // For demo, set mock data for logged-in patients
+      setPatientStatus({
+        isAdmitted: true, // This would be fetched from backend based on userData.id
+        admissionType: 'IP',
+        roomNumber: '201',
+        roomType: 'Private Deluxe',
+        bedNumber: 'A1',
+        admissionDate: '2024-01-10',
+        estimatedDischargeDate: '2024-01-18',
+        currentDoctor: 'Dr. K. Ramesh',
+        department: 'General Medicine',
+        treatments: [
+          { id: 1, name: 'IV Antibiotics', status: 'Ongoing', time: '8:00 AM, 2:00 PM, 8:00 PM' },
+          { id: 2, name: 'Blood Pressure Monitoring', status: 'Daily', time: '6:00 AM, 12:00 PM, 6:00 PM' },
+          { id: 3, name: 'Physical Therapy', status: 'Scheduled', time: '10:00 AM' }
+        ],
+        upcomingTests: [
+          { id: 1, name: 'Blood Test', scheduledTime: '2024-01-16 7:00 AM', department: 'Lab' },
+          { id: 2, name: 'X-Ray Chest', scheduledTime: '2024-01-16 10:00 AM', department: 'Radiology' }
+        ],
+        meals: {
+          breakfast: 'Served at 8:00 AM',
+          lunch: 'Served at 12:30 PM',
+          dinner: 'Served at 7:00 PM'
+        },
+        visitors: {
+          allowedHours: '10:00 AM - 8:00 PM',
+          maxVisitors: 2
+        },
+        emergencyContact: '+91 98765 43210'
+      });
+    }
+  }, [isLoggedIn, userData]);
 
   // Initialize loading state with network error handling
   useEffect(() => {
@@ -205,6 +287,18 @@ const PatientHomeScreen = ({ navigation }) => {
       }
       // Patient credentials
       else if (email === "patient@kbr.com" && password === "patient123") {
+        // Login the patient using UserContext
+        const patientData = {
+          id: 'patient_001',
+          name: 'John Doe',
+          email: email,
+          mobileNumber: '+919876543210',
+          age: 30,
+          gender: 'Male',
+          isPatient: true
+        };
+        loginUser(patientData);
+        
         setShowLoginModal(false);
         Alert.alert(
           'Patient Login Successful! 🎉',
@@ -219,6 +313,18 @@ const PatientHomeScreen = ({ navigation }) => {
         );
       }
     } else {
+      // For signup, create a new patient account
+      const newPatientData = {
+        id: Date.now().toString(),
+        name: 'New Patient',
+        email: email,
+        mobileNumber: '+919876543211',
+        age: 25,
+        gender: 'Male',
+        isPatient: true
+      };
+      loginUser(newPatientData);
+      
       Alert.alert('✅ Account Created Successfully!', 'Welcome to KBR Life Care Hospitals!');
       setShowLoginModal(false);
     }
@@ -249,6 +355,103 @@ const PatientHomeScreen = ({ navigation }) => {
 
   const sendEmail = (emailAddress) => {
     Linking.openURL(`mailto:${emailAddress}`);
+  };
+
+  // Render Patient Treatment Status for admitted patients
+  const renderPatientTreatmentStatus = () => {
+    // Only show treatment status if user is logged in AND patient is admitted
+    if (!isLoggedIn || !userData || !patientStatus.isAdmitted) return null;
+
+    return (
+      <View style={styles.treatmentStatusContainer}>
+        <View style={styles.treatmentHeader}>
+          <View style={styles.treatmentHeaderLeft}>
+            <View style={styles.admissionBadge}>
+              <Ionicons name="medical" size={16} color="#FFFFFF" />
+              <Text style={styles.admissionBadgeText}>{patientStatus.admissionType}</Text>
+            </View>
+            <View style={styles.treatmentInfo}>
+              <Text style={styles.treatmentTitle}>Current Treatment</Text>
+              <Text style={styles.treatmentSubtitle}>Room {patientStatus.roomNumber} • {patientStatus.roomType}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.expandButton}>
+            <Ionicons name="chevron-down" size={20} color={Colors.kbrBlue} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.treatmentContent}>
+          {/* Doctor & Department */}
+          <View style={styles.treatmentRow}>
+            <View style={styles.treatmentItem}>
+              <Ionicons name="person" size={16} color={Colors.kbrBlue} />
+              <Text style={styles.treatmentLabel}>Doctor</Text>
+              <Text style={styles.treatmentValue}>{patientStatus.currentDoctor}</Text>
+            </View>
+            <View style={styles.treatmentItem}>
+              <Ionicons name="medical" size={16} color={Colors.kbrBlue} />
+              <Text style={styles.treatmentLabel}>Department</Text>
+              <Text style={styles.treatmentValue}>{patientStatus.department}</Text>
+            </View>
+          </View>
+
+          {/* Admission Details */}
+          <View style={styles.treatmentRow}>
+            <View style={styles.treatmentItem}>
+              <Ionicons name="calendar" size={16} color={Colors.kbrGreen} />
+              <Text style={styles.treatmentLabel}>Admitted</Text>
+              <Text style={styles.treatmentValue}>{patientStatus.admissionDate}</Text>
+            </View>
+            <View style={styles.treatmentItem}>
+              <Ionicons name="time" size={16} color={Colors.kbrPurple} />
+              <Text style={styles.treatmentLabel}>Est. Discharge</Text>
+              <Text style={styles.treatmentValue}>{patientStatus.estimatedDischargeDate}</Text>
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity style={styles.quickActionButton}>
+              <Ionicons name="clipboard" size={16} color={Colors.kbrBlue} />
+              <Text style={styles.quickActionText}>Treatments</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionButton}>
+              <Ionicons name="flask" size={16} color={Colors.kbrGreen} />
+              <Text style={styles.quickActionText}>Tests</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionButton}>
+              <Ionicons name="restaurant" size={16} color={Colors.kbrPurple} />
+              <Text style={styles.quickActionText}>Meals</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionButton}>
+              <Ionicons name="call" size={16} color={Colors.kbrRed} />
+              <Text style={styles.quickActionText}>Emergency</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Current Treatments Preview */}
+          <View style={styles.treatmentsPreview}>
+            <Text style={styles.previewTitle}>Today's Treatments</Text>
+            {patientStatus.treatments.slice(0, 2).map((treatment) => (
+              <View key={treatment.id} style={styles.treatmentItemPreview}>
+                <View style={styles.treatmentStatus}>
+                  <View style={[styles.statusDot, { 
+                    backgroundColor: treatment.status === 'Ongoing' ? Colors.kbrGreen : 
+                                   treatment.status === 'Scheduled' ? Colors.kbrBlue : Colors.kbrPurple 
+                  }]} />
+                  <Text style={styles.treatmentName}>{treatment.name}</Text>
+                </View>
+                <Text style={styles.treatmentTime}>{treatment.time}</Text>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.viewAllTreatments}>
+              <Text style={styles.viewAllText}>View All Treatments</Text>
+              <Ionicons name="arrow-forward" size={14} color={Colors.kbrBlue} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   // Show loading screen while initializing
@@ -306,6 +509,9 @@ const PatientHomeScreen = ({ navigation }) => {
             <View style={styles.notificationBadge} />
           </TouchableOpacity>
         </View>
+
+        {/* Patient Treatment Status - Show if patient is admitted */}
+        {renderPatientTreatmentStatus()}
 
         <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
           {/* Hero Section - Simplified for better loading */}
@@ -1685,6 +1891,170 @@ const styles = StyleSheet.create({
     color: '#4AA3DF',
     fontSize: Sizes.medium,
     fontWeight: '600',
+  },
+  
+  // Treatment Status Styles
+  treatmentStatusContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.kbrBlue,
+  },
+  treatmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  treatmentHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  admissionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  admissionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  treatmentInfo: {
+    flex: 1,
+  },
+  treatmentTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  treatmentSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  expandButton: {
+    padding: 4,
+  },
+  treatmentContent: {
+    gap: 12,
+  },
+  treatmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  treatmentItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    padding: 10,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  treatmentLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginLeft: 6,
+    flex: 1,
+  },
+  treatmentValue: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1F2937',
+    textAlign: 'right',
+    flex: 1,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 8,
+  },
+  quickActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  quickActionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#374151',
+    marginLeft: 4,
+  },
+  treatmentsPreview: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  previewTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  treatmentItemPreview: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  treatmentStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  treatmentName: {
+    fontSize: 12,
+    color: '#1F2937',
+    flex: 1,
+  },
+  treatmentTime: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  viewAllTreatments: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  viewAllText: {
+    fontSize: 11,
+    color: Colors.kbrBlue,
+    fontWeight: '500',
+    marginRight: 4,
   },
 });
 

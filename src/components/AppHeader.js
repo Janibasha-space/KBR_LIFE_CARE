@@ -39,8 +39,39 @@ const AppHeader = ({
 
   const handleAuthPress = () => {
     if (isLoggedIn) {
-      // Navigate directly to profile
-      navigation?.navigate('Profile');
+      // Show logout confirmation
+      Alert.alert(
+        'User Options',
+        `Welcome, ${userData?.name || 'User'}!`,
+        [
+          {
+            text: 'View Profile',
+            onPress: () => navigation?.navigate('Profile')
+          },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Logout Confirmation',
+                'Are you sure you want to logout?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Logout', 
+                    style: 'destructive',
+                    onPress: () => {
+                      logoutUser();
+                      Alert.alert('Logged Out', 'You have been logged out successfully.');
+                    }
+                  }
+                ]
+              );
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } else {
       // Show login modal
       setShowAuthModal(true);

@@ -63,6 +63,40 @@ const ServicesScreen = ({ navigation }) => {
     },
   ];
 
+  // Test Categories - Added as requested below Medical/Surgical/Specialized Care
+  const testCategories = [
+    {
+      id: 'blood-tests',
+      title: 'Blood Tests',
+      subtitle: 'Laboratory Tests',
+      count: 12,
+      icon: 'water',
+      color: '#FFFFFF',
+      backgroundColor: '#DC2626', // Red
+      description: 'Complete blood analysis and screening',
+    },
+    {
+      id: 'imaging-tests',
+      title: 'Imaging',
+      subtitle: 'Radiology Tests',
+      count: 8,
+      icon: 'scan',
+      color: '#FFFFFF',
+      backgroundColor: '#7C3AED', // Purple
+      description: 'X-Ray, CT, MRI, and ultrasound services',
+    },
+    {
+      id: 'cardiac-tests',
+      title: 'Cardiac Tests',
+      subtitle: 'Heart Tests',
+      count: 5,
+      icon: 'heart',
+      color: '#FFFFFF',
+      backgroundColor: '#059669', // Green
+      description: 'ECG, Echo, and cardiac evaluations',
+    },
+  ];
+
   const renderSpecialtyCard = (specialty) => (
     <TouchableOpacity
       key={specialty.id}
@@ -87,6 +121,34 @@ const ServicesScreen = ({ navigation }) => {
             <Text style={styles.seeDetailsText}>See Details</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={Colors.white} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderTestCard = (test) => (
+    <TouchableOpacity
+      key={test.id}
+      style={[styles.testCard, { backgroundColor: test.backgroundColor }]}
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate('BookAppointment', { category: test.id, type: 'test' })}
+    >
+      <View style={styles.testContent}>
+        <View style={styles.testLeft}>
+          <View style={styles.testIconContainer}>
+            <Ionicons name={test.icon} size={24} color={test.color} />
+          </View>
+          <View style={styles.testInfo}>
+            <Text style={styles.testTitle}>{test.title}</Text>
+            {test.subtitle && <Text style={styles.testSubtitle}>{test.subtitle}</Text>}
+            <Text style={styles.testCount}>{test.count} tests available</Text>
+          </View>
+        </View>
+        <View style={styles.testRight}>
+          <View style={styles.bookTestButton}>
+            <Ionicons name="calendar" size={16} color={Colors.white} />
+            <Text style={styles.bookTestText}>Book</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -147,6 +209,20 @@ const ServicesScreen = ({ navigation }) => {
         {/* Specialty Categories */}
         <View style={styles.specialtiesSection}>
           {specialtyCategories.map(renderSpecialtyCard)}
+        </View>
+
+        {/* Tests Section - Added as requested */}
+        <View style={styles.testsSection}>
+          <View style={styles.testsSectionHeader}>
+            <View style={styles.testsHeaderRow}>
+              <Ionicons name="flask" size={20} color="#FF6B35" />
+              <Text style={[styles.testsTitle, { color: theme.textPrimary }]}>Diagnostic Tests</Text>
+            </View>
+            <Text style={[styles.testsSubtitle, { color: theme.textSecondary }]}>Quick and accurate test results</Text>
+          </View>
+          <View style={styles.testCardsContainer}>
+            {testCategories.map(renderTestCard)}
+          </View>
         </View>
 
         {/* Expand All Categories Button */}
@@ -428,6 +504,104 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.9,
     lineHeight: 20,
+  },
+  
+  // Tests Section Styles
+  testsSection: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: Sizes.lg,
+  },
+  testsSectionHeader: {
+    marginBottom: Sizes.lg,
+  },
+  testsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Sizes.xs,
+  },
+  testsTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginLeft: Sizes.xs,
+  },
+  testsSubtitle: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  testCardsContainer: {
+    gap: Sizes.md,
+  },
+  testCard: {
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    marginBottom: Sizes.sm,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  testContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  testLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  testIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
+  },
+  testInfo: {
+    flex: 1,
+  },
+  testTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  testSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.white,
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  testCount: {
+    fontSize: Sizes.small,
+    color: Colors.white,
+    opacity: 0.8,
+  },
+  testRight: {
+    alignItems: 'flex-end',
+  },
+  bookTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  bookTestText: {
+    fontSize: Sizes.small,
+    color: Colors.white,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
 

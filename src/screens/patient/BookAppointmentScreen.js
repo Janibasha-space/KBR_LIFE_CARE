@@ -20,6 +20,7 @@ import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/AppContext';
 import { LoadingOverlay } from '../../components/Loading';
 import { bookingStyles } from '../../styles/bookingStyles';
 import AppHeader from '../../components/AppHeader';
@@ -37,11 +38,18 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     registerUser, 
     sendOTP, 
     verifyOTP,
-    addAppointment,
     checkAppointmentConflict,
     handleAppointmentConflict
   } = useUser();
   const { theme } = useTheme();
+  
+  // Use AppContext for appointments and doctors
+  const { 
+    doctors,
+    addAppointment,
+    tests,
+    bookTest
+  } = useApp();
 
   // Booking state management
   const [currentStep, setCurrentStep] = useState(1);

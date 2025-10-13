@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
+import { useApp } from '../../contexts/AppContext';
 
 // Helper function to create transparent colors
 const getTransparentColor = (color, opacity) => `${color}${opacity}`;
@@ -19,13 +20,21 @@ const getTransparentColor = (color, opacity) => `${color}${opacity}`;
 const AdminDashboardScreen = ({ navigation }) => {
   const [adminName] = useState('Admin King');
   const { isLoggedIn, userData } = useUser();
+  
+  // Use AppContext for real-time data
+  const { 
+    adminStats, 
+    appointments, 
+    pharmacy 
+  } = useApp();
 
+  // Real-time stats cards with live data from AppContext
   const statsCards = [
     {
       id: 'users',
       title: 'Total Users',
-      value: '1,247',
-      change: '+12.5% this month',
+      value: adminStats.totalUsers.toString(),
+      change: `${adminStats.totalUsers} registered`,
       icon: 'people-outline',
       backgroundColor: Colors.totalUsers,
       iconColor: Colors.kbrRed,
@@ -33,8 +42,8 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: 'appointments',
       title: 'Appointments',
-      value: '856',
-      change: '45 today',
+      value: adminStats.totalAppointments.toString(),
+      change: `${adminStats.todayAppointments} today`,
       icon: 'calendar-outline',
       backgroundColor: Colors.appointments,
       iconColor: Colors.kbrBlue,
@@ -42,8 +51,8 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: 'revenue',
       title: 'Revenue',
-      value: '₹125,000',
-      change: '+8% this month',
+      value: `₹${adminStats.totalRevenue.toLocaleString()}`,
+      change: `₹${pharmacy.todaySales.toLocaleString()} today`,
       icon: 'trending-up-outline',
       backgroundColor: Colors.revenue,
       iconColor: Colors.kbrGreen,
@@ -51,7 +60,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: 'doctors',
       title: 'Active Doctors',
-      value: '12',
+      value: adminStats.activeDoctors.toString(),
       change: 'All available',
       icon: 'medical-outline',
       backgroundColor: Colors.activeDoctors,
@@ -59,32 +68,17 @@ const AdminDashboardScreen = ({ navigation }) => {
     },
   ];
 
-  const recentAppointments = [
-    {
-      id: '1',
-      patientName: 'Rajesh Kumar',
-      doctor: 'Dr. K. Ramesh • General Medicine',
-      time: '2024-12-15 10:00 AM • ₹600',
-      status: 'confirmed',
-      avatar: 'R',
-    },
-    {
-      id: '2',
-      patientName: 'Priya Sharma',
-      doctor: 'Dr. K. Divyavani • Obstetrics & Gynecology',
-      time: '2024-12-15 11:30 AM • ₹800',
-      status: 'pending',
-      avatar: 'P',
-    },
-    {
-      id: '3',
-      patientName: 'Amit Patel',
-      doctor: 'Dr. Mahesh Kumar • Cardiology',
-      time: '2024-12-15 2:00 PM • ₹1200',
-      status: 'completed',
-      avatar: 'A',
-    },
-  ];
+  // Recent appointments from real AppContext data
+  const recentAppointments = appointments
+    .slice(0, 3) // Show only latest 3
+    .map(appointment => ({
+      id: appointment.id,
+      patientName: appointment.patientName,
+      doctor: `${appointment.doctorName} • ${appointment.specialization}`,
+      time: `${appointment.date} ${appointment.time} • ₹${appointment.amount}`,
+      status: appointment.status,
+      avatar: appointment.patientName.charAt(0).toUpperCase(),
+    }));
 
   const renderStatsCard = (card) => (
     <View key={card.id} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
@@ -162,23 +156,11 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.headerActions}>
-            <View style={styles.adminInfo}>
-              <Text style={styles.adminRole}>Administrator</Text>
-              <Text style={styles.adminName}>{adminName}</Text>
-            </View>
             <TouchableOpacity 
-              style={styles.profileButton}
-              onPress={() => navigation.navigate('Profile')}
+              style={styles.menuBarButton}
+              onPress={() => navigation.getParent()?.openDrawer()}
             >
-              {userData?.profilePicture ? (
-                <Image 
-                  source={{ uri: userData.profilePicture }} 
-                  style={styles.profilePicture}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Ionicons name="person-circle" size={24} color={Colors.white} />
-              )}
+              <Ionicons name="menu" size={24} color={Colors.white} />
             </TouchableOpacity>
           </View>
         </View>
@@ -191,6 +173,8 @@ const AdminDashboardScreen = ({ navigation }) => {
             <Text style={styles.statusText}>System Online • Live Dashboard</Text>
           </View>
         </View>
+
+
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -223,7 +207,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.quickActionSubtitle}>Add, edit, or remove services</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickActionCard}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => navigation.getParent()?.navigate('DoctorManagement')}
+            >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrGreen + '15' }]}>
                 <Ionicons name="people-outline" size={24} color={Colors.kbrGreen} />
               </View>
@@ -231,7 +218,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.quickActionSubtitle}>Add or assign doctors</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickActionCard}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => navigation.navigate('Appointments')}
+            >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrRed + '15' }]}>
                 <Ionicons name="calendar-outline" size={24} color={Colors.kbrRed} />
               </View>
@@ -239,7 +229,10 @@ const AdminDashboardScreen = ({ navigation }) => {
               <Text style={styles.quickActionSubtitle}>Manage all appointments</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickActionCard}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => navigation.getParent()?.navigate('Reports')}
+            >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrPurple + '15' }]}>
                 <Ionicons name="analytics-outline" size={24} color={Colors.kbrPurple} />
               </View>
@@ -304,6 +297,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  menuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
+  },
   adminLogoImage: {
     width: 36,
     height: 36,
@@ -331,40 +333,17 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  adminInfo: {
-    alignItems: 'flex-end',
-  },
-  adminRole: {
-    fontSize: 11,
-    color: '#E3F2FD',
-    fontWeight: '500',
-    opacity: 0.8,
-  },
-  adminName: {
-    fontSize: 14,
-    color: Colors.white,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  profileButton: {
+  menuBarButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     padding: 8,
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    elevation: 2,
-    width: 40,
-    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  profilePicture: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
   },
   
   // Bottom Header Row Styles
@@ -399,6 +378,32 @@ const styles = StyleSheet.create({
     color: '#E3F2FD',
     fontWeight: '400',
     opacity: 0.9,
+  },
+  
+  // Quick Navigation Styles
+  quickNavContainer: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: 8,
+  },
+  quickNavItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  quickNavText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.white,
+    marginLeft: 6,
   },
   loginText: {
     color: Colors.white,
