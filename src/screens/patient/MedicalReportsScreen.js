@@ -23,7 +23,6 @@ import AppHeader from '../../components/AppHeader';
 const MedicalReportsScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All Reports');
-<<<<<<< HEAD
   const [selectedCategory, setSelectedCategory] = useState(null);
   const { isLoggedIn, userData } = useUser();
   
@@ -281,9 +280,8 @@ const MedicalReportsScreen = ({ navigation }) => {
       Alert.alert('Share Failed', 'Could not share the report. Please try again later.');
     }
   };
-=======
+
   const { theme } = useTheme();
->>>>>>> afd317c33577e2532f721c0ce3059108e611e679
 
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>

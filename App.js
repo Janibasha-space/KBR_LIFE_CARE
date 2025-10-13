@@ -359,19 +359,16 @@ export default function App() {
               <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
               <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
-<<<<<<< HEAD
               <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
               <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CART} component={PharmacyCartScreen} />
               <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CHECKOUT} component={CheckoutScreen} />
               <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDERS} component={PharmacyOrdersScreen} />
               <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDER_DETAIL} component={PharmacyOrderDetailScreen} />
-=======
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
               <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} />
               <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
               <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
->>>>>>> afd317c33577e2532f721c0ce3059108e611e679
             </Stack.Navigator>
               </NavigationContainer>
             </AppProvider>
