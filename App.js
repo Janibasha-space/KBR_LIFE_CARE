@@ -43,10 +43,13 @@ import PaymentManagementScreen from './src/screens/admin/PaymentManagementScreen
 import DischargeManagementScreen from './src/screens/admin/DischargeManagementScreen';
 
 import PatientDetailsScreen from './src/screens/admin/PatientDetailsScreen';
+import PatientMedicalReportsScreen from './src/screens/admin/PatientMedicalReportsScreen';
+import PatientPaymentInvoicesScreen from './src/screens/admin/PatientPaymentInvoicesScreen';
 import PaymentDetailsScreen from './src/screens/admin/PaymentDetailsScreen';
 import RoomManagementScreen from './src/screens/admin/RoomManagementScreen';
 import DoctorManagementScreen from './src/screens/admin/DoctorManagementScreen';
 import AppointmentManagementScreen from './src/screens/admin/AppointmentManagementScreen';
+import AppointmentDetailsScreen from './src/screens/admin/AppointmentDetailsScreen';
 import TestManagementScreen from './src/screens/admin/TestManagementScreen';
 import ReportsScreen from './src/screens/admin/ReportsScreen';
 import AdminProfileScreen from './src/screens/admin/AdminProfileScreen';
@@ -357,7 +360,10 @@ export default function App() {
               <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} />
               <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
+              <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
+              <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
               <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+              <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
             </Stack.Navigator>
               </NavigationContainer>
             </AppProvider>

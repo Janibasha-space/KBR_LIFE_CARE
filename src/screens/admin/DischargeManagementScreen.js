@@ -139,7 +139,10 @@ const DischargeManagementScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -207,6 +210,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 15,
   },
   headerContent: {

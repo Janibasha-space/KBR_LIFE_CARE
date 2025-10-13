@@ -23,6 +23,8 @@ export const ROUTES = {
   ADMIN: {
     DASHBOARD: 'Dashboard',
     PATIENTS: 'Patients',
+    PATIENT_DETAILS: 'PatientDetails',
+    PATIENT_MEDICAL_REPORTS: 'PatientMedicalReports',
     PAYMENTS: 'Payments',
     DISCHARGE: 'Discharge',
     SERVICE_MANAGEMENT: 'ServiceManagement',

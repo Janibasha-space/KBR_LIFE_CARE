@@ -7,70 +7,39 @@ import {
   TouchableOpacity, 
   TextInput,
   FlatList,
-  Alert
+  Alert,
+  Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../../contexts/AppContext';
+import PatientRegistrationModal from '../../components/PatientRegistrationModal';
 
 const PatientManagementScreen = ({ navigation }) => {
+  const { patients, deletePatient } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
-  // Mock data for stats - matching your UI
+  // Calculate stats from real patient data
   const stats = {
-    total: 3,
-    inPatient: 2,
-    outPatient: 1
+    total: patients.length,
+    inPatient: patients.filter(p => p.patientType === 'IP').length,
+    outPatient: patients.filter(p => p.patientType === 'OP').length,
   };
 
-  // Mock data for patients - matching your UI exactly
-  const patients = [
-    {
-      id: 'KBR-IP-2024-001',
-      name: 'Rajesh Kumar',
-      age: 45,
-      gender: 'Male',
-      bloodGroup: 'B+',
-      phone: '+91 98765 43210',
-      doctor: 'Dr. K. Ramesh',
-      department: 'Cardiology',
-      room: '201',
-      bedNo: 'A1',
-      admissionDate: '2024-01-05',
-      status: 'IP',
-      statusText: 'Admitted',
-      statusColor: '#007AFF'
-    },
-    {
-      id: 'KBR-OP-2024-501',
-      name: 'Priya Sharma',
-      age: 32,
-      gender: 'Female',
-      phone: '+91 98765 43220',
-      doctor: 'Dr. K. Divyasri',
-      department: 'Obstetrics & Gynecology',
-      visitDate: '2024-01-10',
-      status: 'OP',
-      statusText: 'Consultation',
-      statusColor: '#34C759'
-    },
-    {
-      id: 'KBR-IP-2024-002',
-      name: 'Amit Patel',
-      age: 55,
-      gender: 'Male',
-      phone: '+91 98765 43230',
-      doctor: 'Dr. Mahesh Kumar',
-      department: 'Orthopedics',
-      status: 'IP',
-      statusText: 'Under Treatment',
-      statusColor: '#FF9500'
-    }
+  // Filter options
+  const filterOptions = [
+    { label: 'All', value: 'All' },
+    { label: 'IP Only', value: 'IP' },
+    { label: 'OP Only', value: 'OP' },
   ];
 
   const filteredPatients = patients.filter(patient => {
     const matchesSearch = patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         patient.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'All' || patient.status === selectedFilter;
+                         patient.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         patient.phone.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = selectedFilter === 'All' || patient.patientType === selectedFilter;
     return matchesSearch && matchesFilter;
   });
 
@@ -79,7 +48,52 @@ const PatientManagementScreen = ({ navigation }) => {
   };
 
   const handleRegisterNewPatient = () => {
-    Alert.alert('Register New Patient', 'This will open the patient registration form.');
+    setShowRegistrationModal(true);
+  };
+
+  const handleRegistrationSuccess = (newPatient) => {
+    Alert.alert('Success', `Patient ${newPatient.name} registered successfully!`);
+  };
+
+  const handleCall = (patient) => {
+    const phoneNumber = patient.phone.replace(/\s/g, '');
+    Linking.openURL(`tel:${phoneNumber}`);
+  };
+
+  const handleViewPaymentInvoices = (patient) => {
+    navigation.navigate('PatientPaymentInvoices', { 
+      patientId: patient.id,
+      patientName: patient.name 
+    });
+  };
+
+  const handleViewMedicalReports = (patient) => {
+    navigation.navigate('PatientMedicalReports', { 
+      patientId: patient.id,
+      patientName: patient.name 
+    });
+  };
+
+  const handleEditPatient = (patient) => {
+    navigation.navigate('PatientDetails', { patient });
+  };
+
+  const handleDeletePatient = (patient) => {
+    Alert.alert(
+      'Delete Patient',
+      `Are you sure you want to delete ${patient.name}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deletePatient(patient.id);
+            Alert.alert('Success', 'Patient deleted successfully');
+          },
+        },
+      ]
+    );
   };
 
   const StatCard = ({ title, count, color }) => (
@@ -102,7 +116,7 @@ const PatientManagementScreen = ({ navigation }) => {
           <Text style={styles.patientId}>{patient.id}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: patient.statusColor }]}>
-          <Text style={styles.statusText}>{patient.status}</Text>
+          <Text style={styles.statusText}>{patient.patientType}</Text>
         </View>
         <View style={[styles.statusBadge2, { backgroundColor: '#E8F5E8' }]}>
           <Text style={[styles.statusText2, { color: patient.statusColor }]}>{patient.statusText}</Text>
@@ -128,12 +142,39 @@ const PatientManagementScreen = ({ navigation }) => {
             <Text style={styles.detailText}>Room {patient.room}, Bed {patient.bedNo} • Admitted: {patient.admissionDate}</Text>
           </View>
         )}
-        {patient.visitDate && (
+        {patient.registrationDate && (
           <View style={styles.detailRow}>
             <Ionicons name="calendar" size={14} color="#666" />
-            <Text style={styles.detailText}>Visit: {patient.visitDate}</Text>
+            <Text style={styles.detailText}>Registered: {patient.registrationDate}</Text>
           </View>
         )}
+      </View>
+
+      {/* Quick Actions Row */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity 
+          style={styles.quickActionButton}
+          onPress={() => handleCall(patient)}
+        >
+          <Ionicons name="call" size={16} color="#34C759" />
+          <Text style={[styles.quickActionText, { color: '#34C759' }]}>Call</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.quickActionButton}
+          onPress={() => handleViewPaymentInvoices(patient)}
+        >
+          <Ionicons name="receipt" size={16} color="#007AFF" />
+          <Text style={[styles.quickActionText, { color: '#007AFF' }]}>Payments</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.quickActionButton}
+          onPress={() => handleViewMedicalReports(patient)}
+        >
+          <Ionicons name="document-text" size={16} color="#FF9500" />
+          <Text style={[styles.quickActionText, { color: '#FF9500' }]}>Reports</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.cardActions}>
@@ -144,8 +185,19 @@ const PatientManagementScreen = ({ navigation }) => {
           <Ionicons name="eye" size={16} color="#DC2626" />
           <Text style={styles.viewDetailsText}>View Details</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.editButton}>
+        
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={() => handleEditPatient(patient)}
+        >
           <Ionicons name="create" size={16} color="#007AFF" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => handleDeletePatient(patient)}
+        >
+          <Ionicons name="trash" size={16} color="#EF4444" />
         </TouchableOpacity>
       </View>
     </View>
@@ -155,7 +207,10 @@ const PatientManagementScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -187,10 +242,37 @@ const PatientManagementScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           
-          <TouchableOpacity style={styles.filterButton}>
-            <Text style={styles.filterText}>All</Text>
-            <Ionicons name="chevron-down" size={16} color="#6B7280" />
-          </TouchableOpacity>
+          <View style={styles.filterContainer}>
+            <TouchableOpacity 
+              style={styles.filterButton}
+              onPress={() => setShowFilterDropdown(!showFilterDropdown)}
+            >
+              <Text style={styles.filterText}>{selectedFilter}</Text>
+              <Ionicons name={showFilterDropdown ? "chevron-up" : "chevron-down"} size={16} color="#6B7280" />
+            </TouchableOpacity>
+            
+            {showFilterDropdown && (
+              <View style={styles.filterDropdown}>
+                {filterOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={styles.filterOption}
+                    onPress={() => {
+                      setSelectedFilter(option.value);
+                      setShowFilterDropdown(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.filterOptionText,
+                      selectedFilter === option.value && styles.selectedFilterText
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Register Button */}
@@ -209,8 +291,35 @@ const PatientManagementScreen = ({ navigation }) => {
           renderItem={({ item }) => <PatientCard patient={item} />}
           contentContainerStyle={styles.patientList}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>No Patients Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery 
+                  ? `No patients match "${searchQuery}"`
+                  : 'Register your first patient to get started'
+                }
+              </Text>
+              {!searchQuery && (
+                <TouchableOpacity 
+                  style={styles.emptyActionButton}
+                  onPress={handleRegisterNewPatient}
+                >
+                  <Text style={styles.emptyActionText}>Register New Patient</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
         />
       </View>
+
+      {/* Registration Modal */}
+      <PatientRegistrationModal
+        visible={showRegistrationModal}
+        onClose={() => setShowRegistrationModal(false)}
+        onSuccess={handleRegistrationSuccess}
+      />
     </View>
   );
 };
@@ -229,6 +338,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 15,
   },
   headerContent: {
@@ -421,6 +536,91 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 4,
+  },
+  deleteButton: {
+    padding: 4,
+  },
+  filterContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  filterDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    marginTop: 4,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  filterOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  filterOptionText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  selectedFilterText: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    marginBottom: 12,
+  },
+  quickActionButton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  quickActionText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#9CA3AF',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    marginBottom: 20,
+  },
+  emptyActionButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyActionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,26 +8,23 @@ import {
   TextInput,
   FlatList,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import AdmitPatientModal from '../../components/AdmitPatientModal';
+import AddAppointmentModal from '../../components/AddAppointmentModal';
 
 const AppointmentManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
-  const [selectedDate, setSelectedDate] = useState('Today');
+  const [selectedDate, setSelectedDate] = useState('All');
+  const [showAdmitModal, setShowAdmitModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
 
-  // Mock data for appointment statistics
-  const appointmentStats = {
-    totalAppointments: 125,
-    todayAppointments: 28,
-    confirmedAppointments: 85,
-    pendingAppointments: 25,
-    completedAppointments: 15
-  };
-
-  // Mock data for appointments
-  const appointments = [
+  // Mock data for appointments - Convert to state for dynamic updates
+  const [appointmentsList, setAppointmentsList] = useState([
     {
       id: 'APT001',
       patientName: 'Rajesh Kumar',
@@ -42,10 +39,15 @@ const AppointmentManagementScreen = ({ navigation }) => {
       statusColor: '#10B981',
       fees: 600,
       paymentStatus: 'Paid',
+      paymentMode: 'Online',
+      transactionId: 'TXN123456789',
+      razorpayOrderId: 'order_123456',
       bookingDate: '2024-01-12',
       patientAge: 45,
       patientGender: 'Male',
       symptoms: 'Fever, headache, body pain',
+      emergencyContact: '+91 98765 43211',
+      patientAddress: '123 Main St, City, State, 12345',
       isNewPatient: false,
       avatar: 'R'
     },
@@ -63,10 +65,13 @@ const AppointmentManagementScreen = ({ navigation }) => {
       statusColor: '#F59E0B',
       fees: 800,
       paymentStatus: 'Pending',
+      paymentMode: 'Pay at Hospital',
       bookingDate: '2024-01-14',
       patientAge: 28,
       patientGender: 'Female',
       symptoms: 'Routine prenatal checkup',
+      emergencyContact: '+91 98765 43212',
+      patientAddress: '456 Oak Ave, City, State, 67890',
       isNewPatient: true,
       avatar: 'P'
     },
@@ -112,19 +117,204 @@ const AppointmentManagementScreen = ({ navigation }) => {
       isNewPatient: true,
       avatar: 'S'
     }
-  ];
+  ]);
+
+  // Helper function to check if date matches filter (needed for statistics)
+  const checkDateFilter = (appointmentDate, filter) => {
+    const today = new Date();
+    const appointmentDateTime = new Date(appointmentDate);
+    
+    switch (filter) {
+      case 'Today':
+        return appointmentDateTime.toDateString() === today.toDateString();
+      case 'Tomorrow':
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        return appointmentDateTime.toDateString() === tomorrow.toDateString();
+      case 'This Week':
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return appointmentDateTime >= startOfWeek && appointmentDateTime <= endOfWeek;
+      case 'This Month':
+        return appointmentDateTime.getMonth() === today.getMonth() && 
+               appointmentDateTime.getFullYear() === today.getFullYear();
+      case 'All':
+        return true;
+      default:
+        return true;
+    }
+  };
+
+  // Calculate real-time appointment statistics using useMemo for performance
+  const appointmentStats = useMemo(() => {
+    // Add safety check to prevent errors
+    if (!appointmentsList || !Array.isArray(appointmentsList)) {
+      return {
+        totalAppointments: 0,
+        todayAppointments: 0,
+        confirmedAppointments: 0,
+        pendingAppointments: 0,
+        completedAppointments: 0
+      };
+    }
+    
+    return {
+      totalAppointments: appointmentsList.length,
+      todayAppointments: appointmentsList.filter(apt => checkDateFilter(apt.appointmentDate, 'Today')).length,
+      confirmedAppointments: appointmentsList.filter(apt => apt.status === 'Confirmed').length,
+      pendingAppointments: appointmentsList.filter(apt => apt.status === 'Pending').length,
+      completedAppointments: appointmentsList.filter(apt => apt.status === 'Completed').length
+    };
+  }, [appointmentsList]);
 
   const statuses = ['All', 'Confirmed', 'Pending', 'Completed', 'Cancelled'];
-  const dateFilters = ['Today', 'Tomorrow', 'This Week', 'This Month', 'All'];
+  const dateFilters = ['All', 'Today', 'Tomorrow', 'This Week', 'This Month'];
 
-  const filteredAppointments = appointments.filter(appointment => {
-    const matchesSearch = appointment.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         appointment.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         appointment.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         appointment.department.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || appointment.status === selectedStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredAppointments = useMemo(() => {
+    // Add safety check to prevent errors
+    if (!appointmentsList || !Array.isArray(appointmentsList)) {
+      return [];
+    }
+    
+    return appointmentsList.filter(appointment => {
+      const matchesSearch = appointment.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           appointment.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           appointment.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           appointment.department.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = selectedStatus === 'All' || appointment.status === selectedStatus;
+      const matchesDate = checkDateFilter(appointment.appointmentDate, selectedDate);
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+  }, [appointmentsList, searchQuery, selectedStatus, selectedDate]);
+
+  // Handler functions
+  const handleViewAppointment = (appointment) => {
+    navigation.navigate('AppointmentDetails', { appointment });
+  };
+
+  const handleCall = (phoneNumber) => {
+    const cleanNumber = phoneNumber.replace(/\s/g, '');
+    Linking.openURL(`tel:${cleanNumber}`);
+  };
+
+  const handleConfirmPayment = (appointmentId) => {
+    Alert.alert(
+      'Confirm Payment',
+      'Has the patient made the payment at the hospital?',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes, Confirm', 
+          onPress: () => {
+            Alert.alert('Success', 'Payment confirmed and appointment updated');
+            // Update appointment status logic here
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelAppointment = (appointmentId) => {
+    Alert.alert(
+      'Cancel Appointment',
+      'Are you sure you want to cancel this appointment?',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes, Cancel', 
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Success', 'Appointment cancelled');
+            // Cancel appointment logic here
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCompleteAppointment = (appointmentId) => {
+    Alert.alert(
+      'Complete Appointment',
+      'Mark this appointment as completed?',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes, Complete', 
+          onPress: () => {
+            Alert.alert('Success', 'Appointment marked as completed');
+            // Complete appointment logic here
+          }
+        }
+      ]
+    );
+  };
+
+  const handleAdmitPatient = (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowAdmitModal(true);
+  };
+
+  const handleAdmitSuccess = (newPatient) => {
+    Alert.alert(
+      'Patient Admitted',
+      `${newPatient.name} has been successfully admitted to the ${newPatient.patientType === 'IP' ? 'In-Patient' : 'Out-Patient'} list.`,
+      [
+        {
+          text: 'View Patients',
+          onPress: () => navigation.navigate('PatientManagement')
+        },
+        { text: 'OK' }
+      ]
+    );
+  };
+
+  const handleAddAppointment = () => {
+    setShowAddAppointmentModal(true);
+  };
+
+  const handleAddAppointmentSuccess = (newAppointment) => {
+    setAppointmentsList(prev => [newAppointment, ...prev]);
+    Alert.alert('Success', 'New appointment has been added successfully!');
+  };
+
+  const handleQuickEditStatus = (appointment) => {
+    Alert.alert(
+      'Change Status',
+      `Current status: ${appointment.status}\nSelect new status:`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Pending', 
+          onPress: () => updateAppointmentStatus(appointment.id, 'Pending', '#F59E0B') 
+        },
+        { 
+          text: 'Confirmed', 
+          onPress: () => updateAppointmentStatus(appointment.id, 'Confirmed', '#10B981') 
+        },
+        { 
+          text: 'Completed', 
+          onPress: () => updateAppointmentStatus(appointment.id, 'Completed', '#6B7280') 
+        },
+        { 
+          text: 'Cancelled', 
+          onPress: () => updateAppointmentStatus(appointment.id, 'Cancelled', '#EF4444') 
+        },
+      ]
+    );
+  };
+
+  const updateAppointmentStatus = (appointmentId, status, color) => {
+    setAppointmentsList(prev => 
+      prev.map(appointment => 
+        appointment.id === appointmentId 
+          ? { ...appointment, status, statusColor: color }
+          : appointment
+      )
+    );
+    Alert.alert('Success', `Appointment status updated to ${status}`);
+  };
 
   const StatsCard = ({ title, value, subtitle, icon, color }) => (
     <View style={[styles.statsCard, { borderLeftColor: color }]}>
@@ -219,40 +409,75 @@ const AppointmentManagementScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.appointmentActions}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleViewAppointment(appointment)}
+        >
           <Ionicons name="eye" size={16} color={Colors.kbrBlue} />
           <Text style={styles.actionText}>View</Text>
         </TouchableOpacity>
         
-        {appointment.status === 'Pending' && (
+        {/* Edit Status Button - Next to View */}
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleQuickEditStatus(appointment)}
+        >
+          <Ionicons name="create" size={16} color={Colors.kbrPurple} />
+          <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Edit</Text>
+        </TouchableOpacity>
+        
+        {/* Admit Button for ALL appointments */}
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleAdmitPatient(appointment)}
+        >
+          <Ionicons name="bed" size={16} color={Colors.kbrBlue} />
+          <Text style={[styles.actionText, { color: Colors.kbrBlue }]}>Admit</Text>
+        </TouchableOpacity>
+        
+        {/* Payment-based confirmation for Pay at Hospital */}
+        {appointment.status === 'Pending' && appointment.paymentMode === 'Pay at Hospital' && (
           <>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleConfirmPayment(appointment.id)}
+            >
               <Ionicons name="checkmark" size={16} color={Colors.kbrGreen} />
               <Text style={[styles.actionText, { color: Colors.kbrGreen }]}>Confirm</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleCancelAppointment(appointment.id)}
+            >
               <Ionicons name="close" size={16} color={Colors.kbrRed} />
               <Text style={[styles.actionText, { color: Colors.kbrRed }]}>Cancel</Text>
             </TouchableOpacity>
           </>
         )}
         
-        {appointment.status === 'Confirmed' && (
-          <>
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="checkmark-done" size={16} color={Colors.kbrPurple} />
-              <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Complete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="swap-horizontal" size={16} color={Colors.kbrPurple} />
-              <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Reschedule</Text>
-            </TouchableOpacity>
-          </>
+        {/* Auto-confirmed for online payments */}
+        {appointment.status === 'Pending' && appointment.paymentMode === 'Online' && (
+          <View style={styles.autoConfirmedBadge}>
+            <Text style={styles.autoConfirmedText}>Auto-confirmed</Text>
+          </View>
         )}
         
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="call" size={16} color={Colors.textSecondary} />
-          <Text style={styles.actionText}>Call</Text>
+        {appointment.status === 'Confirmed' && (
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleCompleteAppointment(appointment.id)}
+          >
+            <Ionicons name="checkmark-done" size={16} color={Colors.kbrPurple} />
+            <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Complete</Text>
+          </TouchableOpacity>
+        )}
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleCall(appointment.patientPhone)}
+        >
+          <Ionicons name="call" size={16} color={Colors.kbrGreen} />
+          <Text style={[styles.actionText, { color: Colors.kbrGreen }]}>Call</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -272,7 +497,10 @@ const AppointmentManagementScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>Appointment Management</Text>
           <Text style={styles.headerSubtitle}>Manage patient appointments and schedules</Text>
         </View>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={handleAddAppointment}
+        >
           <Ionicons name="add" size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
@@ -378,6 +606,21 @@ const AppointmentManagementScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         />
       </View>
+
+      {/* Admit Patient Modal */}
+      <AdmitPatientModal
+        visible={showAdmitModal}
+        onClose={() => setShowAdmitModal(false)}
+        appointment={selectedAppointment}
+        onSuccess={handleAdmitSuccess}
+      />
+
+      {/* Add New Appointment Modal */}
+      <AddAppointmentModal
+        visible={showAddAppointmentModal}
+        onClose={() => setShowAddAppointmentModal(false)}
+        onSuccess={handleAddAppointmentSuccess}
+      />
     </View>
   );
 };
@@ -396,6 +639,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 15,
   },
   headerContent: {
@@ -686,6 +935,17 @@ const styles = StyleSheet.create({
     color: Colors.kbrBlue,
     marginLeft: 4,
     fontWeight: '500',
+  },
+  autoConfirmedBadge: {
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  autoConfirmedText: {
+    fontSize: 10,
+    color: '#10B981',
+    fontWeight: '600',
   },
 });
 

@@ -173,7 +173,7 @@ const ReportsScreen = ({ navigation }) => {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+              <Ionicons name="chevron-back" size={24} color={Colors.white} />
             </TouchableOpacity>
             
             <View style={styles.logoSection}>

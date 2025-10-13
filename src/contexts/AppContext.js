@@ -94,7 +94,80 @@ const initialAppState = {
 
 
   // Payment Management (shared)
-  payments: [],
+  payments: [
+    {
+      id: 'INV-2024-001',
+      patientId: 'KBR-IP-2024-001',
+      patientName: 'Rajesh Kumar',
+      date: '2024-01-15',
+      time: '10:30 AM',
+      amount: 1200,
+      description: 'Consultation Fee - Dr. K. Ramesh',
+      type: 'consultation',
+      status: 'paid',
+      paymentMethod: 'Online',
+      transactionId: 'TXN123456789',
+      items: [
+        { name: 'Doctor Consultation', amount: 800 },
+        { name: 'Registration Fee', amount: 200 },
+        { name: 'Medical Records', amount: 200 }
+      ]
+    },
+    {
+      id: 'INV-2024-002',
+      patientId: 'KBR-IP-2024-001',
+      patientName: 'Rajesh Kumar',
+      date: '2024-01-16',
+      time: '02:15 PM',
+      amount: 15000,
+      description: 'Room Charges & Medications',
+      type: 'admission',
+      status: 'paid',
+      paymentMethod: 'Card',
+      transactionId: 'TXN123456790',
+      items: [
+        { name: 'Room Charges (3 days)', amount: 9000 },
+        { name: 'Medications', amount: 3500 },
+        { name: 'Nursing Care', amount: 2000 },
+        { name: 'Service Charges', amount: 500 }
+      ]
+    },
+    {
+      id: 'INV-2024-003',
+      patientId: 'KBR-OP-2024-501',
+      patientName: 'Priya Sharma',
+      date: '2024-01-18',
+      time: '11:45 AM',
+      amount: 800,
+      description: 'Gynecology Consultation',
+      type: 'consultation',
+      status: 'paid',
+      paymentMethod: 'Cash',
+      transactionId: 'TXN123456791',
+      items: [
+        { name: 'Gynecology Consultation', amount: 600 },
+        { name: 'Prescription', amount: 200 }
+      ]
+    },
+    {
+      id: 'INV-2024-004',
+      patientId: 'KBR-IP-2024-002',
+      patientName: 'Amit Patel',
+      date: '2024-01-20',
+      time: '09:20 AM',
+      amount: 2500,
+      description: 'Orthopedic Surgery',
+      type: 'surgery',
+      status: 'pending',
+      paymentMethod: 'Cash',
+      transactionId: null,
+      items: [
+        { name: 'Surgery Fee', amount: 2000 },
+        { name: 'Anesthesia', amount: 300 },
+        { name: 'OT Charges', amount: 200 }
+      ]
+    },
+  ],
   
   // Test Management (integrated with patient services)
   tests: [
@@ -166,8 +239,96 @@ const initialAppState = {
   ],
 
   // User Management
-  patients: [],
-  registeredUsers: 0,
+  patients: [
+    {
+      id: 'KBR-IP-2024-001',
+      name: 'Rajesh Kumar',
+      age: 45,
+      gender: 'Male',
+      bloodGroup: 'B+',
+      phone: '+91 98765 43210',
+      emergencyContact: '+91 98765 43211',
+      address: 'Hyderabad, Telangana',
+      doctor: 'Dr. K. Ramesh',
+      department: 'Cardiology',
+      referredBy: 'Dr. Suresh (City Hospital)',
+      symptoms: 'Chest pain and shortness of breath',
+      allergies: 'Penicillin',
+      patientType: 'IP',
+      status: 'IP',
+      statusText: 'Admitted',
+      statusColor: '#007AFF',
+      room: '201',
+      bedNo: 'A1',
+      admissionDate: '2024-01-05',
+      registrationDate: '2024-01-05',
+      registrationTime: '09:30 AM',
+      medicalReports: [],
+      editHistory: [{
+        action: 'created',
+        timestamp: '2024-01-05T09:30:00Z',
+        details: 'Patient registered and admitted',
+      }],
+    },
+    {
+      id: 'KBR-OP-2024-501',
+      name: 'Priya Sharma',
+      age: 32,
+      gender: 'Female',
+      bloodGroup: 'A+',
+      phone: '+91 98765 43220',
+      emergencyContact: '+91 98765 43221',
+      address: 'Secunderabad, Telangana',
+      doctor: 'Dr. K. Divyasri',
+      department: 'Gynecology',
+      referredBy: 'Self',
+      symptoms: 'Regular checkup',
+      allergies: 'None',
+      patientType: 'OP',
+      status: 'OP',
+      statusText: 'Consultation',
+      statusColor: '#34C759',
+      registrationDate: '2024-01-10',
+      registrationTime: '11:15 AM',
+      medicalReports: [],
+      editHistory: [{
+        action: 'created',
+        timestamp: '2024-01-10T11:15:00Z',
+        details: 'Patient registered for consultation',
+      }],
+    },
+    {
+      id: 'KBR-IP-2024-002',
+      name: 'Amit Patel',
+      age: 55,
+      gender: 'Male',
+      bloodGroup: 'O+',
+      phone: '+91 98765 43230',
+      emergencyContact: '+91 98765 43231',
+      address: 'Begumpet, Hyderabad',
+      doctor: 'Dr. Mahesh Kumar',
+      department: 'Orthopedics',
+      referredBy: 'Dr. Ravi (Apollo Hospital)',
+      symptoms: 'Knee joint pain and stiffness',
+      allergies: 'Aspirin',
+      patientType: 'IP',
+      status: 'IP',
+      statusText: 'Under Treatment',
+      statusColor: '#FF9500',
+      room: '305',
+      bedNo: 'B2',
+      admissionDate: '2024-01-08',
+      registrationDate: '2024-01-08',
+      registrationTime: '02:45 PM',
+      medicalReports: [],
+      editHistory: [{
+        action: 'created',
+        timestamp: '2024-01-08T14:45:00Z',
+        details: 'Patient registered and admitted for orthopedic treatment',
+      }],
+    },
+  ],
+  registeredUsers: 3,
 };
 
 export const AppProvider = ({ children }) => {
@@ -195,10 +356,15 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  // Auto-calculate stats when data changes
+  // Auto-calculate stats when data changes - using lengths to avoid infinite loops
   useEffect(() => {
     calculateAdminStats();
-  }, [appState.appointments, appState.payments, appState.patients, appState.doctors]);
+  }, [
+    appState.appointments.length, 
+    appState.payments.length, 
+    appState.patients.length, 
+    appState.doctors.length
+  ]);
 
   // ==== APPOINTMENT MANAGEMENT ====
   const addAppointment = (appointmentData) => {
@@ -278,10 +444,16 @@ export const AppProvider = ({ children }) => {
 
   // ==== PAYMENT MANAGEMENT ====
   const addPayment = (paymentData) => {
+    // Generate unique invoice ID
+    const invoiceCount = appState.payments.length + 1;
     const newPayment = {
-      id: `pay-${Date.now()}`,
+      id: `INV-2024-${invoiceCount.toString().padStart(3, '0')}`,
       date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString(),
+      time: new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      }),
       ...paymentData
     };
 
@@ -291,6 +463,28 @@ export const AppProvider = ({ children }) => {
     }));
 
     return newPayment;
+  };
+
+  const updatePaymentStatus = (paymentId, newStatus, transactionId = null) => {
+    setAppState(prev => ({
+      ...prev,
+      payments: prev.payments.map(payment =>
+        payment.id === paymentId
+          ? { 
+              ...payment, 
+              status: newStatus,
+              ...(transactionId && { transactionId })
+            }
+          : payment
+      )
+    }));
+  };
+
+  const deletePayment = (paymentId) => {
+    setAppState(prev => ({
+      ...prev,
+      payments: prev.payments.filter(payment => payment.id !== paymentId)
+    }));
   };
 
   // ==== TEST MANAGEMENT ====
@@ -351,6 +545,115 @@ export const AppProvider = ({ children }) => {
     return newPatient;
   };
 
+  const addPatient = (patientData) => {
+    const newPatient = {
+      ...patientData,
+      registeredAt: new Date().toISOString(),
+    };
+
+    setAppState(prev => ({
+      ...prev,
+      patients: [...prev.patients, newPatient],
+      registeredUsers: prev.registeredUsers + 1
+    }));
+
+    return newPatient;
+  };
+
+  const updatePatient = (patientId, updatedData) => {
+    setAppState(prev => ({
+      ...prev,
+      patients: prev.patients.map(patient =>
+        patient.id === patientId ? { ...patient, ...updatedData } : patient
+      )
+    }));
+  };
+
+  const deletePatient = (patientId) => {
+    setAppState(prev => ({
+      ...prev,
+      patients: prev.patients.filter(patient => patient.id !== patientId),
+      registeredUsers: prev.registeredUsers - 1
+    }));
+  };
+
+  // ==== PATIENT PAYMENT MANAGEMENT ====
+  const addPatientPayment = (patientId, paymentData) => {
+    setAppState(prev => ({
+      ...prev,
+      patients: prev.patients.map(patient => {
+        if (patient.id === patientId && patient.paymentDetails) {
+          const newPayment = {
+            id: `PAY-${Date.now()}-${patient.paymentDetails.payments.length + 1}`,
+            amount: parseFloat(paymentData.amount),
+            type: paymentData.type,
+            method: paymentData.method,
+            date: paymentData.date || new Date().toISOString().split('T')[0],
+            time: paymentData.time || new Date().toLocaleTimeString(),
+            description: paymentData.description,
+            transactionId: paymentData.transactionId || null,
+          };
+
+          const updatedPayments = [...patient.paymentDetails.payments, newPayment];
+          const totalPaid = updatedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+          const dueAmount = patient.paymentDetails.totalAmount - totalPaid;
+
+          return {
+            ...patient,
+            paymentDetails: {
+              ...patient.paymentDetails,
+              payments: updatedPayments,
+              totalPaid: totalPaid,
+              dueAmount: dueAmount,
+              lastPaymentDate: newPayment.date,
+            },
+            editHistory: [
+              ...patient.editHistory,
+              {
+                action: 'payment_added',
+                timestamp: new Date().toISOString(),
+                details: `Payment added: ₹${newPayment.amount} via ${newPayment.method}`,
+              }
+            ]
+          };
+        }
+        return patient;
+      })
+    }));
+  };
+
+  const getPatientPaymentSummary = (patientId) => {
+    const patient = appState.patients.find(p => p.id === patientId);
+    if (!patient || !patient.paymentDetails) {
+      return null;
+    }
+
+    return {
+      patientId: patient.id,
+      patientName: patient.name,
+      totalAmount: patient.paymentDetails.totalAmount,
+      totalPaid: patient.paymentDetails.totalPaid,
+      dueAmount: patient.paymentDetails.dueAmount,
+      payments: patient.paymentDetails.payments,
+      paymentStatus: patient.paymentDetails.dueAmount <= 0 ? 'Fully Paid' : 
+                    patient.paymentDetails.totalPaid > 0 ? 'Partially Paid' : 'Pending',
+    };
+  };
+
+  const getAllPendingPayments = () => {
+    return appState.patients
+      .filter(patient => patient.paymentDetails && patient.paymentDetails.dueAmount > 0)
+      .map(patient => ({
+        patientId: patient.id,
+        patientName: patient.name,
+        patientType: patient.patientType,
+        totalAmount: patient.paymentDetails.totalAmount,
+        totalPaid: patient.paymentDetails.totalPaid,
+        dueAmount: patient.paymentDetails.dueAmount,
+        lastPaymentDate: patient.paymentDetails.lastPaymentDate,
+      }));
+  };
+
   // ==== SERVICE MANAGEMENT ====
   const addService = (categoryId, serviceData) => {
     const newService = {
@@ -395,6 +698,8 @@ export const AppProvider = ({ children }) => {
 
     // Payment Methods
     addPayment,
+    updatePaymentStatus,
+    deletePayment,
 
     // Test Methods
     bookTest,
@@ -402,6 +707,14 @@ export const AppProvider = ({ children }) => {
 
     // Patient Methods
     registerPatient,
+    addPatient,
+    updatePatient,
+    deletePatient,
+
+    // Patient Payment Methods
+    addPatientPayment,
+    getPatientPaymentSummary,
+    getAllPendingPayments,
 
     // Service Methods
     addService,
