@@ -12,7 +12,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Image,
   TextInput,
@@ -22,11 +21,13 @@ import {
   Dimensions,
   ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -156,6 +157,9 @@ const PatientHomeScreen = ({ navigation }) => {
   
   // Get user context
   const { isLoggedIn, userData, loginUser } = useUser();
+  
+  // Get app context for dynamic doctors
+  const { doctors: appDoctors } = useApp();
   
   // Get theme context
   const { theme } = useTheme();
@@ -340,9 +344,6 @@ const PatientHomeScreen = ({ navigation }) => {
         break;
       case 'Reports':
         navigation.navigate('Reports');
-        break;
-      case 'Pharmacy':
-        navigation.navigate('Pharmacy');
         break;
       default:
         Alert.alert('Coming Soon', `${serviceName} feature will be available soon!`);
@@ -669,6 +670,48 @@ const PatientHomeScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Our Doctors Section - Dynamic from Admin */}
+          <View style={styles.doctorsSection}>
+            <Text style={styles.sectionTitle}>Our Expert Doctors</Text>
+            <Text style={styles.sectionSubtitle}>Meet our experienced medical professionals</Text>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.doctorsScroll}>
+              {appDoctors && appDoctors.length > 0 ? appDoctors.map((doctor) => (
+                <TouchableOpacity 
+                  key={doctor.id} 
+                  style={styles.doctorCard}
+                  onPress={() => handleServicePress('Book Appointment')}
+                >
+                  <View style={styles.doctorImageContainer}>
+                    <Image 
+                      source={{ uri: doctor.avatar || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80' }}
+                      style={styles.doctorImage}
+                    />
+                    <View style={styles.doctorStatus}>
+                      <View style={[styles.statusIndicator, { backgroundColor: doctor.status === 'Active' ? '#10B981' : '#EF4444' }]} />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.doctorCardInfo}>
+                    <Text style={styles.doctorCardName}>{doctor.name}</Text>
+                    <Text style={styles.doctorCardCredentials}>{doctor.credentials}</Text>
+                    <Text style={styles.doctorCardSpecialization}>{doctor.specialization}</Text>
+                    <View style={styles.doctorCardRating}>
+                      <Ionicons name="star" size={14} color="#F59E0B" />
+                      <Text style={styles.ratingText}>{doctor.rating || 4.8}</Text>
+                      <Text style={styles.experienceText}>• {doctor.experience}</Text>
+                    </View>
+                    <Text style={styles.consultationFee}>₹{doctor.consultationFee}</Text>
+                  </View>
+                </TouchableOpacity>
+              )) : (
+                <View style={styles.noDoctorsContainer}>
+                  <Text style={styles.noDoctorsText}>No doctors available</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
 
           {/* Health Packages - Simplified */}
@@ -2055,6 +2098,112 @@ const styles = StyleSheet.create({
     color: Colors.kbrBlue,
     fontWeight: '500',
     marginRight: 4,
+  },
+
+  // Doctors Section Styles
+  doctorsSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  doctorsScroll: {
+    marginTop: 16,
+  },
+  doctorCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 16,
+    width: 280,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  doctorImageContainer: {
+    position: 'relative',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  doctorImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+  },
+  doctorStatus: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+  },
+  statusIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  doctorCardInfo: {
+    alignItems: 'center',
+  },
+  doctorCardName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  doctorCardCredentials: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  doctorCardSpecialization: {
+    fontSize: 14,
+    color: '#4AA3DF',
+    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  doctorCardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#374151',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  experienceText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  consultationFee: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#10B981',
+    textAlign: 'center',
+  },
+  noDoctorsContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  noDoctorsText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });
 

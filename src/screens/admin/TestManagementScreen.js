@@ -14,10 +14,10 @@ import {
   TextInput,
   Modal,
   Alert,
-  SafeAreaView,
   StatusBar,
   Switch
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 

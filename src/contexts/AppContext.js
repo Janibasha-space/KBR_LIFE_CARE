@@ -91,56 +91,7 @@ const initialAppState = {
     }
   ],
 
-  // Pharmacy Inventory (shared between admin and patient)
-  pharmacy: {
-    inventory: [
-      {
-        id: 'med-001',
-        name: 'Paracetamol 500mg',
-        batchNo: 'PCM2024001',
-        stock: 500,
-        minStock: 100,
-        price: 2.50,
-        salePrice: 3.00,
-        expiry: '2025-12-31',
-        supplier: 'Medico Distributors',
-        status: 'In Stock',
-        category: 'Pain Relief',
-        manufacturer: 'Apollo Pharmacy'
-      },
-      {
-        id: 'med-002',
-        name: 'Amoxicillin 250mg',
-        batchNo: 'AMX2024002',
-        stock: 200,
-        minStock: 50,
-        price: 12.00,
-        salePrice: 15.75,
-        expiry: '2025-08-15',
-        supplier: 'Sun Pharma',
-        status: 'In Stock',
-        category: 'Antibiotic',
-        manufacturer: 'Sun Pharma'
-      },
-      {
-        id: 'med-003',
-        name: 'Atorvastatin 10mg',
-        batchNo: 'ATV2024003',
-        stock: 150,
-        minStock: 30,
-        price: 6.50,
-        salePrice: 8.00,
-        expiry: '2025-10-20',
-        supplier: 'Cipla',
-        status: 'In Stock',
-        category: 'Cardiovascular',
-        manufacturer: 'Cipla'
-      }
-    ],
-    sales: [],
-    totalSales: 0,
-    todaySales: 0,
-  },
+
 
   // Payment Management (shared)
   payments: [],
@@ -325,87 +276,6 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  // ==== PHARMACY MANAGEMENT ====
-  const purchaseMedicine = (medicineId, quantity, patientData) => {
-    setAppState(prev => {
-      const medicine = prev.pharmacy.inventory.find(med => med.id === medicineId);
-      if (!medicine || medicine.stock < quantity) {
-        Alert.alert('Error', 'Insufficient stock or medicine not found');
-        return prev;
-      }
-
-      // Update inventory
-      const updatedInventory = prev.pharmacy.inventory.map(med =>
-        med.id === medicineId
-          ? { ...med, stock: med.stock - quantity }
-          : med
-      );
-
-      // Create sale record
-      const sale = {
-        id: `sale-${Date.now()}`,
-        medicineId,
-        medicineName: medicine.name,
-        quantity,
-        unitPrice: medicine.salePrice,
-        totalAmount: medicine.salePrice * quantity,
-        patientName: patientData.patientName,
-        patientId: patientData.patientId,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString(),
-        paymentMethod: patientData.paymentMethod || 'Cash'
-      };
-
-      const updatedSales = [...prev.pharmacy.sales, sale];
-      const newTotalSales = prev.pharmacy.totalSales + sale.totalAmount;
-      const today = new Date().toISOString().split('T')[0];
-      const newTodaySales = updatedSales
-        .filter(s => s.date === today)
-        .reduce((sum, s) => sum + s.totalAmount, 0);
-
-      return {
-        ...prev,
-        pharmacy: {
-          ...prev.pharmacy,
-          inventory: updatedInventory,
-          sales: updatedSales,
-          totalSales: newTotalSales,
-          todaySales: newTodaySales
-        }
-      };
-    });
-
-    // Create payment record for pharmacy purchase
-    const medicine = appState.pharmacy.inventory.find(med => med.id === medicineId);
-    if (medicine) {
-      addPayment({
-        patientName: patientData.patientName,
-        amount: medicine.salePrice * quantity,
-        paymentMethod: patientData.paymentMethod || 'Cash',
-        paymentStatus: 'Paid',
-        type: 'pharmacy'
-      });
-    }
-  };
-
-  const addMedicine = (medicineData) => {
-    const newMedicine = {
-      id: `med-${Date.now()}`,
-      status: 'In Stock',
-      ...medicineData
-    };
-
-    setAppState(prev => ({
-      ...prev,
-      pharmacy: {
-        ...prev.pharmacy,
-        inventory: [...prev.pharmacy.inventory, newMedicine]
-      }
-    }));
-
-    return newMedicine;
-  };
-
   // ==== PAYMENT MANAGEMENT ====
   const addPayment = (paymentData) => {
     const newPayment = {
@@ -509,7 +379,6 @@ export const AppProvider = ({ children }) => {
     // Shared Data
     appointments: appState.appointments,
     doctors: appState.doctors,  
-    pharmacy: appState.pharmacy,
     payments: appState.payments,
     tests: appState.tests,
     patients: appState.patients,
@@ -523,10 +392,6 @@ export const AppProvider = ({ children }) => {
     // Doctor Methods
     addDoctor,
     updateDoctorAppointmentCount,
-
-    // Pharmacy Methods
-    purchaseMedicine,
-    addMedicine,
 
     // Payment Methods
     addPayment,

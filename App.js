@@ -30,11 +30,7 @@ import AppointmentScreen from './src/screens/patient/AppointmentScreen';
 import ServicesScreen from './src/screens/patient/ServicesScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
 import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
-import PharmacyScreen from './src/screens/patient/PharmacyScreen';
-import PharmacyCartScreen from './src/screens/patient/PharmacyCartScreen';
-import CheckoutScreen from './src/screens/patient/CheckoutScreen';
-import PharmacyOrdersScreen from './src/screens/patient/PharmacyOrdersScreen';
-import PharmacyOrderDetailScreen from './src/screens/patient/PharmacyOrderDetailScreen';
+
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
 import EditProfileScreen from './src/screens/patient/EditProfileScreen';
@@ -45,7 +41,7 @@ import ServiceManagementScreen from './src/screens/admin/ServiceManagementScreen
 import PatientManagementScreen from './src/screens/admin/PatientManagementScreen';
 import PaymentManagementScreen from './src/screens/admin/PaymentManagementScreen';
 import DischargeManagementScreen from './src/screens/admin/DischargeManagementScreen';
-import AdminPharmacyScreen from './src/screens/admin/AdminPharmacyScreen';
+
 import PatientDetailsScreen from './src/screens/admin/PatientDetailsScreen';
 import PaymentDetailsScreen from './src/screens/admin/PaymentDetailsScreen';
 import RoomManagementScreen from './src/screens/admin/RoomManagementScreen';
@@ -160,8 +156,6 @@ function PatientTabNavigator() {
             iconName = focused ? 'medical' : 'medical-outline';
           } else if (route.name === 'Reports') {
             iconName = focused ? 'document-text' : 'document-text-outline';
-          } else if (route.name === 'Pharmacy') {
-            iconName = focused ? 'medical' : 'medical-outline';
           }
 
           return <Ionicons name={iconName} size={20} color={color} />;
@@ -193,7 +187,6 @@ function PatientTabNavigator() {
       />
       <Tab.Screen name="Services" component={ServicesScreen} />
       <Tab.Screen name="Reports" component={MedicalReportsScreen} />
-      <Tab.Screen name="Pharmacy" component={PharmacyScreen} />
     </Tab.Navigator>
   );
 }
@@ -214,8 +207,8 @@ function AdminTabNavigator() {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'Payments') {
             iconName = focused ? 'card' : 'card-outline';
-          } else if (route.name === 'Pharmacy') {
-            iconName = focused ? 'medical' : 'medical-outline';
+          } else if (route.name === 'Reports') {
+            iconName = focused ? 'analytics' : 'analytics-outline';
           }
 
           return <Ionicons name={iconName} size={20} color={color} />;
@@ -241,7 +234,7 @@ function AdminTabNavigator() {
       <Tab.Screen name="Patients" component={PatientManagementScreen} />
       <Tab.Screen name="Appointments" component={AppointmentManagementScreen} />
       <Tab.Screen name="Payments" component={PaymentManagementScreen} />
-      <Tab.Screen name="Pharmacy" component={AdminPharmacyScreen} />
+      <Tab.Screen name="Reports" component={ReportsScreen} />
     </Tab.Navigator>
   );
 }
@@ -360,10 +353,6 @@ export default function App() {
               <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
-              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CART} component={PharmacyCartScreen} />
-              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_CHECKOUT} component={CheckoutScreen} />
-              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDERS} component={PharmacyOrdersScreen} />
-              <Stack.Screen name={ROUTES.PATIENT.PHARMACY_ORDER_DETAIL} component={PharmacyOrderDetailScreen} />
               <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
               <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} />

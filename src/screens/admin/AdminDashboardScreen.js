@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
@@ -24,8 +24,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   // Use AppContext for real-time data
   const { 
     adminStats, 
-    appointments, 
-    pharmacy 
+    appointments 
   } = useApp();
 
   // Real-time stats cards with live data from AppContext
@@ -52,7 +51,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       id: 'revenue',
       title: 'Revenue',
       value: `₹${adminStats.totalRevenue.toLocaleString()}`,
-      change: `₹${pharmacy.todaySales.toLocaleString()} today`,
+      change: 'Total collected',
       icon: 'trending-up-outline',
       backgroundColor: Colors.revenue,
       iconColor: Colors.kbrGreen,
@@ -230,14 +229,17 @@ const AdminDashboardScreen = ({ navigation }) => {
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.quickActionCard}
-              onPress={() => navigation.getParent()?.navigate('Reports')}
+              style={[styles.quickActionCard, styles.featuredActionCard]}
+              onPress={() => navigation.navigate('Reports')}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrPurple + '15' }]}>
-                <Ionicons name="analytics-outline" size={24} color={Colors.kbrPurple} />
+                <Ionicons name="analytics-outline" size={28} color={Colors.kbrPurple} />
               </View>
-              <Text style={styles.quickActionTitle}>Reports</Text>
-              <Text style={styles.quickActionSubtitle}>View analytics & reports</Text>
+              <Text style={styles.quickActionTitle}>📊 Hospital Reports</Text>
+              <Text style={styles.quickActionSubtitle}>Analytics, revenue & insights</Text>
+              <View style={styles.featuredBadge}>
+                <Text style={styles.featuredBadgeText}>Featured</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -605,6 +607,28 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     padding: Sizes.sm,
+  },
+
+  // Featured Reports Card Styles
+  featuredActionCard: {
+    borderWidth: 2,
+    borderColor: Colors.kbrPurple + '30',
+    backgroundColor: Colors.kbrPurple + '08',
+    position: 'relative',
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.kbrPurple,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  featuredBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 
