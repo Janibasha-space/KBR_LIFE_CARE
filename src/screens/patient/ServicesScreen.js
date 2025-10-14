@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TextInput,
   StatusBar,
   Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,18 +19,88 @@ import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
-const ServicesScreen = ({ navigation }) => {
+const ServicesScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const { getServiceCounts } = useServices();
+  const { getServiceCounts, getAllServices } = useServices();
   const { theme } = useTheme();
   
+  // Get the selected service from navigation params
+  const selectedService = route?.params?.selectedService;
+  const serviceId = route?.params?.serviceId;
+  const scrollToService = route?.params?.scrollToService;
+  const scrollToSection = route?.params?.scrollToSection;
+  const focusOnTests = route?.params?.focusOnTests;
+  const selectedPackage = route?.params?.selectedPackage;
+  const openServiceDetails = route?.params?.openServiceDetails;
+  
+  // Get pre-loaded data if available (for faster loading)
+  const preloaded = route?.params?.preloaded || false;
+  const serviceDetails = route?.params?.serviceDetails;
+  const packageDetails = route?.params?.packageDetails;
+  const testDetails = route?.params?.testDetails;
+  const selectedTest = route?.params?.selectedTest;
+  
+  // State for expanded service details
+  const [expandedService, setExpandedService] = useState(null);
+  
+  // References for scrolling
+  const scrollViewRef = React.useRef(null);
+  // Reference for tests section position
+  const [testsPosition, setTestsPosition] = useState(0);
+  
   let serviceCounts;
+  let allServices;
   try {
     serviceCounts = getServiceCounts();
+    allServices = getAllServices();
   } catch (error) {
     console.error('Error getting service counts:', error);
     serviceCounts = { medical: 0, surgical: 0, specialized: 0 };
+    allServices = [];
   }
+
+  // Reference to the diagnostic tests section
+  const testsRef = React.useRef(null);
+  
+  // Loading state for content
+  const [contentLoaded, setContentLoaded] = useState(preloaded);
+  
+  // Function to scroll to tests section smoothly
+  const scrollToTestsSection = () => {
+    if (testsPosition > 0 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current.scrollTo({
+          y: testsPosition,
+          animated: true
+        });
+      }, 100);
+    }
+  };
+  
+  // Automatically handle navigation, expanding services, and scrolling
+  useEffect(() => {
+    // Initialize with pre-loaded data if available
+    if (preloaded) {
+      setContentLoaded(true);
+    }
+    
+    // Expand selected service if provided
+    if (selectedService && serviceId && openServiceDetails) {
+      setExpandedService(serviceId);
+    }
+    
+    // Handle scrolling to sections based on navigation params
+    if (scrollToSection === 'diagnosticTests' && testsPosition > 0) {
+      scrollToTestsSection();
+    }
+    
+    // Set a flag when content is fully loaded
+    const loadTimer = setTimeout(() => {
+      setContentLoaded(true);
+    }, 300);
+    
+    return () => clearTimeout(loadTimer);
+  }, [selectedService, serviceId, openServiceDetails, scrollToSection, testsPosition]);
 
   const specialtyCategories = [
     {
@@ -165,12 +237,85 @@ const ServicesScreen = ({ navigation }) => {
       <View style={styles.emergencyIconContainer}>
         <Ionicons name="medical" size={24} color="#FFFFFF" />
       </View>
-      <Text style={styles.emergencyTitle}>24/7 Emergency Services</Text>
-      <Text style={styles.emergencyDescription}>
+      <Text style={styles.emergencyTitle}>24/7 Emergency</Text>
+      <Text style={styles.emergencySubtitle}>
         Round-the-clock emergency care for all medical emergencies
       </Text>
     </TouchableOpacity>
   );
+
+  // Render individual service with expandable details
+  const renderServiceCard = (service) => {
+    const isExpanded = expandedService === service.id;
+    
+    return (
+      <TouchableOpacity
+        key={service.id}
+        style={[styles.serviceDetailCard, isExpanded && styles.expandedServiceCard]}
+        onPress={() => setExpandedService(isExpanded ? null : service.id)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.serviceCardHeader}>
+          <View style={styles.serviceCardLeft}>
+            <View style={styles.serviceCardIcon}>
+              <Ionicons 
+                name={service.icon || 'medical-outline'} 
+                size={24} 
+                color="#4AA3DF" 
+              />
+            </View>
+            <View style={styles.serviceCardInfo}>
+              <Text style={[styles.serviceCardTitle, { color: theme.textPrimary }]}>{service.name}</Text>
+              <Text style={[styles.serviceCardDuration, { color: theme.textSecondary }]}>{service.duration || '30 mins'}</Text>
+            </View>
+          </View>
+          <Ionicons 
+            name={isExpanded ? "chevron-up" : "chevron-down"} 
+            size={20} 
+            color={theme.textSecondary} 
+          />
+        </View>
+        
+        {isExpanded && (
+          <View style={styles.serviceCardDetails}>
+            <Text style={[styles.serviceCardDescription, { color: theme.textSecondary }]}>
+              {service.description}
+            </Text>
+            
+            {service.doctors && service.doctors.length > 0 && (
+              <View style={styles.serviceCardDoctors}>
+                <Text style={[styles.serviceCardSectionTitle, { color: theme.textPrimary }]}>Available Doctors:</Text>
+                {service.doctors.map((doctor, index) => (
+                  <Text key={index} style={[styles.doctorName, { color: theme.textSecondary }]}>• {doctor}</Text>
+                ))}
+              </View>
+            )}
+            
+            {service.tags && service.tags.length > 0 && (
+              <View style={styles.serviceCardTags}>
+                <Text style={[styles.serviceCardSectionTitle, { color: theme.textPrimary }]}>Treatments Include:</Text>
+                <View style={styles.tagsContainer}>
+                  {service.tags.map((tag, index) => (
+                    <View key={index} style={styles.tagChip}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.bookServiceButton}
+              onPress={() => navigation.navigate('BookAppointment', { service: service.name })}
+            >
+              <Ionicons name="calendar" size={16} color="#FFFFFF" />
+              <Text style={styles.bookServiceText}>Book Appointment</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
@@ -180,9 +325,28 @@ const ServicesScreen = ({ navigation }) => {
         <AppHeader 
           subtitle="Services"
           navigation={navigation}
+          showBackButton={true}
+          customBackAction={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('PatientMain', { screen: 'Home' });
+            }
+          }}
         />
+        
+        {/* Loading Overlay - Shown when content is still loading */}
+        {!contentLoaded && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors.kbrBlue} />
+            <Text style={styles.loadingText}>Loading services...</Text>
+          </View>
+        )}
 
-      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={[styles.scrollView, { backgroundColor: theme.background }]} 
+        showsVerticalScrollIndicator={false}>
         {/* Page Title */}
         <View style={[styles.titleSection, { backgroundColor: theme.background }]}>
           <View style={styles.titleRow}>
@@ -206,13 +370,40 @@ const ServicesScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Individual Services Section */}
+        {allServices && allServices.length > 0 && (
+          <View style={styles.individualServicesSection}>
+            <View style={styles.servicesHeaderRow}>
+              <Ionicons name="medical" size={20} color="#4AA3DF" />
+              <Text style={[styles.servicesTitle, { color: theme.textPrimary }]}>Our Medical Services</Text>
+            </View>
+            <Text style={[styles.servicesSubtitle, { color: theme.textSecondary }]}>
+              Tap on any service to see detailed information and book appointments
+            </Text>
+            
+            <View style={styles.servicesContainer}>
+              {allServices.map(renderServiceCard)}
+            </View>
+          </View>
+        )}
+
         {/* Specialty Categories */}
         <View style={styles.specialtiesSection}>
           {specialtyCategories.map(renderSpecialtyCard)}
         </View>
 
         {/* Tests Section - Added as requested */}
-        <View style={styles.testsSection}>
+        <View 
+          onLayout={(event) => {
+            const layout = event.nativeEvent.layout;
+            setTestsPosition(layout.y);
+            
+            // If we need to scroll to tests section
+            if (scrollToSection === 'diagnosticTests' && focusOnTests && contentLoaded) {
+              scrollToTestsSection();
+            }
+          }}
+          style={styles.testsSection}>
           <View style={styles.testsSectionHeader}>
             <View style={styles.testsHeaderRow}>
               <Ionicons name="flask" size={20} color="#FF6B35" />
@@ -602,6 +793,154 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  
+  // Individual Services Styles
+  individualServicesSection: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Sizes.screenPadding,
+    marginBottom: Sizes.md,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  servicesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Sizes.sm,
+  },
+  servicesTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    marginLeft: Sizes.sm,
+  },
+  servicesSubtitle: {
+    fontSize: Sizes.medium,
+    marginBottom: Sizes.lg,
+    lineHeight: 20,
+  },
+  servicesContainer: {
+    gap: Sizes.md,
+  },
+  serviceDetailCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: Sizes.radiusMedium,
+    padding: Sizes.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  expandedServiceCard: {
+    backgroundColor: '#E6F4FB',
+    borderColor: '#4AA3DF',
+    borderWidth: 2,
+  },
+  serviceCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  serviceCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  serviceCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E6F4FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
+  },
+  serviceCardInfo: {
+    flex: 1,
+  },
+  serviceCardTitle: {
+    fontSize: Sizes.regular,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  serviceCardDuration: {
+    fontSize: Sizes.small,
+  },
+  serviceCardDetails: {
+    marginTop: Sizes.md,
+    paddingTop: Sizes.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  serviceCardDescription: {
+    fontSize: Sizes.medium,
+    lineHeight: 20,
+    marginBottom: Sizes.md,
+  },
+  serviceCardDoctors: {
+    marginBottom: Sizes.md,
+  },
+  serviceCardSectionTitle: {
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    marginBottom: Sizes.sm,
+  },
+  doctorName: {
+    fontSize: Sizes.medium,
+    marginBottom: 2,
+  },
+  serviceCardTags: {
+    marginBottom: Sizes.md,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Sizes.sm,
+  },
+  tagChip: {
+    backgroundColor: '#4AA3DF',
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tagText: {
+    fontSize: Sizes.small,
+    color: Colors.white,
+    fontWeight: '500',
+  },
+  bookServiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4AA3DF',
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    marginTop: Sizes.sm,
+  },
+  bookServiceText: {
+    fontSize: Sizes.regular,
+    color: Colors.white,
+    fontWeight: '600',
+    marginLeft: Sizes.sm,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: Colors.kbrBlue,
+    fontWeight: '600',
   },
 });
 

@@ -17,6 +17,7 @@ export const ROUTES = {
     REPORT_DETAIL: 'ReportDetail',
     PROFILE: 'Profile',
     BOOK_APPOINTMENT: 'BookAppointment',
+    DOCTORS: 'Doctors',
   },
   
   // Admin screens
@@ -47,6 +48,7 @@ export const LINKING_CONFIG = {
           [ROUTES.PATIENT.REPORTS]: 'reports',
           [ROUTES.PATIENT.REPORT_DETAIL]: 'report-detail',
           [ROUTES.PATIENT.PROFILE]: 'profile',
+          [ROUTES.PATIENT.DOCTORS]: 'doctors',
         },
       },
       [ROUTES.ADMIN_MAIN]: {

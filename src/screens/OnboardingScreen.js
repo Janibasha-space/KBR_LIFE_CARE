@@ -70,7 +70,11 @@ const OnboardingScreen = ({ navigation }) => {
             key={index}
             style={[
               styles.dot,
-              { backgroundColor: index === currentIndex ? Colors.primary : Colors.lightGray }
+              { 
+                backgroundColor: index === currentIndex ? '#4AA3DF' : '#E0E0E0',
+                opacity: index === currentIndex ? 1 : 0.4,
+                transform: [{ scale: index === currentIndex ? 1.2 : 1 }]
+              }
             ]}
           />
         ))}
@@ -106,7 +110,11 @@ const OnboardingScreen = ({ navigation }) => {
 
       <View style={styles.footer}>
         {renderDots()}
-        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+        <TouchableOpacity 
+          style={styles.nextButton} 
+          onPress={handleNext}
+          activeOpacity={0.8}
+        >
           <Text style={styles.nextButtonText}>
             {currentIndex === onboardingData.length - 1 ? 'Get Started' : 'Next'}
           </Text>
@@ -125,68 +133,108 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingHorizontal: Sizes.screenPadding,
-    paddingTop: Sizes.md,
+    paddingTop: Sizes.lg,
+    paddingBottom: Sizes.md,
+    minHeight: 60,
   },
   skipButton: {
-    padding: Sizes.sm,
+    paddingHorizontal: Sizes.md,
+    paddingVertical: Sizes.sm,
+    borderRadius: Sizes.radiusMedium,
+    backgroundColor: 'rgba(74, 163, 223, 0.1)',
   },
   skipText: {
     fontSize: Sizes.regular,
-    color: Colors.textSecondary,
+    color: '#4AA3DF',
+    fontWeight: '600',
   },
   slide: {
     width,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Sizes.screenPadding,
+    paddingHorizontal: Sizes.screenPadding * 1.5,
+    paddingBottom: 80, // Space for footer
   },
   image: {
-    width: 250,
-    height: 250,
-    marginBottom: Sizes.xl,
+    width: width * 0.65, // Responsive image size
+    height: width * 0.65,
+    marginBottom: Sizes.xl * 1.5,
+    borderRadius: Sizes.radiusLarge,
   },
   title: {
-    fontSize: Sizes.title,
+    fontSize: Sizes.xxlarge,
     fontWeight: 'bold',
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: Sizes.md,
+    marginBottom: Sizes.lg,
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: Sizes.large,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    paddingHorizontal: Sizes.md,
+    maxWidth: width * 0.8,
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.white,
     paddingHorizontal: Sizes.screenPadding,
-    paddingBottom: Sizes.xl,
+    paddingTop: Sizes.md,
+    paddingBottom: Sizes.lg + 10, // Extra padding for safe area
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Sizes.xl,
+    paddingVertical: Sizes.sm,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginHorizontal: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginHorizontal: 6,
+    opacity: 0.3,
   },
   nextButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#4AA3DF',
     borderRadius: Sizes.radiusMedium,
     paddingVertical: Sizes.md,
+    paddingHorizontal: Sizes.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    height: Sizes.buttonHeight,
+    minHeight: 48,
+    shadowColor: '#4AA3DF',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 5, // Prevent cut-off
   },
   nextButtonText: {
-    fontSize: Sizes.large,
+    fontSize: Sizes.regular,
     fontWeight: '600',
     color: Colors.white,
+    letterSpacing: 0.3,
   },
 });
 

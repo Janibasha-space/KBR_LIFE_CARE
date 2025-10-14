@@ -30,6 +30,7 @@ import AppointmentScreen from './src/screens/patient/AppointmentScreen';
 import ServicesScreen from './src/screens/patient/ServicesScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
 import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
+import DoctorsScreen from './src/screens/patient/DoctorsScreen';
 
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
@@ -159,6 +160,8 @@ function PatientTabNavigator() {
             iconName = focused ? 'medical' : 'medical-outline';
           } else if (route.name === 'Reports') {
             iconName = focused ? 'document-text' : 'document-text-outline';
+          } else if (route.name === 'Doctors') {
+            iconName = focused ? 'people' : 'people-outline';
           }
 
           return <Ionicons name={iconName} size={20} color={color} />;
@@ -189,6 +192,7 @@ function PatientTabNavigator() {
         }}
       />
       <Tab.Screen name="Services" component={ServicesScreen} />
+      <Tab.Screen name="Doctors" component={DoctorsScreen} />
       <Tab.Screen name="Reports" component={MedicalReportsScreen} />
     </Tab.Navigator>
   );

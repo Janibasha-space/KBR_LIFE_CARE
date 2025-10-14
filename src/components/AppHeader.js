@@ -86,7 +86,9 @@ const AppHeader = ({
             onPress={handleBackPress}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+            <View style={styles.circleBackButton}>
+              <Ionicons name="chevron-back" size={20} color={Colors.white} />
+            </View>
           </TouchableOpacity>
         )}
         <View style={styles.headerCenter}>
@@ -153,7 +155,19 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: Sizes.sm,
-    padding: 4,
+  },
+  circleBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#5EAEF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
   },
   headerCenter: {
     flexDirection: 'row',
