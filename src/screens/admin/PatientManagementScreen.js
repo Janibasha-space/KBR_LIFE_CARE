@@ -8,11 +8,15 @@ import {
   TextInput,
   FlatList,
   Alert,
-  Linking
+  Linking,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors, Sizes } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
 import PatientRegistrationModal from '../../components/PatientRegistrationModal';
+import AppHeader from '../../components/AppHeader';
 
 const PatientManagementScreen = ({ navigation }) => {
   const { patients, deletePatient } = useApp();
@@ -204,20 +208,21 @@ const PatientManagementScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Patient Management</Text>
-          <Text style={styles.headerSubtitle}>Manage IP & OP Patients</Text>
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: Colors.kbrBlue }]}>
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['left', 'right']}>
+        {/* App Header */}
+        <AppHeader 
+          title="Patient Management"
+          subtitle="Manage inpatient and outpatient records and information"
+          navigation={navigation}
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+        />
 
       <View style={styles.content}>
         {/* Stats Cards */}
@@ -320,6 +325,7 @@ const PatientManagementScreen = ({ navigation }) => {
         onClose={() => setShowRegistrationModal(false)}
         onSuccess={handleRegistrationSuccess}
       />
+      </SafeAreaView>
     </View>
   );
 };

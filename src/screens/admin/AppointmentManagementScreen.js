@@ -9,11 +9,14 @@ import {
   FlatList,
   Alert,
   Linking,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import AdmitPatientModal from '../../components/AdmitPatientModal';
 import AddAppointmentModal from '../../components/AddAppointmentModal';
+import AppHeader from '../../components/AppHeader';
 
 const AppointmentManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -485,25 +488,26 @@ const AppointmentManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Appointment Management</Text>
-          <Text style={styles.headerSubtitle}>Manage patient appointments and schedules</Text>
+      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={true} />
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <AppHeader 
+          title="Appointment Management"
+          subtitle="Manage patient appointments and schedules"
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+          navigation={navigation}
+        />
+        
+        {/* Add Button */}
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleAddAppointment}
+          >
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add Appointment</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={handleAddAppointment}
-        >
-          <Ionicons name="add" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.content}>
         {/* Statistics Cards */}
@@ -621,6 +625,7 @@ const AppointmentManagementScreen = ({ navigation }) => {
         onClose={() => setShowAddAppointmentModal(false)}
         onSuccess={handleAddAppointmentSuccess}
       />
+      </SafeAreaView>
     </View>
   );
 };
@@ -629,6 +634,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.kbrBlue,
+  },
+  addButtonContainer: {
+    padding: 16,
+    alignItems: 'flex-end',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    marginLeft: 8,
+    fontWeight: '600',
+    fontSize: 16,
   },
   header: {
     flexDirection: 'row',
@@ -661,9 +680,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   addButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 8,
-    borderRadius: 8,
+    backgroundColor: Colors.kbrBlue,
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   content: {
     flex: 1,

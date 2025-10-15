@@ -7,9 +7,13 @@ import {
   TouchableOpacity, 
   TextInput,
   FlatList,
-  Alert
+  Alert,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AppHeader from '../../components/AppHeader';
+import { Colors } from '../../constants/theme';
 
 const DischargeManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,21 +141,17 @@ const DischargeManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Discharge Summaries</Text>
-          <Text style={styles.headerSubtitle}>Complete discharge records for all IP patients</Text>
-        </View>
-      </View>
+      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={true} />
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <AppHeader 
+          title="Discharge Summaries"
+          subtitle="Complete discharge records for all IP patients"
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+          navigation={navigation}
+        />
 
-      <View style={styles.content}>
+        <ScrollView style={styles.content}>
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, { backgroundColor: '#DBEAFE' }]}>
@@ -191,7 +191,8 @@ const DischargeManagementScreen = ({ navigation }) => {
           contentContainerStyle={styles.patientList}
           showsVerticalScrollIndicator={false}
         />
-      </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -201,13 +202,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.kbrBlue,
   },
   backButton: {
     width: 40,

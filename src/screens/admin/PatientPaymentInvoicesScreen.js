@@ -130,7 +130,7 @@ const PatientPaymentInvoicesScreen = ({ route, navigation }) => {
       case 'surgery':
         return 'cut';
       case 'medicine':
-        return 'pill';
+        return 'medkit';
       default:
         return 'receipt';
     }

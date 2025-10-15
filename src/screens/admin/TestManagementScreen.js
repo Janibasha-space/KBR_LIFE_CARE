@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import AppHeader from '../../components/AppHeader';
 
 const TestManagementScreen = ({ navigation }) => {
   const [tests, setTests] = useState([]);
@@ -582,22 +583,23 @@ const TestManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" />
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Test Management</Text>
+      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={true} />
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <AppHeader 
+          title="Test Management"
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+          navigation={navigation}
+        />
+        
+        {/* Add Button */}
+        <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowAddModal(true)}
           >
             <Ionicons name="add" size={24} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add Test</Text>
           </TouchableOpacity>
         </View>
 
@@ -887,10 +889,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 16,
   },
+  addButtonContainer: {
+    padding: 16,
+    alignItems: 'flex-end',
+  },
   addButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 8,
+    backgroundColor: Colors.kbrBlue,
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    marginLeft: 8,
+    fontWeight: '600',
+    fontSize: 16,
   },
   statsContainer: {
     padding: 16,

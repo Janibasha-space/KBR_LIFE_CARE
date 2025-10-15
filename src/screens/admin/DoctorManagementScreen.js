@@ -10,139 +10,307 @@ import {
   Alert,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { Picker } from '@react-native-picker/picker';
 import { Colors, Sizes } from '../../constants/theme';
+import { useApp } from '../../contexts/AppContext';
+import AppHeader from '../../components/AppHeader';
 
 const DoctorManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Mock data for doctor statistics
+  // Get data from AppContext
+  const { 
+    doctors, 
+    addDoctor, 
+    updateDoctor, 
+    deleteDoctor,
+    adminStats 
+  } = useApp();
+
+  // Form State
+  const [doctorForm, setDoctorForm] = useState({
+    name: '',
+    credentials: '',
+    specialization: '',
+    department: 'General Medicine',
+    fellowship: '',
+    experience: '',
+    rating: 5,
+    consultationFee: '',
+    phone: '',
+    email: '',
+    availability: '6 days/week',
+    schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    timeSlots: '9:00 AM - 6:00 PM',
+    expertise: [''],
+    avatar: null,
+    qualifications: [''],
+  });
+
+  // Calculate doctor statistics from AppContext data
   const doctorStats = {
-    totalDoctors: 15,
-    activeDoctors: 12,
-    onDuty: 8,
-    onLeave: 3,
-    consultations: 45
+    totalDoctors: (doctors || []).length,
+    activeDoctors: (doctors || []).filter(doc => doc.status === 'Active').length,
+    onDuty: (doctors || []).filter(doc => doc.status === 'Active' && doc.todayAppointments > 0).length,
+    onLeave: (doctors || []).filter(doc => doc.status === 'On Leave').length,
+    consultations: (doctors || []).reduce((sum, doc) => sum + (doc.todayAppointments || 0), 0)
   };
-
-  // Mock data for doctors - synced with user dashboard
-  const doctors = [
-    {
-      id: 'doc001',
-      name: 'Dr. K. Ramesh',
-      credentials: 'M.B.B.S., M.D',
-      specialization: 'General Physician',
-      department: 'General Medicine',
-      fellowship: 'Fellowship in Echocardiography',
-      experience: '20+ years',
-      rating: 4.9,
-      consultationFee: 600,
-      status: 'Active',
-      statusColor: '#10B981',
-      availability: '6 days/week',
-      phone: '+91 98765 43210',
-      email: 'dr.ramesh@kbrhospital.com',
-      schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      timeSlots: '9:00 AM - 6:00 PM',
-      expertise: [
-        'Infectious diseases (Dengue, Malaria, RTIs, COVID-19)',
-        'Sepsis & Critical Care management',
-        'Chronic illnesses: Diabetes, Hypertension, Hypothyroidism',
-        'Medical emergencies: Poisonings, Snake bites, DKA',
-        'Preventive medicine & health screening'
-      ],
-      todayAppointments: 8,
-      avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80'
-    },
-    {
-      id: 'doc002',
-      name: 'Dr. K. Divyavani',
-      credentials: 'M.B.B.S., M.S',
-      specialization: 'Obstetrics & Gynecology',
-      department: 'Gynecology',
-      fellowship: 'Fellowship in Fetal Medicine',
-      experience: '15+ years',
-      rating: 4.8,
-      consultationFee: 800,
-      status: 'Active',
-      statusColor: '#10B981',
-      availability: '5 days/week',
-      phone: '+91 98765 43211',
-      email: 'dr.divyavani@kbrhospital.com',
-      schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-      timeSlots: '10:00 AM - 5:00 PM',
-      expertise: [
-        'High-risk pregnancy management',
-        'Minimally invasive gynecological surgery',
-        'Reproductive endocrinology',
-        'Maternal-fetal medicine',
-        'Gynecological oncology'
-      ],
-      todayAppointments: 6,
-      avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&q=80'
-    },
-    {
-      id: 'doc003',
-      name: 'Dr. Mahesh Kumar',
-      credentials: 'M.B.B.S., M.D., D.M',
-      specialization: 'Cardiologist',
-      department: 'Cardiology',
-      fellowship: 'Fellowship in Interventional Cardiology',
-      experience: '18+ years',
-      rating: 4.9,
-      consultationFee: 1200,
-      status: 'On Leave',
-      statusColor: '#F59E0B',
-      availability: '6 days/week',
-      phone: '+91 98765 43212',
-      email: 'dr.mahesh@kbrhospital.com',
-      schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      timeSlots: '8:00 AM - 4:00 PM',
-      expertise: [
-        'Interventional cardiology procedures',
-        'Heart failure management',
-        'Coronary artery disease',
-        'Arrhythmia management',
-        'Preventive cardiology'
-      ],
-      todayAppointments: 0,
-      avatar: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=400&q=80'
-    },
-    {
-      id: 'doc004',
-      name: 'Dr. K. Thukaram',
-      credentials: 'B.D.S, M.D.S',
-      specialization: 'Orthodontics & Dentofacial Orthopaedics',
-      department: 'Dentistry',
-      fellowship: 'Fellowship in Aesthetic Dentistry',
-      experience: '12+ years',
-      rating: 4.7,
-      consultationFee: 500,
-      status: 'Active',
-      statusColor: '#10B981',
-      availability: '6 days/week',
-      phone: '+91 98765 43213',
-      email: 'dr.thukaram@kbrhospital.com',
-      schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      timeSlots: '9:00 AM - 6:00 PM',
-      expertise: [
-        'Orthodontic treatment planning',
-        'Invisalign and clear aligners',
-        'Pediatric orthodontics',
-        'Surgical orthodontics',
-        'TMJ disorders'
-      ],
-      todayAppointments: 5,
-      avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400&q=80'
-    }
-  ];
 
   const departments = ['All', 'General Medicine', 'Gynecology', 'Cardiology', 'Dentistry', 'Pediatrics', 'Orthopedics'];
 
-  const filteredDoctors = doctors.filter(doctor => {
+  // Helper Functions
+  const resetForm = () => {
+    setDoctorForm({
+      name: '',
+      credentials: '',
+      specialization: '',
+      department: 'General Medicine',
+      fellowship: '',
+      experience: '',
+      rating: 5,
+      consultationFee: '',
+      phone: '',
+      email: '',
+      availability: '6 days/week',
+      schedule: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      timeSlots: '9:00 AM - 6:00 PM',
+      expertise: [''],
+      avatar: null,
+      qualifications: [''],
+    });
+  };
+
+  const handleImagePicker = async () => {
+    Alert.alert(
+      'Select Image',
+      'Choose how you want to add a doctor image',
+      [
+        { text: 'Camera', onPress: () => pickImage('camera') },
+        { text: 'Gallery', onPress: () => pickImage('gallery') },
+        { text: 'Use Default', onPress: () => useDefaultImage() },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const pickImage = async (source) => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Required', 'Please allow access to your photo library');
+      return;
+    }
+
+    const options = {
+      mediaTypes: ImagePicker.MediaType.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    };
+
+    let result;
+    if (source === 'camera') {
+      result = await ImagePicker.launchCameraAsync(options);
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+
+    if (!result.canceled && result.assets[0]) {
+      setDoctorForm(prev => ({ ...prev, avatar: result.assets[0].uri }));
+    }
+  };
+
+  const useDefaultImage = () => {
+    const defaultImages = [
+      'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80',
+      'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&q=80',
+      'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=400&q=80',
+      'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400&q=80'
+    ];
+    const randomImage = defaultImages[Math.floor(Math.random() * defaultImages.length)];
+    setDoctorForm(prev => ({ ...prev, avatar: randomImage }));
+  };
+
+  const handleAddDoctor = async () => {
+    if (!doctorForm.name || !doctorForm.credentials || !doctorForm.specialization) {
+      Alert.alert('Error', 'Please fill in all required fields (Name, Credentials, Specialization)');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newDoctor = {
+        ...doctorForm,
+        id: `doc-${Date.now()}`,
+        status: 'Active',
+        statusColor: '#10B981',
+        todayAppointments: 0,
+        avatar: doctorForm.avatar || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80'
+      };
+
+      addDoctor(newDoctor);
+      setShowAddDoctorModal(false);
+      resetForm();
+      Alert.alert('Success', 'Doctor added successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add doctor. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditDoctor = (doctor) => {
+    setSelectedDoctor(doctor);
+    setDoctorForm({
+      name: doctor.name,
+      credentials: doctor.credentials,
+      specialization: doctor.specialization,
+      department: doctor.department,
+      fellowship: doctor.fellowship || '',
+      experience: doctor.experience,
+      rating: doctor.rating,
+      consultationFee: doctor.consultationFee.toString(),
+      phone: doctor.phone,
+      email: doctor.email,
+      availability: doctor.availability,
+      schedule: doctor.schedule,
+      timeSlots: doctor.timeSlots,
+      expertise: doctor.expertise || [''],
+      avatar: doctor.avatar,
+      qualifications: doctor.qualifications || [''],
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateDoctor = async () => {
+    setLoading(true);
+    try {
+      const updatedDoctor = {
+        ...selectedDoctor,
+        ...doctorForm,
+        consultationFee: parseInt(doctorForm.consultationFee) || 0
+      };
+
+      updateDoctor(selectedDoctor.id, updatedDoctor);
+      setShowEditModal(false);
+      resetForm();
+      setSelectedDoctor(null);
+      Alert.alert('Success', 'Doctor updated successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update doctor. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteDoctor = (doctorId, doctorName) => {
+    Alert.alert(
+      'Delete Doctor',
+      `Are you sure you want to remove Dr. ${doctorName} from the system?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteDoctor(doctorId);
+            Alert.alert('Success', 'Doctor removed successfully');
+          }
+        }
+      ]
+    );
+  };
+
+  const handleViewProfile = (doctor) => {
+    setSelectedDoctor(doctor);
+    setShowViewModal(true);
+  };
+
+  const addExpertiseField = () => {
+    setDoctorForm(prev => ({
+      ...prev,
+      expertise: [...(prev.expertise || []), '']
+    }));
+  };
+
+  const updateExpertiseField = (index, value) => {
+    setDoctorForm(prev => ({
+      ...prev,
+      expertise: (prev.expertise || []).map((item, i) => i === index ? value : item)
+    }));
+  };
+
+  const removeExpertiseField = (index) => {
+    if ((doctorForm.expertise || []).length > 1) {
+      setDoctorForm(prev => ({
+        ...prev,
+        expertise: (prev.expertise || []).filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const addQualificationField = () => {
+    setDoctorForm(prev => ({
+      ...prev,
+      qualifications: [...(prev.qualifications || []), '']
+    }));
+  };
+
+  const updateQualificationField = (index, value) => {
+    setDoctorForm(prev => ({
+      ...prev,
+      qualifications: (prev.qualifications || []).map((item, i) => i === index ? value : item)
+    }));
+  };
+
+  const removeQualificationField = (index) => {
+    if ((doctorForm.qualifications || []).length > 1) {
+      setDoctorForm(prev => ({
+        ...prev,
+        qualifications: (prev.qualifications || []).filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const toggleScheduleDay = (day) => {
+    setDoctorForm(prev => ({
+      ...prev,
+      schedule: (prev.schedule || []).includes(day)
+        ? (prev.schedule || []).filter(d => d !== day)
+        : [...(prev.schedule || []), day]
+    }));
+  };
+
+  const renderStarRating = () => {
+    return (
+      <View style={styles.starContainer}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity
+            key={star}
+            onPress={() => setDoctorForm(prev => ({ ...prev, rating: star }))}
+          >
+            <Ionicons
+              name={star <= doctorForm.rating ? 'star' : 'star-outline'}
+              size={24}
+              color={star <= doctorForm.rating ? '#FFD700' : '#D1D5DB'}
+            />
+          </TouchableOpacity>
+        ))}
+        <Text style={styles.ratingText}>({doctorForm.rating}/5)</Text>
+      </View>
+    );
+  };
+
+  const filteredDoctors = (doctors || []).filter(doctor => {
     const matchesSearch = doctor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          doctor.specialization.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          doctor.department.toLowerCase().includes(searchQuery.toLowerCase());
@@ -212,7 +380,7 @@ const DoctorManagementScreen = ({ navigation }) => {
         <View style={styles.scheduleContainer}>
           <Text style={styles.scheduleLabel}>Schedule:</Text>
           <View style={styles.scheduleItems}>
-            {doctor.schedule.map((day, index) => (
+            {(doctor.schedule || []).map((day, index) => (
               <View key={index} style={styles.scheduleDay}>
                 <Text style={styles.scheduleDayText}>{day}</Text>
               </View>
@@ -234,27 +402,32 @@ const DoctorManagementScreen = ({ navigation }) => {
         <View style={styles.expertisePreview}>
           <Text style={styles.expertiseLabel}>Expertise:</Text>
           <Text style={styles.expertiseText} numberOfLines={2}>
-            {doctor.expertise.slice(0, 2).join(' • ')}
+            {(doctor.expertise || []).slice(0, 2).join(' • ') || 'No expertise listed'}
           </Text>
         </View>
       </View>
 
       <View style={styles.doctorActions}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleViewProfile(doctor)}
+        >
           <Ionicons name="eye" size={16} color={Colors.kbrBlue} />
           <Text style={styles.actionText}>View Profile</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="calendar" size={16} color={Colors.kbrGreen} />
-          <Text style={[styles.actionText, { color: Colors.kbrGreen }]}>Schedule</Text>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleEditDoctor(doctor)}
+        >
+          <Ionicons name="create" size={16} color={Colors.kbrGreen} />
+          <Text style={[styles.actionText, { color: Colors.kbrGreen }]}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="call" size={16} color={Colors.kbrPurple} />
-          <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Contact</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="settings" size={16} color={Colors.textSecondary} />
-          <Text style={styles.actionText}>Edit</Text>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleDeleteDoctor(doctor.id, doctor.name)}
+        >
+          <Ionicons name="trash" size={16} color="#EF4444" />
+          <Text style={[styles.actionText, { color: '#EF4444' }]}>Delete</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -262,27 +435,27 @@ const DoctorManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Doctor Management</Text>
-          <Text style={styles.headerSubtitle}>Manage doctors, schedules and availability</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowAddDoctorModal(true)}
-        >
-          <Ionicons name="person-add" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+      {/* App Header */}
+      <AppHeader 
+        title="Doctor Management"
+        subtitle="Manage doctors, schedules and availability"
+        navigation={navigation}
+        showBackButton={true}
+        useSimpleAdminHeader={true}
+      />
 
       <View style={styles.content}>
+        {/* Add Doctor Button */}
+        <View style={styles.actionSection}>
+          <TouchableOpacity 
+            style={styles.addDoctorButton}
+            onPress={() => setShowAddDoctorModal(true)}
+          >
+            <Ionicons name="person-add" size={20} color="#FFF" />
+            <Text style={styles.addButtonText}>Add New Doctor</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
@@ -362,6 +535,849 @@ const DoctorManagementScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         />
       </View>
+
+      {/* Add Doctor Modal */}
+      <Modal
+        visible={showAddDoctorModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAddDoctorModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowAddDoctorModal(false);
+                resetForm();
+              }}
+            >
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Add New Doctor</Text>
+            <TouchableOpacity
+              style={[styles.saveButton, loading && styles.disabledButton]}
+              onPress={handleAddDoctor}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={16} color="#FFF" />
+                  <Text style={styles.saveButtonText}>Add Doctor</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Image Section */}
+            <View style={styles.imageSection}>
+              <Text style={styles.sectionTitle}>Doctor Photo</Text>
+              <TouchableOpacity style={styles.imageContainer} onPress={handleImagePicker}>
+                {doctorForm.avatar ? (
+                  <Image source={{ uri: doctorForm.avatar }} style={styles.doctorImageLarge} />
+                ) : (
+                  <View style={styles.placeholderImage}>
+                    <Ionicons name="camera" size={40} color="#9CA3AF" />
+                    <Text style={styles.placeholderText}>Add Photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Basic Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Basic Information</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Doctor Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Dr. John Doe"
+                  value={doctorForm.name}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, name: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Credentials *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="M.B.B.S., M.D"
+                  value={doctorForm.credentials}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, credentials: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Specialization *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="General Physician"
+                  value={doctorForm.specialization}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, specialization: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Department/Service *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.departmentSelector}>
+                  {departments.filter(dept => dept !== 'All').map((dept) => (
+                    <TouchableOpacity
+                      key={dept}
+                      style={[
+                        styles.departmentOption,
+                        doctorForm.department === dept && styles.selectedDepartment
+                      ]}
+                      onPress={() => setDoctorForm(prev => ({ ...prev, department: dept }))}
+                    >
+                      <Text style={[
+                        styles.departmentText,
+                        doctorForm.department === dept && styles.selectedDepartmentText
+                      ]}>
+                        {dept}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Fellowship/Additional Certification</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Fellowship in Cardiology"
+                  value={doctorForm.fellowship}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, fellowship: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Experience</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="10+ years"
+                  value={doctorForm.experience}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, experience: text }))}
+                />
+              </View>
+            </View>
+
+            {/* Rating Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Doctor Rating</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Rating (1-5 stars)</Text>
+                {renderStarRating()}
+              </View>
+            </View>
+
+            {/* Educational Qualifications */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Educational Qualifications</Text>
+              {(doctorForm.qualifications || []).map((qualification, index) => (
+                <View key={index} style={styles.inputGroup}>
+                  <View style={styles.dynamicInputRow}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      placeholder="M.B.B.S from XYZ Medical College"
+                      value={qualification}
+                      onChangeText={(text) => updateQualificationField(index, text)}
+                    />
+                    {(doctorForm.qualifications || []).length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => removeQualificationField(index)}
+                      >
+                        <Ionicons name="remove-circle" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.addButton2} onPress={addQualificationField}>
+                <Ionicons name="add-circle" size={20} color={Colors.kbrBlue} />
+                <Text style={styles.addButtonText}>Add Qualification</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Contact Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Contact Information</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="+91 98765 43210"
+                  value={doctorForm.phone}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, phone: text }))}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="doctor@kbrhospital.com"
+                  value={doctorForm.email}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, email: text }))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Consultation Fee (₹)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="600"
+                  value={doctorForm.consultationFee}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, consultationFee: text }))}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Availability</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="6 days/week"
+                  value={doctorForm.availability}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, availability: text }))}
+                />
+              </View>
+            </View>
+
+            {/* Schedule */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Working Schedule</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Working Days</Text>
+                <View style={styles.scheduleSelector}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.daySelector,
+                        (doctorForm.schedule || []).includes(day) && styles.selectedDay
+                      ]}
+                      onPress={() => toggleScheduleDay(day)}
+                    >
+                      <Text style={[
+                        styles.dayText,
+                        (doctorForm.schedule || []).includes(day) && styles.selectedDayText
+                      ]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Time Slots</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="9:00 AM - 6:00 PM"
+                  value={doctorForm.timeSlots}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, timeSlots: text }))}
+                />
+              </View>
+            </View>
+
+            {/* Expertise */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Areas of Expertise</Text>
+              {(doctorForm.expertise || []).map((expertise, index) => (
+                <View key={index} style={styles.inputGroup}>
+                  <View style={styles.dynamicInputRow}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      placeholder="Cardiology, Heart Surgery"
+                      value={expertise}
+                      onChangeText={(text) => updateExpertiseField(index, text)}
+                    />
+                    {(doctorForm.expertise || []).length > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => removeExpertiseField(index)}
+                      >
+                        <Ionicons name="remove-circle" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.addButton2} onPress={addExpertiseField}>
+                <Ionicons name="add-circle" size={20} color={Colors.kbrBlue} />
+                <Text style={styles.addButtonText}>Add Expertise</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 50 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Edit Doctor Modal */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowEditModal(false);
+                resetForm();
+                setSelectedDoctor(null);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Edit Doctor</Text>
+            <TouchableOpacity
+              style={[styles.saveButton, loading && styles.disabledButton]}
+              onPress={handleUpdateDoctor}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={16} color="#FFF" />
+                  <Text style={styles.saveButtonText}>Update</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Editing: {selectedDoctor?.name}</Text>
+              <Text style={styles.subtitle}>Make changes to doctor information below</Text>
+            </View>
+
+            {/* Image Section */}
+            <View style={styles.imageSection}>
+              <Text style={styles.sectionTitle}>Doctor Photo</Text>
+              <TouchableOpacity style={styles.imageContainer} onPress={handleImagePicker}>
+                {doctorForm.avatar ? (
+                  <Image source={{ uri: doctorForm.avatar }} style={styles.doctorImageLarge} />
+                ) : (
+                  <View style={styles.placeholderImage}>
+                    <Ionicons name="camera" size={40} color="#9CA3AF" />
+                    <Text style={styles.placeholderText}>Add Photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Basic Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Basic Information</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Doctor Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Dr. John Doe"
+                  value={doctorForm.name}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, name: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Specialization *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="General Physician"
+                  value={doctorForm.specialization}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, specialization: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Department *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={doctorForm.department}
+                    onValueChange={(value) => setDoctorForm(prev => ({ ...prev, department: value }))}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select Department" value="" />
+                    <Picker.Item label="General Medicine" value="General Medicine" />
+                    <Picker.Item label="Cardiology" value="Cardiology" />
+                    <Picker.Item label="Neurology" value="Neurology" />
+                    <Picker.Item label="Orthopedics" value="Orthopedics" />
+                    <Picker.Item label="Pediatrics" value="Pediatrics" />
+                    <Picker.Item label="Gynecology" value="Gynecology" />
+                    <Picker.Item label="Dermatology" value="Dermatology" />
+                    <Picker.Item label="ENT" value="ENT" />
+                    <Picker.Item label="Emergency" value="Emergency" />
+                  </Picker>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Status</Text>
+                <View style={styles.statusSelector}>
+                  {[
+                    { label: 'Active', value: 'Active', color: '#10B981' },
+                    { label: 'On Leave', value: 'On Leave', color: '#F59E0B' },
+                    { label: 'Inactive', value: 'Inactive', color: '#EF4444' }
+                  ].map((status) => (
+                    <TouchableOpacity
+                      key={status.value}
+                      style={[
+                        styles.statusOption,
+                        doctorForm.status === status.value && { backgroundColor: status.color }
+                      ]}
+                      onPress={() => setDoctorForm(prev => ({ ...prev, status: status.value, statusColor: status.color }))}
+                    >
+                      <Text style={[
+                        styles.statusOptionText,
+                        doctorForm.status === status.value && { color: '#FFF' }
+                      ]}>
+                        {status.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Rating</Text>
+                <View style={styles.ratingContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setDoctorForm(prev => ({ ...prev, rating: star }))}
+                    >
+                      <Ionicons
+                        name={star <= (doctorForm.rating || 0) ? "star" : "star-outline"}
+                        size={24}
+                        color="#FFD700"
+                      />
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={styles.ratingText}>
+                    {doctorForm.rating || 0}/5
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Qualifications */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Qualifications & Experience</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Medical Credentials</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="M.B.B.S., M.D."
+                  value={doctorForm.credentials}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, credentials: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Years of Experience</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="10+ years"
+                  value={doctorForm.experience}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, experience: text }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Fellowship/Additional Training</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Fellowship in Cardiology"
+                  value={doctorForm.fellowship}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, fellowship: text }))}
+                />
+              </View>
+
+              {/* Dynamic Qualifications */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelWithButton}>
+                  <Text style={styles.inputLabel}>Educational Qualifications</Text>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => {
+                      const newQualifications = [...(doctorForm.qualifications || []), ''];
+                      setDoctorForm(prev => ({ ...prev, qualifications: newQualifications }));
+                    }}
+                  >
+                    <Ionicons name="add" size={16} color={Colors.kbrBlue} />
+                    <Text style={styles.addButtonText}>Add Qualification</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {(doctorForm.qualifications || []).map((qualification, index) => (
+                  <View key={index} style={styles.dynamicInputRow}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      placeholder="Bachelor of Medicine"
+                      value={qualification}
+                      onChangeText={(text) => {
+                        const newQualifications = [...(doctorForm.qualifications || [])];
+                        newQualifications[index] = text;
+                        setDoctorForm(prev => ({ ...prev, qualifications: newQualifications }));
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => {
+                        const newQualifications = (doctorForm.qualifications || []).filter((_, i) => i !== index);
+                        setDoctorForm(prev => ({ ...prev, qualifications: newQualifications }));
+                      }}
+                    >
+                      <Ionicons name="remove-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={styles.addMoreButton}
+                onPress={() => {
+                  const newQualifications = [...(doctorForm.qualifications || []), ''];
+                  setDoctorForm(prev => ({ ...prev, qualifications: newQualifications }));
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.kbrBlue} />
+                <Text style={styles.addButtonText}>Add Qualification</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Contact Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Contact Information</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="+91 98765 43210"
+                  value={doctorForm.phone}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, phone: text }))}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="doctor@kbrhospital.com"
+                  value={doctorForm.email}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, email: text }))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Consultation Fee (₹)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="600"
+                  value={doctorForm.consultationFee}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, consultationFee: text }))}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Availability</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="6 days/week"
+                  value={doctorForm.availability}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, availability: text }))}
+                />
+              </View>
+            </View>
+
+            {/* Schedule */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Working Schedule</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Working Days</Text>
+                <View style={styles.scheduleSelector}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.daySelector,
+                        (doctorForm.schedule || []).includes(day) && styles.selectedDay
+                      ]}
+                      onPress={() => toggleScheduleDay(day)}
+                    >
+                      <Text style={[
+                        styles.dayText,
+                        (doctorForm.schedule || []).includes(day) && styles.selectedDayText
+                      ]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Time Slots</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="9:00 AM - 6:00 PM"
+                  value={doctorForm.timeSlots}
+                  onChangeText={(text) => setDoctorForm(prev => ({ ...prev, timeSlots: text }))}
+                />
+              </View>
+            </View>
+
+            {/* Expertise */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Areas of Expertise</Text>
+              {(doctorForm.expertise || []).map((expertise, index) => (
+                <View key={index} style={styles.inputGroup}>
+                  <View style={styles.dynamicInputRow}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      placeholder="Cardiology, Heart Surgery"
+                      value={expertise}
+                      onChangeText={(text) => {
+                        const newExpertise = [...(doctorForm.expertise || [])];
+                        newExpertise[index] = text;
+                        setDoctorForm(prev => ({ ...prev, expertise: newExpertise }));
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => {
+                        const newExpertise = (doctorForm.expertise || []).filter((_, i) => i !== index);
+                        setDoctorForm(prev => ({ ...prev, expertise: newExpertise }));
+                      }}
+                    >
+                      <Ionicons name="remove-circle" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              
+              <TouchableOpacity
+                style={styles.addMoreButton}
+                onPress={() => {
+                  const newExpertise = [...(doctorForm.expertise || []), ''];
+                  setDoctorForm(prev => ({ ...prev, expertise: newExpertise }));
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.kbrBlue} />
+                <Text style={styles.addButtonText}>Add Expertise</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 50 }} />
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* View Profile Modal */}
+      <Modal
+        visible={showViewModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowViewModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowViewModal(false);
+                setSelectedDoctor(null);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Doctor Profile</Text>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={() => {
+                setShowViewModal(false);
+                handleEditDoctor(selectedDoctor);
+              }}
+            >
+              <Ionicons name="create" size={16} color="#FFF" />
+              <Text style={styles.saveButtonText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedDoctor && (
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {/* Doctor Header */}
+              <View style={styles.viewProfileHeader}>
+                <Image 
+                  source={{ uri: selectedDoctor.avatar }}
+                  style={styles.viewProfileImage}
+                />
+                <View style={styles.viewProfileInfo}>
+                  <Text style={styles.viewProfileName}>{selectedDoctor.name}</Text>
+                  <Text style={styles.viewProfileCredentials}>{selectedDoctor.credentials}</Text>
+                  <Text style={styles.viewProfileSpecialization}>{selectedDoctor.specialization}</Text>
+                  <Text style={styles.viewProfileDepartment}>{selectedDoctor.department}</Text>
+                  
+                  <View style={styles.viewProfileMeta}>
+                    <View style={[styles.viewStatusBadge, { backgroundColor: selectedDoctor.statusColor }]}>
+                      <Text style={styles.viewStatusText}>{selectedDoctor.status}</Text>
+                    </View>
+                    <View style={styles.viewRatingContainer}>
+                      <Ionicons name="star" size={16} color="#FFD700" />
+                      <Text style={styles.viewRatingText}>{selectedDoctor.rating}/5</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Professional Details */}
+              <View style={styles.viewSection}>
+                <Text style={styles.viewSectionTitle}>Professional Details</Text>
+                
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="school" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Experience</Text>
+                      <Text style={styles.viewDetailValue}>{selectedDoctor.experience}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="ribbon" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Fellowship</Text>
+                      <Text style={styles.viewDetailValue}>{selectedDoctor.fellowship || 'Not specified'}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="cash" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Consultation Fee</Text>
+                      <Text style={styles.viewDetailValue}>₹{selectedDoctor.consultationFee}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="calendar" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Availability</Text>
+                      <Text style={styles.viewDetailValue}>{selectedDoctor.availability}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Contact Information */}
+              <View style={styles.viewSection}>
+                <Text style={styles.viewSectionTitle}>Contact Information</Text>
+                
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="call" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Phone</Text>
+                      <Text style={styles.viewDetailValue}>{selectedDoctor.phone}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.viewDetailRow}>
+                  <View style={styles.viewDetailItem}>
+                    <Ionicons name="mail" size={20} color="#6B7280" />
+                    <View style={styles.viewDetailContent}>
+                      <Text style={styles.viewDetailLabel}>Email</Text>
+                      <Text style={styles.viewDetailValue}>{selectedDoctor.email}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Schedule */}
+              <View style={styles.viewSection}>
+                <Text style={styles.viewSectionTitle}>Working Schedule</Text>
+                
+                <View style={styles.viewScheduleContainer}>
+                  <View style={styles.viewScheduleDays}>
+                    {(selectedDoctor.schedule || []).map((day, index) => (
+                      <View key={index} style={styles.viewScheduleDay}>
+                        <Text style={styles.viewScheduleDayText}>{day}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.viewTimeSlots}>
+                    <Ionicons name="time" size={16} color="#6B7280" />
+                    <Text style={styles.viewTimeSlotsText}>{selectedDoctor.timeSlots}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Today's Appointments */}
+              <View style={styles.viewSection}>
+                <Text style={styles.viewSectionTitle}>Today's Activity</Text>
+                
+                <View style={styles.viewActivityCard}>
+                  <Ionicons name="people" size={24} color={Colors.kbrBlue} />
+                  <View style={styles.viewActivityContent}>
+                    <Text style={styles.viewActivityNumber}>{selectedDoctor.todayAppointments}</Text>
+                    <Text style={styles.viewActivityLabel}>Appointments Today</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Areas of Expertise */}
+              <View style={styles.viewSection}>
+                <Text style={styles.viewSectionTitle}>Areas of Expertise</Text>
+                
+                <View style={styles.viewExpertiseContainer}>
+                  {(selectedDoctor.expertise || []).length > 0 ? (
+                    (selectedDoctor.expertise || []).map((expertise, index) => (
+                      <View key={index} style={styles.viewExpertiseItem}>
+                        <Ionicons name="checkmark-circle" size={16} color={Colors.kbrGreen} />
+                        <Text style={styles.viewExpertiseText}>{expertise}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.viewNoExpertise}>No expertise information available</Text>
+                  )}
+                </View>
+              </View>
+
+              <View style={{ height: 50 }} />
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -675,6 +1691,369 @@ const styles = StyleSheet.create({
     color: Colors.kbrBlue,
     marginLeft: 4,
     fontWeight: '500',
+  },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    flex: 1,
+    textAlign: 'center',
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  section: {
+    marginVertical: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  imageSection: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  imageContainer: {
+    marginTop: 12,
+  },
+  doctorImageLarge: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  placeholderImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1F2937',
+    backgroundColor: '#FFF',
+  },
+  departmentSelector: {
+    marginTop: 8,
+  },
+  departmentOption: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  selectedDepartment: {
+    backgroundColor: Colors.kbrBlue,
+    borderColor: Colors.kbrBlue,
+  },
+  departmentText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  selectedDepartmentText: {
+    color: '#FFF',
+  },
+  starContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  ratingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  dynamicInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  removeButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  addButton2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    color: Colors.kbrBlue,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  scheduleSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  daySelector: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  selectedDay: {
+    backgroundColor: Colors.kbrBlue,
+    borderColor: Colors.kbrBlue,
+  },
+  dayText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  selectedDayText: {
+    color: '#FFF',
+  },
+
+  // View Profile Styles
+  viewProfileHeader: {
+    flexDirection: 'row',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FAFAFA',
+  },
+  viewProfileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 15,
+  },
+  viewProfileInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  viewProfileName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  viewProfileCredentials: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  viewProfileSpecialization: {
+    fontSize: 14,
+    color: Colors.kbrBlue,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  viewProfileDepartment: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginBottom: 8,
+  },
+  viewProfileMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  viewStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  viewStatusText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  viewRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewRatingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+
+  viewSection: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  viewSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 15,
+  },
+  viewDetailRow: {
+    marginBottom: 15,
+  },
+  viewDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  viewDetailContent: {
+    flex: 1,
+  },
+  viewDetailLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  viewDetailValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+
+  viewScheduleContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 15,
+  },
+  viewScheduleDays: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  viewScheduleDay: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  viewScheduleDayText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  viewTimeSlots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  viewTimeSlotsText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
+
+  viewActivityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.kbrBlue,
+  },
+  viewActivityContent: {
+    marginLeft: 15,
+  },
+  viewActivityNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.kbrBlue,
+  },
+  viewActivityLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  viewExpertiseContainer: {
+    gap: 8,
+  },
+  viewExpertiseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  viewExpertiseText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  viewNoExpertise: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });
 

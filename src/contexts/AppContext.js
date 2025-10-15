@@ -168,6 +168,72 @@ const initialAppState = {
       ]
     },
   ],
+
+  // Invoice Management (separate from payments)
+  invoices: [
+    {
+      id: 'inv-001',
+      invoiceNumber: 'INV-2024-001',
+      patientId: 'KBR-IP-2024-001',
+      patientName: 'Rajesh Kumar',
+      description: 'Medical Consultation & Lab Tests',
+      issueDate: '2024-01-15',
+      dueDate: '2024-02-14',
+      status: 'paid',
+      totalAmount: 2500,
+      items: [
+        { name: 'Doctor Consultation', description: 'General checkup', quantity: 1, rate: 800, amount: 800 },
+        { name: 'Blood Test - CBC', description: 'Complete blood count', quantity: 1, rate: 350, amount: 350 },
+        { name: 'X-Ray Chest', description: 'Chest X-ray examination', quantity: 1, rate: 300, amount: 300 },
+        { name: 'ECG', description: 'Electrocardiogram', quantity: 1, rate: 200, amount: 200 },
+        { name: 'Registration Fee', description: 'Hospital registration', quantity: 1, rate: 200, amount: 200 },
+        { name: 'Medical Records', description: 'Patient file setup', quantity: 1, rate: 150, amount: 150 },
+        { name: 'Service Charges', description: 'Administrative charges', quantity: 1, rate: 500, amount: 500 }
+      ],
+      notes: 'Follow-up required after 2 weeks',
+      terms: 'Payment due within 30 days',
+      createdAt: '2024-01-15T10:30:00Z',
+    },
+    {
+      id: 'inv-002',
+      invoiceNumber: 'INV-2024-002',
+      patientId: 'KBR-OP-2024-501',
+      patientName: 'Priya Sharma',
+      description: 'Gynecology Consultation & Tests',
+      issueDate: '2024-01-18',
+      dueDate: '2024-02-17',
+      status: 'pending',
+      totalAmount: 1800,
+      items: [
+        { name: 'Gynecology Consultation', description: 'Specialist consultation', quantity: 1, rate: 700, amount: 700 },
+        { name: 'Ultrasound', description: 'Pelvic ultrasound', quantity: 1, rate: 800, amount: 800 },
+        { name: 'Lab Tests', description: 'Hormonal analysis', quantity: 1, rate: 300, amount: 300 }
+      ],
+      notes: 'Regular checkup recommended',
+      terms: 'Payment due within 30 days',
+      createdAt: '2024-01-18T11:45:00Z',
+    },
+    {
+      id: 'inv-003',
+      invoiceNumber: 'INV-2024-003',
+      patientId: 'KBR-IP-2024-002',
+      patientName: 'Amit Patel',
+      description: 'Orthopedic Surgery & Treatment',
+      issueDate: '2024-01-20',
+      dueDate: '2024-02-19',
+      status: 'overdue',
+      totalAmount: 25000,
+      items: [
+        { name: 'Orthopedic Surgery', description: 'Knee replacement surgery', quantity: 1, rate: 20000, amount: 20000 },
+        { name: 'Anesthesia', description: 'General anesthesia', quantity: 1, rate: 2000, amount: 2000 },
+        { name: 'OT Charges', description: 'Operation theater charges', quantity: 1, rate: 1500, amount: 1500 },
+        { name: 'Post-op Care', description: '3 days monitoring', quantity: 3, rate: 500, amount: 1500 }
+      ],
+      notes: 'Surgery completed successfully. Follow-up in 1 week.',
+      terms: 'Payment due within 30 days. Insurance claims accepted.',
+      createdAt: '2024-01-20T09:20:00Z',
+    }
+  ],
   
   // Test Management (integrated with patient services)
   tests: [
@@ -235,6 +301,113 @@ const initialAppState = {
       reportTime: '4-6 hours',
       isActive: true,
       bookings: 0
+    }
+  ],
+
+  // Reports Management (Medical Reports for Patients)
+  reports: [
+    {
+      id: 'RPT001',
+      type: 'Blood Test Results',
+      patientId: 'KBR-IP-2024-001',
+      patientName: 'Rajesh Kumar',
+      patientPhone: '+91 98765 43210',
+      doctorId: 'dr-ramesh',
+      doctorName: 'Dr. K. Ramesh',
+      date: '2024-10-12',
+      time: '10:30 AM',
+      status: 'available',
+      files: [
+        {
+          id: 'file_001',
+          name: 'blood_test_report.jpg',
+          type: 'image',
+          uri: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&q=80',
+          size: 2400000, // 2.4 MB in bytes
+          mimeType: 'image/jpeg',
+          uploadedAt: '2024-10-12T10:30:00Z'
+        }
+      ],
+      notes: 'CBC report showing normal values. Follow-up recommended in 3 months.',
+      createdAt: '2024-10-12T10:30:00Z',
+      updatedAt: '2024-10-12T10:30:00Z',
+      sentToPatient: true,
+      sentAt: '2024-10-12T11:00:00Z',
+      viewedByPatient: false,
+      category: 'Laboratory',
+      priority: 'normal',
+      icon: 'B',
+      iconColor: '#3B82F6',
+      bgColor: '#EBF4FF'
+    },
+    {
+      id: 'RPT002',
+      type: 'Ultrasound Report',
+      patientId: 'KBR-OP-2024-501',
+      patientName: 'Priya Sharma',
+      patientPhone: '+91 98765 43220',
+      doctorId: 'dr-divyavani',
+      doctorName: 'Dr. K. Divyavani',
+      date: '2024-10-11',
+      time: '02:15 PM',
+      status: 'available',
+      files: [
+        {
+          id: 'file_002',
+          name: 'ultrasound_report.pdf',
+          type: 'document',
+          uri: 'https://example.com/ultrasound_report.pdf',
+          size: 5350000, // 5.35 MB
+          mimeType: 'application/pdf',
+          uploadedAt: '2024-10-11T14:15:00Z'
+        }
+      ],
+      notes: 'Pelvic ultrasound showing normal findings. Regular monitoring suggested.',
+      createdAt: '2024-10-11T14:15:00Z',
+      updatedAt: '2024-10-11T14:15:00Z',
+      sentToPatient: true,
+      sentAt: '2024-10-11T15:00:00Z',
+      viewedByPatient: true,
+      viewedAt: '2024-10-11T16:30:00Z',
+      category: 'Radiology',
+      priority: 'normal',
+      icon: 'U',
+      iconColor: '#8B5CF6',
+      bgColor: '#F3F0FF'
+    },
+    {
+      id: 'RPT003',
+      type: 'X-Ray Report',
+      patientId: 'KBR-IP-2024-002',
+      patientName: 'Amit Patel',
+      patientPhone: '+91 98765 43230',
+      doctorId: 'dr-ramesh',
+      doctorName: 'Dr. K. Ramesh',
+      date: '2024-10-10',
+      time: '09:45 AM',
+      status: 'available',
+      files: [
+        {
+          id: 'file_003',
+          name: 'xray_knee_joint.jpg',
+          type: 'image',
+          uri: 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&q=80',
+          size: 1880000, // 1.88 MB
+          mimeType: 'image/jpeg',
+          uploadedAt: '2024-10-10T09:45:00Z'
+        }
+      ],
+      notes: 'Knee X-ray showing mild arthritis. Physical therapy recommended.',
+      createdAt: '2024-10-10T09:45:00Z',
+      updatedAt: '2024-10-10T09:45:00Z',
+      sentToPatient: false,
+      sentAt: null,
+      viewedByPatient: false,
+      category: 'Radiology',
+      priority: 'high',
+      icon: 'X',
+      iconColor: '#10B981',
+      bgColor: '#ECFDF5'
     }
   ],
 
@@ -329,6 +502,82 @@ const initialAppState = {
     },
   ],
   registeredUsers: 3,
+
+  // Room Management (Hospital Rooms)
+  rooms: [
+    {
+      id: 'R001',
+      roomNumber: '101',
+      floor: 1,
+      type: 'General Ward',
+      category: 'AC',
+      status: 'Occupied',
+      statusColor: '#EF4444',
+      patientName: 'Rajesh Kumar',
+      patientId: 'KBR-IP-2024-001',
+      admissionDate: '2024-01-10',
+      dailyRate: 2500,
+      amenities: ['AC', 'TV', 'WiFi', 'Bathroom'],
+      bed: 'A',
+      totalBeds: 4,
+      description: 'General ward room with AC and basic amenities',
+      createdAt: '2024-01-01T00:00:00Z'
+    },
+    {
+      id: 'R002',
+      roomNumber: '102',
+      floor: 1,
+      type: 'General Ward',
+      category: 'Non-AC',
+      status: 'Available',
+      statusColor: '#10B981',
+      patientName: null,
+      patientId: null,
+      admissionDate: null,
+      dailyRate: 1500,
+      amenities: ['Fan', 'TV', 'Bathroom'],
+      bed: null,
+      totalBeds: 6,
+      description: 'Non-AC general ward with fan and basic facilities',
+      createdAt: '2024-01-01T00:00:00Z'
+    },
+    {
+      id: 'R003',
+      roomNumber: '201',
+      floor: 2,
+      type: 'Private Room',
+      category: 'Deluxe',
+      status: 'Occupied',
+      statusColor: '#EF4444',
+      patientName: 'Priya Sharma',
+      patientId: 'KBR-IP-2024-002',
+      admissionDate: '2024-01-12',
+      dailyRate: 4500,
+      amenities: ['AC', 'TV', 'WiFi', 'Fridge', 'Sofa', 'Bathroom'],
+      bed: 'Single',
+      totalBeds: 1,
+      description: 'Deluxe private room with premium amenities',
+      createdAt: '2024-01-01T00:00:00Z'
+    },
+    {
+      id: 'R004',
+      roomNumber: '301',
+      floor: 3,
+      type: 'ICU',
+      category: 'Critical Care',
+      status: 'Under Maintenance',
+      statusColor: '#F59E0B',
+      patientName: null,
+      patientId: null,
+      admissionDate: null,
+      dailyRate: 8000,
+      amenities: ['Ventilator', 'Monitor', 'AC', 'Oxygen'],
+      bed: 'ICU Bed',
+      totalBeds: 1,
+      description: 'ICU room with critical care equipment',
+      createdAt: '2024-01-01T00:00:00Z'
+    },
+  ],
 };
 
 export const AppProvider = ({ children }) => {
@@ -442,6 +691,97 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  const updateDoctor = (doctorId, updatedData) => {
+    setAppState(prev => ({
+      ...prev,
+      doctors: prev.doctors.map(doc =>
+        doc.id === doctorId ? { ...doc, ...updatedData } : doc
+      )
+    }));
+  };
+
+  const deleteDoctor = (doctorId) => {
+    setAppState(prev => ({
+      ...prev,
+      doctors: prev.doctors.filter(doc => doc.id !== doctorId)
+    }));
+  };
+
+  // ==== ROOM MANAGEMENT ====
+  const addRoom = (roomData) => {
+    const newRoom = {
+      id: `R${Date.now()}`,
+      status: 'Available',
+      statusColor: '#10B981',
+      patientName: null,
+      patientId: null,
+      admissionDate: null,
+      createdAt: new Date().toISOString(),
+      ...roomData
+    };
+
+    setAppState(prev => ({
+      ...prev,
+      rooms: [...prev.rooms, newRoom]
+    }));
+
+    return newRoom;
+  };
+
+  const updateRoom = (roomId, updatedData) => {
+    setAppState(prev => ({
+      ...prev,
+      rooms: prev.rooms.map(room =>
+        room.id === roomId ? { 
+          ...room, 
+          ...updatedData, 
+          updatedAt: new Date().toISOString() 
+        } : room
+      )
+    }));
+  };
+
+  const deleteRoom = (roomId) => {
+    setAppState(prev => ({
+      ...prev,
+      rooms: prev.rooms.filter(room => room.id !== roomId)
+    }));
+  };
+
+  const dischargePatient = (roomId) => {
+    setAppState(prev => ({
+      ...prev,
+      rooms: prev.rooms.map(room =>
+        room.id === roomId ? {
+          ...room,
+          status: 'Available',
+          statusColor: '#10B981',
+          patientName: null,
+          patientId: null,
+          admissionDate: null,
+          dischargedAt: new Date().toISOString()
+        } : room
+      )
+    }));
+  };
+
+  const assignPatientToRoom = (roomId, patientData) => {
+    setAppState(prev => ({
+      ...prev,
+      rooms: prev.rooms.map(room =>
+        room.id === roomId ? {
+          ...room,
+          status: 'Occupied',
+          statusColor: '#EF4444',
+          patientName: patientData.name,
+          patientId: patientData.id,
+          admissionDate: new Date().toISOString().split('T')[0],
+          assignedAt: new Date().toISOString()
+        } : room
+      )
+    }));
+  };
+
   // ==== PAYMENT MANAGEMENT ====
   const addPayment = (paymentData) => {
     // Generate unique invoice ID
@@ -485,6 +825,61 @@ export const AppProvider = ({ children }) => {
       ...prev,
       payments: prev.payments.filter(payment => payment.id !== paymentId)
     }));
+  };
+
+  // ==== INVOICE MANAGEMENT ====
+  const addInvoice = (invoiceData) => {
+    const newInvoice = {
+      id: `inv-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...invoiceData
+    };
+
+    setAppState(prev => ({
+      ...prev,
+      invoices: [...prev.invoices, newInvoice]
+    }));
+
+    return newInvoice;
+  };
+
+  const updateInvoiceStatus = (invoiceId, newStatus) => {
+    setAppState(prev => ({
+      ...prev,
+      invoices: prev.invoices.map(invoice =>
+        invoice.id === invoiceId
+          ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString() }
+          : invoice
+      )
+    }));
+  };
+
+  const deleteInvoice = (invoiceId) => {
+    setAppState(prev => ({
+      ...prev,
+      invoices: prev.invoices.filter(invoice => invoice.id !== invoiceId)
+    }));
+  };
+
+  const updateInvoice = (invoiceId, updatedData) => {
+    setAppState(prev => ({
+      ...prev,
+      invoices: prev.invoices.map(invoice =>
+        invoice.id === invoiceId
+          ? { ...invoice, ...updatedData, updatedAt: new Date().toISOString() }
+          : invoice
+      )
+    }));
+  };
+
+  const getInvoicesByPatient = (patientId) => {
+    return appState.invoices.filter(invoice => invoice.patientId === patientId);
+  };
+
+  const getPendingInvoices = () => {
+    return appState.invoices.filter(invoice => 
+      invoice.status === 'pending' || invoice.status === 'overdue'
+    );
   };
 
   // ==== TEST MANAGEMENT ====
@@ -654,6 +1049,221 @@ export const AppProvider = ({ children }) => {
       }));
   };
 
+  // ==== REPORTS MANAGEMENT ====
+  const addReport = (reportData) => {
+    // Generate icon and colors based on report type
+    const getReportDisplay = (type) => {
+      const firstLetter = type.charAt(0).toUpperCase();
+      const colors = [
+        { icon: firstLetter, iconColor: '#3B82F6', bgColor: '#EBF4FF' },
+        { icon: firstLetter, iconColor: '#8B5CF6', bgColor: '#F3F0FF' },
+        { icon: firstLetter, iconColor: '#10B981', bgColor: '#ECFDF5' },
+        { icon: firstLetter, iconColor: '#F59E0B', bgColor: '#FFFBEB' },
+        { icon: firstLetter, iconColor: '#EF4444', bgColor: '#FEF2F2' },
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    const display = getReportDisplay(reportData.type);
+    const newReport = {
+      id: `RPT${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      }),
+      status: 'available',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      sentToPatient: false,
+      sentAt: null,
+      viewedByPatient: false,
+      priority: 'normal',
+      category: 'Laboratory',
+      files: [],
+      ...display,
+      ...reportData,
+    };
+
+    setAppState(prev => ({
+      ...prev,
+      reports: [...prev.reports, newReport]
+    }));
+
+    return newReport;
+  };
+
+  const updateReport = (reportId, updatedData) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(report =>
+        report.id === reportId
+          ? { 
+              ...report, 
+              ...updatedData, 
+              updatedAt: new Date().toISOString() 
+            }
+          : report
+      )
+    }));
+  };
+
+  const deleteReport = (reportId) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.filter(report => report.id !== reportId)
+    }));
+  };
+
+  const addFileToReport = (reportId, fileData) => {
+    const fileWithId = {
+      id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      uploadedAt: new Date().toISOString(),
+      ...fileData
+    };
+
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(report =>
+        report.id === reportId
+          ? {
+              ...report,
+              files: [...(report.files || []), fileWithId],
+              updatedAt: new Date().toISOString()
+            }
+          : report
+      )
+    }));
+
+    return fileWithId;
+  };
+
+  const removeFileFromReport = (reportId, fileId) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(report =>
+        report.id === reportId
+          ? {
+              ...report,
+              files: report.files.filter(file => file.id !== fileId),
+              updatedAt: new Date().toISOString()
+            }
+          : report
+      )
+    }));
+  };
+
+  const sendReportToPatient = (reportId, phoneNumber, notificationData = null) => {
+    // Find patient by phone number
+    const patient = appState.patients.find(p => 
+      p.phone === phoneNumber || 
+      p.phone.replace(/\D/g, '').includes(phoneNumber.replace(/\D/g, ''))
+    );
+
+    if (!patient) {
+      throw new Error('Patient not found with this phone number');
+    }
+
+    // Update report as sent
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(report =>
+        report.id === reportId
+          ? {
+              ...report,
+              sentToPatient: true,
+              sentAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          : report
+      )
+    }));
+
+    // Add to patient's medical reports
+    setAppState(prev => ({
+      ...prev,
+      patients: prev.patients.map(p =>
+        p.id === patient.id
+          ? {
+              ...p,
+              medicalReports: [
+                ...(p.medicalReports || []),
+                {
+                  id: reportId,
+                  type: appState.reports.find(r => r.id === reportId)?.type || 'Medical Report',
+                  date: new Date().toISOString().split('T')[0],
+                  receivedAt: new Date().toISOString(),
+                  viewed: false
+                }
+              ]
+            }
+          : p
+      )
+    }));
+
+    return { success: true, patient };
+  };
+
+  const markReportAsViewed = (reportId, patientId) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(report =>
+        report.id === reportId
+          ? {
+              ...report,
+              viewedByPatient: true,
+              viewedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          : report
+      ),
+      patients: prev.patients.map(p =>
+        p.id === patientId
+          ? {
+              ...p,
+              medicalReports: (p.medicalReports || []).map(mr =>
+                mr.id === reportId
+                  ? { ...mr, viewed: true, viewedAt: new Date().toISOString() }
+                  : mr
+              )
+            }
+          : p
+      )
+    }));
+  };
+
+  const getReportsByPatient = (patientId) => {
+    return appState.reports.filter(report => report.patientId === patientId);
+  };
+
+  const getReportsByDoctor = (doctorId) => {
+    return appState.reports.filter(report => report.doctorId === doctorId);
+  };
+
+  const getPendingReports = () => {
+    return appState.reports.filter(report => !report.sentToPatient);
+  };
+
+  const getReportsStats = () => {
+    const totalReports = appState.reports.length;
+    const sentReports = appState.reports.filter(r => r.sentToPatient).length;
+    const viewedReports = appState.reports.filter(r => r.viewedByPatient).length;
+    const pendingReports = totalReports - sentReports;
+
+    return {
+      totalReports,
+      sentReports,
+      viewedReports,
+      pendingReports,
+      totalPatients: appState.patients.length,
+      totalStorage: appState.reports.reduce((total, report) => {
+        const reportSize = report.files?.reduce((fileTotal, file) => fileTotal + (file.size || 0), 0) || 0;
+        return total + reportSize;
+      }, 0)
+    };
+  };
+
   // ==== SERVICE MANAGEMENT ====
   const addService = (categoryId, serviceData) => {
     const newService = {
@@ -683,9 +1293,12 @@ export const AppProvider = ({ children }) => {
     appointments: appState.appointments,
     doctors: appState.doctors,  
     payments: appState.payments,
+    invoices: appState.invoices,
     tests: appState.tests,
     patients: appState.patients,
     services: appState.services,
+    reports: appState.reports,
+    rooms: appState.rooms,
 
     // Appointment Methods
     addAppointment,
@@ -694,12 +1307,29 @@ export const AppProvider = ({ children }) => {
 
     // Doctor Methods
     addDoctor,
+    updateDoctor,
+    deleteDoctor,
     updateDoctorAppointmentCount,
+
+    // Room Methods
+    addRoom,
+    updateRoom,
+    deleteRoom,
+    dischargePatient,
+    assignPatientToRoom,
 
     // Payment Methods
     addPayment,
     updatePaymentStatus,
     deletePayment,
+
+    // Invoice Methods
+    addInvoice,
+    updateInvoiceStatus,
+    deleteInvoice,
+    updateInvoice,
+    getInvoicesByPatient,
+    getPendingInvoices,
 
     // Test Methods
     bookTest,
@@ -718,6 +1348,19 @@ export const AppProvider = ({ children }) => {
 
     // Service Methods
     addService,
+
+    // Reports Methods
+    addReport,
+    updateReport,
+    deleteReport,
+    addFileToReport,
+    removeFileFromReport,
+    sendReportToPatient,
+    markReportAsViewed,
+    getReportsByPatient,
+    getReportsByDoctor,
+    getPendingReports,
+    getReportsStats,
 
     // Utility Methods
     calculateAdminStats,

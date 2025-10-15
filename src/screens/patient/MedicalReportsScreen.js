@@ -285,23 +285,23 @@ const MedicalReportsScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
-      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
         {/* App Header */}
         <AppHeader 
           subtitle="Reports"
           navigation={navigation}
         />
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
           {/* Title Section */}
-          <View style={styles.titleSection}>
+          <View style={[styles.titleSection, { backgroundColor: theme.background }]}>
             <Text style={styles.mainTitle}>Medical Reports</Text>
             <Text style={styles.subtitle}>Access and manage all your medical reports</Text>
           </View>
 
           {/* Search Bar */}
-          <View style={styles.searchSection}>
+          <View style={[styles.searchSection, { backgroundColor: theme.background }]}>
             <View style={styles.searchContainer}>
               <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
               <TextInput

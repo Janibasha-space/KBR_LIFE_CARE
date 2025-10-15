@@ -35,7 +35,7 @@ const AddPaymentInvoiceModal = ({
     { value: 'tests', label: 'Laboratory Tests', icon: 'flask' },
     { value: 'admission', label: 'Room/Admission', icon: 'bed' },
     { value: 'surgery', label: 'Surgery', icon: 'cut' },
-    { value: 'medicine', label: 'Medicine', icon: 'pill' },
+    { value: 'medicine', label: 'Medicine', icon: 'medkit' },
     { value: 'other', label: 'Other', icon: 'receipt' },
   ];
 

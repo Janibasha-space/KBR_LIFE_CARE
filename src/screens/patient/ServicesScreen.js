@@ -174,8 +174,8 @@ const ServicesScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
-      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
         {/* App Header */}
         <AppHeader 
           subtitle="Services"
@@ -323,15 +323,17 @@ const styles = StyleSheet.create({
     marginBottom: Sizes.xs,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     color: Colors.textPrimary,
-    marginLeft: Sizes.xs,
+    marginLeft: 8,
+    letterSpacing: 0.3,
   },
   pageSubtitle: {
-    fontSize: Sizes.medium,
+    fontSize: 16,
     color: Colors.textSecondary,
     lineHeight: 22,
+    fontWeight: '400',
   },
   searchSection: {
     paddingHorizontal: Sizes.screenPadding,

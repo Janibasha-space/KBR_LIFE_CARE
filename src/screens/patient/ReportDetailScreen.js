@@ -495,8 +495,8 @@ const ReportDetailScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
         {/* App Header */}
         <AppHeader 
           subtitle="Report Details"

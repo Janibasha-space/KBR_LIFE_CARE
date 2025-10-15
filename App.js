@@ -40,6 +40,7 @@ import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
 import ServiceManagementScreen from './src/screens/admin/ServiceManagementScreen';
 import PatientManagementScreen from './src/screens/admin/PatientManagementScreen';
 import PaymentManagementScreen from './src/screens/admin/PaymentManagementScreen';
+import InvoiceManagementScreen from './src/screens/admin/InvoiceManagementScreen';
 import DischargeManagementScreen from './src/screens/admin/DischargeManagementScreen';
 
 import PatientDetailsScreen from './src/screens/admin/PatientDetailsScreen';
@@ -167,15 +168,24 @@ function PatientTabNavigator() {
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: Colors.white,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
+          borderTopWidth: 2,
+          borderTopColor: Colors.primary,
+          height: 70,
+          paddingBottom: 12,
           paddingTop: 8,
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: -2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
+          fontSize: 12,
+          fontWeight: '600',
+          marginBottom: 4,
         },
         headerShown: false,
       })}
@@ -216,19 +226,28 @@ function AdminTabNavigator() {
 
           return <Ionicons name={iconName} size={20} color={color} />;
         },
-        tabBarActiveTintColor: Colors.primary,
+        tabBarActiveTintColor: Colors.kbrBlue,
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: Colors.white,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
+          borderTopWidth: 2,
+          borderTopColor: Colors.kbrBlue,
+          height: 70,
+          paddingBottom: 12,
           paddingTop: 8,
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: -2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
+          fontSize: 12,
+          fontWeight: '600',
+          marginBottom: 4,
         },
         headerShown: false,
       })}
@@ -288,6 +307,26 @@ function AdminDrawerNavigator() {
           drawerLabel: 'Services',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="construct-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen 
+        name="InvoiceManagement" 
+        component={InvoiceManagementScreen}
+        options={{
+          drawerLabel: 'Invoice Management',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="receipt-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen 
+        name="PaymentManagement" 
+        component={PaymentManagementScreen}
+        options={{
+          drawerLabel: 'Payment Management',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="card-outline" size={size} color={color} />
           ),
         }}
       />
@@ -364,6 +403,8 @@ export default function App() {
               <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
               <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
               <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
+              <Stack.Screen name="PaymentManagement" component={PaymentManagementScreen} />
+              <Stack.Screen name="InvoiceManagement" component={InvoiceManagementScreen} />
             </Stack.Navigator>
               </NavigationContainer>
             </AppProvider>
@@ -426,6 +467,6 @@ const styles = StyleSheet.create({
   drawerItemLabel: {
     fontSize: 16,
     fontWeight: '500',
-    marginLeft: -20,
+    marginLeft: -8,
   },
 });

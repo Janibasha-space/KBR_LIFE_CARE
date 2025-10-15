@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
 import { useApp } from '../../contexts/AppContext';
+import AppHeader from '../../components/AppHeader';
 
 // Helper function to create transparent colors
 const getTransparentColor = (color, opacity) => `${color}${opacity}`;
@@ -24,8 +25,14 @@ const AdminDashboardScreen = ({ navigation }) => {
   // Use AppContext for real-time data
   const { 
     adminStats, 
-    appointments 
+    appointments,
+    invoices,
+    getPendingInvoices 
   } = useApp();
+
+  // Calculate pending invoices count
+  const pendingInvoices = getPendingInvoices();
+  const pendingInvoicesCount = pendingInvoices.length;
 
   // Real-time stats cards with live data from AppContext
   const statsCards = [
@@ -134,49 +141,23 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
-      {/* Enhanced Professional Admin Header */}
-      <View style={styles.header}>
-        {/* Top Header Row */}
-        <View style={styles.topHeaderRow}>
-          <View style={styles.hospitalBranding}>
-            <View style={styles.logoSection}>
-              <Image 
-                source={require('../../../assets/hospital-logo.jpeg')}
-                style={styles.adminLogoImage}
-                resizeMode="contain"
-              />
-              <View style={styles.hospitalTextSection}>
-                <Text style={styles.hospitalName}>KBR LIFE CARE</Text>
-                <Text style={styles.hospitalSubtitle}>ADMIN DASHBOARD</Text>
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={styles.menuBarButton}
-              onPress={() => navigation.getParent()?.openDrawer()}
-            >
-              <Ionicons name="menu" size={24} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
+        {/* App Header */}
+        <AppHeader 
+          title="KBR LIFE CARE HOSPITALS"
+          subtitle="Admin Dashboard"
+          navigation={navigation}
+          showMenuButton={true}
+          showAdminStatus={true}
+          hideProfileButton={true}
+        />
 
-        {/* Bottom Header Row */}
-        <View style={styles.bottomHeaderRow}>
-          <Text style={styles.welcomeMessage}>Hospital Management System</Text>
-          <View style={styles.statusIndicator}>
-            <View style={styles.onlineIndicator} />
-            <Text style={styles.statusText}>System Online • Live Dashboard</Text>
-          </View>
-        </View>
-
-
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Stats Cards */}
         <View style={styles.statsSection}>
           <View style={styles.statsGrid}>
@@ -219,6 +200,28 @@ const AdminDashboardScreen = ({ navigation }) => {
             
             <TouchableOpacity 
               style={styles.quickActionCard}
+              onPress={() => navigation.navigate('PaymentManagement')}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' + '15' }]}>
+                <Ionicons name="wallet-outline" size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.quickActionTitle}>Payment Management</Text>
+              <Text style={styles.quickActionSubtitle}>Track payments & transactions</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => navigation.navigate('InvoiceManagement')}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: '#8B5CF6' + '15' }]}>
+                <Ionicons name="document-text-outline" size={24} color="#8B5CF6" />
+              </View>
+              <Text style={styles.quickActionTitle}>Invoice Management</Text>
+              <Text style={styles.quickActionSubtitle}>Create & manage invoices</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickActionCard}
               onPress={() => navigation.navigate('Appointments')}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.kbrRed + '15' }]}>
@@ -244,6 +247,36 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Financial Overview Section */}
+        <View style={styles.financialSection}>
+          <Text style={styles.sectionTitle}>Financial Overview</Text>
+          <View style={styles.financialCards}>
+            <TouchableOpacity 
+              style={[styles.financialCard, { backgroundColor: '#10B981' + '10' }]}
+              onPress={() => navigation.navigate('PaymentManagement')}
+            >
+              <View style={styles.financialCardHeader}>
+                <Ionicons name="trending-up" size={24} color="#10B981" />
+                <Text style={styles.financialAmount}>₹{adminStats.totalRevenue.toLocaleString()}</Text>
+              </View>
+              <Text style={styles.financialTitle}>Total Revenue</Text>
+              <Text style={styles.financialSubtitle}>All payments collected</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.financialCard, { backgroundColor: '#F59E0B' + '10' }]}
+              onPress={() => navigation.navigate('InvoiceManagement')}
+            >
+              <View style={styles.financialCardHeader}>
+                <Ionicons name="time" size={24} color="#F59E0B" />
+                <Text style={styles.financialAmount}>{pendingInvoicesCount}</Text>
+              </View>
+              <Text style={styles.financialTitle}>Pending Invoices</Text>
+              <Text style={styles.financialSubtitle}>Need follow-up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Recent Appointments */}
         <View style={styles.appointmentsSection}>
           <View style={styles.sectionHeader}>
@@ -258,7 +291,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -309,26 +342,26 @@ const styles = StyleSheet.create({
     marginRight: Sizes.md,
   },
   adminLogoImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
   },
   hospitalTextSection: {
-    marginLeft: 12,
+    marginLeft: 14,
   },
   hospitalName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.white,
     letterSpacing: 0.5,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   hospitalSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFD700',
-    letterSpacing: 1,
-    marginTop: -2,
+    letterSpacing: 1.2,
+    marginTop: 2,
   },
   
   // Header Actions Styles
@@ -516,6 +549,50 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
   },
+
+  // Financial Section
+  financialSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    marginBottom: Sizes.xl,
+  },
+  financialCards: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Sizes.md,
+  },
+  financialCard: {
+    flex: 0.48,
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  financialCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.sm,
+  },
+  financialAmount: {
+    fontSize: Sizes.title,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+  },
+  financialTitle: {
+    fontSize: Sizes.regular,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  financialSubtitle: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+  },
+
   appointmentsSection: {
     paddingHorizontal: Sizes.screenPadding,
     paddingBottom: Sizes.xl,
@@ -527,9 +604,10 @@ const styles = StyleSheet.create({
     marginBottom: Sizes.md,
   },
   sectionTitle: {
-    fontSize: Sizes.large,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
     color: Colors.textPrimary,
+    letterSpacing: 0.3,
   },
   viewAllText: {
     fontSize: Sizes.medium,

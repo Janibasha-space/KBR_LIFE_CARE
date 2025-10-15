@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
+import AppHeader from '../../components/AppHeader';
 
 const AdminProfileScreen = ({ navigation }) => {
   const [adminData, setAdminData] = useState({
@@ -41,30 +42,35 @@ const AdminProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Admin Profile</Text>
-          </View>
-          
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
+        {/* App Header */}
+        <AppHeader 
+          title="Admin Profile"
+          subtitle="Manage admin account settings and permissions"
+          navigation={navigation}
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+        />
+        
+        {/* Edit Button */}
+        <View style={styles.actionSection}>
           <TouchableOpacity 
             style={styles.editButton}
             onPress={() => setIsEditing(!isEditing)}
           >
             <Ionicons 
               name={isEditing ? "close" : "create"} 
-              size={24} 
+              size={20} 
               color={Colors.white} 
             />
+            <Text style={styles.editButtonText}>
+              {isEditing ? "Cancel" : "Edit Profile"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -214,13 +220,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.white,
   },
+  actionSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: 12,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+  },
   editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-end',
+  },
+  editButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   scrollView: {
     flex: 1,

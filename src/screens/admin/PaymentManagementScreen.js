@@ -12,67 +12,74 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import { Colors } from '../../constants/theme';
+import AddPaymentModal from '../../components/AddPaymentModal';
 
 const PaymentManagementScreen = ({ navigation }) => {
-  const { patients, getAllPendingPayments } = useApp();
+  const { patients, getAllPendingPayments, payments, addPayment, updatePaymentStatus, deletePayment } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  // Calculate real-time payment statistics from patient data
+  // Calculate real-time payment statistics from actual payments data
   const paymentStats = useMemo(() => {
-    const patientsWithPayments = patients.filter(patient => patient.paymentDetails);
-    
-    const totalRevenue = patientsWithPayments.reduce((sum, patient) => 
-      sum + (patient.paymentDetails?.totalPaid || 0), 0);
-    
-    const totalPending = patientsWithPayments.reduce((sum, patient) => 
-      sum + (patient.paymentDetails?.dueAmount || 0), 0);
-    
-    const fullyPaidCount = patientsWithPayments.filter(patient => 
-      patient.paymentDetails?.dueAmount <= 0).length;
-    
-    const partiallyPaidCount = patientsWithPayments.filter(patient => 
-      patient.paymentDetails && patient.paymentDetails.dueAmount > 0 && patient.paymentDetails.totalPaid > 0).length;
-    
-    const pendingCount = patientsWithPayments.filter(patient => 
-      patient.paymentDetails?.totalPaid === 0).length;
+    const totalPayments = payments?.length || 0;
+    const totalRevenue = (payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    const paidAmount = (payments || []).filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+    const pendingAmount = (payments || []).filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
+    const fullyPaidCount = (payments || []).filter(p => p.status === 'paid').length;
+    const pendingCount = (payments || []).filter(p => p.status === 'pending').length;
+    const partiallyPaidCount = (payments || []).filter(p => p.status === 'partial').length;
 
     return {
-      totalRevenue,
-      totalPending,
+      totalRevenue: paidAmount,
+      totalPending: pendingAmount,
       fullyPaidCount,
       partiallyPaidCount,
       pendingCount,
-      totalPatients: patientsWithPayments.length,
+      totalPatients: totalPayments,
     };
-  }, [patients]);
+  }, [payments]);
 
-  // Transform patient payment data for display
+  // Transform actual payments data for display
   const paymentList = useMemo(() => {
-    return patients
-      .filter(patient => patient.paymentDetails)
-      .map(patient => ({
-        id: patient.id,
-        patientName: patient.name,
-        patientId: patient.id,
-        patientType: patient.patientType,
-        totalAmount: patient.paymentDetails.totalAmount,
-        paidAmount: patient.paymentDetails.totalPaid,
-        dueAmount: patient.paymentDetails.dueAmount,
-        status: patient.paymentDetails.dueAmount <= 0 ? 'Fully Paid' : 
-                patient.paymentDetails.totalPaid > 0 ? 'Partially Paid' : 'Pending',
-        statusColor: patient.paymentDetails.dueAmount <= 0 ? '#10B981' : 
-                    patient.paymentDetails.totalPaid > 0 ? '#F59E0B' : '#EF4444',
-        lastPaymentDate: patient.paymentDetails.lastPaymentDate,
-        paymentHistory: patient.paymentDetails.payments || [],
-        registrationDate: patient.registrationDate,
-      }))
-      .sort((a, b) => new Date(b.lastPaymentDate || b.registrationDate) - new Date(a.lastPaymentDate || a.registrationDate));
-  }, [patients]);
+    // First, deduplicate payments by ID to avoid duplicate key errors
+    const uniquePayments = (payments || []).reduce((acc, payment) => {
+      const existingPayment = acc.find(p => p.id === payment.id);
+      if (!existingPayment) {
+        acc.push(payment);
+      }
+      return acc;
+    }, []);
+
+    return uniquePayments.map((payment, index) => {
+      // Find the corresponding patient for additional details
+      const patient = patients.find(p => p.id === payment.patientId);
+      return {
+        id: `payment-${index}-${payment.id}-${payment.patientId || 'unknown'}`, // Ensure unique ID using index, payment ID, and patient ID
+        originalId: payment.id, // Keep original ID for reference
+        patientName: payment.patientName,
+        patientId: payment.patientId,
+        patientType: patient?.patientType || 'N/A',
+        totalAmount: payment.amount,
+        paidAmount: payment.status === 'paid' ? payment.amount : payment.status === 'partial' ? payment.amount * 0.5 : 0,
+        dueAmount: payment.status === 'paid' ? 0 : payment.status === 'partial' ? payment.amount * 0.5 : payment.amount,
+        status: payment.status === 'paid' ? 'Fully Paid' : 
+                payment.status === 'partial' ? 'Partially Paid' : 'Pending',
+        statusColor: payment.status === 'paid' ? '#10B981' : 
+                    payment.status === 'partial' ? '#F59E0B' : '#EF4444',
+        lastPaymentDate: payment.paymentDate || payment.date,
+        paymentHistory: [payment], // Single payment record
+        registrationDate: patient?.registrationDate,
+        method: payment.method,
+        description: payment.description,
+      };
+    })
+    .sort((a, b) => new Date(b.lastPaymentDate || b.registrationDate) - new Date(a.lastPaymentDate || a.registrationDate));
+  }, [payments, patients]);
 
   const filteredPayments = paymentList.filter(payment => {
     const matchesSearch = payment.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         payment.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (payment.originalId && payment.originalId.toLowerCase().includes(searchQuery.toLowerCase())) ||
                          payment.patientId.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = selectedFilter === 'All' || payment.status === selectedFilter;
     return matchesSearch && matchesFilter;
@@ -88,15 +95,13 @@ const PaymentManagementScreen = ({ navigation }) => {
     }
   };
 
-  const handleAddPayment = (payment) => {
-    const patient = patients.find(p => p.id === payment.patientId);
-    if (patient) {
-      navigation.navigate('PatientDetails', { 
-        patient,
-        openPaymentModal: true // Pass flag to open payment modal
-      });
-    } else {
-      Alert.alert('Error', 'Patient not found');
+  const handleAddPayment = (paymentData) => {
+    try {
+      addPayment(paymentData);
+      Alert.alert('Success', 'Payment added successfully!');
+      setShowAddModal(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add payment. Please try again.');
     }
   };
 
@@ -241,6 +246,12 @@ const PaymentManagementScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>Payment Management</Text>
           <Text style={styles.headerSubtitle}>Track all IP & OP payments and invoices</Text>
         </View>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowAddModal(true)}
+        >
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -328,6 +339,14 @@ const PaymentManagementScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         />
       </View>
+
+      {/* Add Payment Modal */}
+      <AddPaymentModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={handleAddPayment}
+        patients={patients}
+      />
     </View>
   );
 };
@@ -352,7 +371,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 16,
   },
   headerContent: {
     flex: 1,

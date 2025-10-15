@@ -15,6 +15,7 @@ import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import AddServiceModal from '../../components/AddServiceModal';
+import AppHeader from '../../components/AppHeader';
 
 const ServiceManagementScreen = ({ navigation }) => {
   const { services, doctors, addService, deleteService, getServiceCounts } = useServices();
@@ -155,52 +156,20 @@ const ServiceManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Image 
-              source={require('../../../assets/hospital-logo.jpeg')}
-              style={styles.headerLogoImage}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={styles.headerTitle}>KBR LIFE CARE HOSPITALS</Text>
-              <Text style={styles.headerSubtitle}>Service Management</Text>
-            </View>
-          </View>
-          <View style={styles.headerActions}>
-            {isLoggedIn && (
-              <TouchableOpacity 
-                style={styles.profileButton}
-                onPress={() => navigation.navigate('Profile')}
-              >
-                {userData?.profilePicture ? (
-                  <Image 
-                    source={{ uri: userData.profilePicture }} 
-                    style={styles.profilePicture}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="person-circle" size={24} color={Colors.white} />
-                )}
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Ionicons name="add" size={20} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
+        {/* App Header */}
+        <AppHeader 
+          title="Service Management"
+          subtitle="Add, edit, or remove hospital services and specialties"
+          navigation={navigation}
+          showBackButton={true}
+          useSimpleAdminHeader={true}
+        />
 
         {/* Category Tabs */}
         <View style={styles.tabsContainer}>

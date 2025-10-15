@@ -47,6 +47,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   const { 
     doctors,
     addAppointment,
+    addInvoice,
+    addPayment,
     tests,
     bookTest
   } = useApp();
@@ -393,11 +395,15 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       if (conflict) {
         const result = await handleAppointmentConflict(conflict, finalBookingData);
         if (result.success) {
+          // Create invoice and payment records for the appointment
+          await createAppointmentInvoiceAndPayment(result.appointment, paymentMethod);
           setBookingData(prev => ({ ...prev, appointment: result.appointment }));
           goToNextStep(); // Go to confirmation
         }
       } else {
         const appointment = addAppointment(finalBookingData);
+        // Create invoice and payment records for the appointment
+        await createAppointmentInvoiceAndPayment(appointment, paymentMethod);
         setBookingData(prev => ({ ...prev, appointment }));
         goToNextStep(); // Go to confirmation
       }
@@ -406,6 +412,62 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Create invoice and payment records for appointment
+  const createAppointmentInvoiceAndPayment = async (appointment, paymentMethod) => {
+    try {
+      // Create invoice for the appointment
+      const invoiceData = {
+        patientId: appointment.patientId || `patient-${Date.now()}`,
+        patientName: appointment.patientName,
+        description: `${appointment.serviceName} - ${appointment.doctorName}`,
+        issueDate: appointment.date,
+        dueDate: paymentMethod === 'razorpay' ? appointment.date : calculateDueDate(appointment.date, 7), // Due in 7 days for hospital payment
+        status: paymentMethod === 'razorpay' ? 'paid' : 'pending',
+        items: [
+          {
+            name: `${appointment.serviceName} Consultation`,
+            description: `Consultation with ${appointment.doctorName}`,
+            quantity: 1,
+            rate: appointment.amount,
+            amount: appointment.amount
+          }
+        ],
+        totalAmount: appointment.amount,
+        notes: `Appointment scheduled for ${appointment.date} at ${appointment.time}`,
+        terms: paymentMethod === 'razorpay' ? 'Paid online' : 'Payment due at hospital reception'
+      };
+
+      const invoice = addInvoice(invoiceData);
+
+      // Create payment record if paid online
+      if (paymentMethod === 'razorpay') {
+        const paymentData = {
+          patientId: appointment.patientId || `patient-${Date.now()}`,
+          patientName: appointment.patientName,
+          amount: appointment.amount,
+          type: 'appointment',
+          paymentMethod: 'online',
+          description: `Online payment for ${appointment.serviceName}`,
+          transactionId: appointment.paymentId,
+          status: 'paid',
+          invoiceId: invoice.id
+        };
+
+        addPayment(paymentData);
+      }
+    } catch (error) {
+      console.error('Error creating invoice/payment records:', error);
+      // Don't throw error to prevent appointment booking failure
+    }
+  };
+
+  // Calculate due date (helper function)
+  const calculateDueDate = (startDate, daysToAdd) => {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + daysToAdd);
+    return date.toISOString().split('T')[0];
   };
 
   // Check if user is logged in before allowing booking beyond step 1
@@ -1508,8 +1570,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
   return (
     <View style={{flex: 1, backgroundColor: theme.background}}>
-      <StatusBar backgroundColor={theme.primary} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={{flex: 1, backgroundColor: theme.background}}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <SafeAreaView style={{flex: 1, backgroundColor: theme.background}} edges={['left', 'right']}>
         {/* App Header */}
         <AppHeader 
           subtitle="Book Appointment"

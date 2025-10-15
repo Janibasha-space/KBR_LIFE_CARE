@@ -267,7 +267,7 @@ const PatientHomeScreen = ({ navigation }) => {
   useEffect(() => {
     if (isPlaying && !isLoading) {
       autoPlayRef.current = setInterval(() => {
-        setCurrentDoctorIndex((prev) => (prev + 1) % doctors.length);
+        setCurrentDoctorIndex((prev) => (prev + 1) % (doctors?.length || 1));
       }, 3000);
     }
     return () => {
@@ -481,11 +481,11 @@ const PatientHomeScreen = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar 
-        backgroundColor={theme.primary} 
+        backgroundColor="transparent" 
         barStyle="light-content" 
-        translucent={false} 
+        translucent={true} 
       />
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['left', 'right']}>
         {/* App Header */}
         <AppHeader 
           subtitle="Excellence in Healthcare"
@@ -564,7 +564,7 @@ const PatientHomeScreen = ({ navigation }) => {
                 <View style={styles.carouselControls}>
                   <TouchableOpacity
                     style={styles.controlButton}
-                    onPress={() => setCurrentDoctorIndex((prev) => (prev - 1 + doctors.length) % doctors.length)}
+                    onPress={() => setCurrentDoctorIndex((prev) => (prev - 1 + (doctors?.length || 1)) % (doctors?.length || 1))}
                   >
                     <Ionicons name="chevron-back" size={20} color="#4AA3DF" />
                   </TouchableOpacity>
@@ -578,7 +578,7 @@ const PatientHomeScreen = ({ navigation }) => {
                   
                   <TouchableOpacity
                     style={styles.controlButton}
-                    onPress={() => setCurrentDoctorIndex((prev) => (prev + 1) % doctors.length)}
+                    onPress={() => setCurrentDoctorIndex((prev) => (prev + 1) % (doctors?.length || 1))}
                   >
                     <Ionicons name="chevron-forward" size={20} color="#4AA3DF" />
                   </TouchableOpacity>
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: 'transparent',
   },
   header: {
     backgroundColor: '#4AA3DF',
@@ -1283,17 +1283,20 @@ const styles = StyleSheet.create({
     padding: Sizes.screenPadding,
   },
   sectionTitle: {
-    fontSize: Sizes.xlarge,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: Sizes.sm,
+    marginBottom: 8,
+    letterSpacing: 0.3,
   },
   sectionSubtitle: {
-    fontSize: Sizes.medium,
+    fontSize: 16,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: Sizes.lg,
+    marginBottom: 20,
+    lineHeight: 22,
+    fontWeight: '400',
   },
   doctorCard: {
     backgroundColor: Colors.white,
