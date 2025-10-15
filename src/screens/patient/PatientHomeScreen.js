@@ -19,7 +19,11 @@ import {
   Alert,
   Linking,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +36,11 @@ import AppHeader from '../../components/AppHeader';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 // Sample data - same as web version but adapted for React Native
 const doctors = [
   {
@@ -40,7 +49,7 @@ const doctors = [
     credentials: "M.B.B.S., M.D",
     role: "General Physician",
     fellowship: "Fellowship in Echocardiography",
-    image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80",
+    image: require('../../../assets/DR. K. RAMESH.jpeg'),
     expertise: [
       "Infectious diseases (Dengue, Malaria, RTIs, COVID-19)",
       "Sepsis & Critical Care management",
@@ -55,7 +64,7 @@ const doctors = [
     credentials: "B.D.S, M.D.S (Dental)",
     role: "Orthodontics & Dentofacial Orthopaedics",
     fellowship: "",
-    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&q=80",
+    image: require('../../../assets/DR. K. THUKARAM.jpeg'),
     expertise: [
       "Orthodontic treatment, Invisalign/Aligners",
       "Teeth whitening & cleaning, Laser dentistry",
@@ -70,7 +79,7 @@ const doctors = [
     credentials: "M.B.B.S, M.S (OBG)",
     role: "Obstetrician & Gynaecologist",
     fellowship: "",
-    image: "https://images.unsplash.com/photo-1594824804732-ca8ace6a77cf?w=400&q=80",
+    image: require('../../../assets/DR.K. DIVYAVANI.jpeg'),
     expertise: [
       "24/7 elective & emergency delivery & LSCS",
       "Antenatal check-ups, High-risk pregnancy care",
@@ -146,9 +155,195 @@ const PatientHomeScreen = ({ navigation }) => {
   const [currentDoctorIndex, setCurrentDoctorIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState(2); // Default to Comprehensive package (index 2)
+  const [isTreatmentExpanded, setIsTreatmentExpanded] = useState(true); // State for treatment card expansion
+  const [showAllTreatments, setShowAllTreatments] = useState(false); // State for showing all treatments
+  const [showUpcomingTreatments, setShowUpcomingTreatments] = useState(false); // State for showing upcoming treatments
+  const [showTests, setShowTests] = useState(false); // State for showing diagnostic tests
+  const animatedRotation = useRef(new Animated.Value(1)).current; // For chevron rotation (1 = expanded initially)
+  const animatedHeight = useRef(new Animated.Value(1)).current; // For content height (1 = expanded initially)
   const autoPlayRef = useRef(null);
+  
+  // Initialize animation values based on default state
+  useEffect(() => {
+    // Set initial rotation value based on expanded state
+    animatedRotation.setValue(isTreatmentExpanded ? 1 : 0);
+    // Set initial height value based on expanded state
+    animatedHeight.setValue(isTreatmentExpanded ? 1 : 0);
+  }, []);
+
+  // Sample notifications data - Enhanced with more realistic hospital scenarios
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: "🩺 Appointment Confirmed",
+      message: "Your appointment with Dr. K. Ramesh (General Physician) is confirmed for tomorrow at 2:00 PM in Room 201.",
+      type: "appointment",
+      time: "2 minutes ago",
+      date: "2025-10-13T14:30:00Z",
+      isRead: false,
+      icon: "calendar",
+      color: "#4AA3DF"
+    },
+    {
+      id: 2,
+      title: "🧪 Lab Results Ready",
+      message: "Your Complete Blood Count (CBC) and Lipid Profile results are now available. All parameters are within normal range.",
+      type: "report",
+      time: "45 minutes ago",
+      date: "2025-10-13T13:15:00Z",
+      isRead: false,
+      icon: "flask",
+      color: "#10B981"
+    },
+    {
+      id: 3,
+      title: "💳 Payment Reminder",
+      message: "Your consultation bill (Bill #KBR2025-1013) for ₹500 is due in 2 days. Pay online for 5% discount!",
+      type: "payment",
+      time: "1 hour ago",
+      date: "2025-10-13T12:00:00Z",
+      isRead: false,
+      icon: "card",
+      color: "#F59E0B"
+    },
+    {
+      id: 4,
+      title: "🏥 Room Upgraded",
+      message: "Good news! Your room has been upgraded to Deluxe Private Room 305 at no extra cost.",
+      type: "room",
+      time: "2 hours ago",
+      date: "2025-10-13T11:30:00Z",
+      isRead: false,
+      icon: "bed",
+      color: "#8B5CF6"
+    },
+    {
+      id: 5,
+      title: "💊 Medication Schedule",
+      message: "Evening medication reminder: Take Paracetamol 500mg and Vitamin D3 at 8:00 PM with food.",
+      type: "medication",
+      time: "4 hours ago",
+      date: "2025-10-13T10:00:00Z",
+      isRead: false,
+      icon: "medical",
+      color: "#8B5CF6"
+    },
+    {
+      id: 6,
+      title: "📋 Pre-Surgery Instructions",
+      message: "Important: Please fast for 12 hours before your surgery scheduled for Oct 15th. No food or water after 8 PM tonight.",
+      type: "surgery",
+      time: "5 hours ago",
+      date: "2025-10-13T09:00:00Z",
+      isRead: true,
+      icon: "cut",
+      color: "#DC2626"
+    },
+    {
+      id: 7,
+      title: "🎁 Health Package Offer",
+      message: "Special Diwali offer: 25% OFF on Comprehensive Health Checkup Package. Valid until Oct 31st!",
+      type: "offer",
+      time: "6 hours ago",
+      date: "2025-10-13T08:00:00Z",
+      isRead: true,
+      icon: "gift",
+      color: "#C62828"
+    },
+    {
+      id: 8,
+      title: "🏃‍♂️ Physical Therapy Session",
+      message: "Your physiotherapy session with Dr. Sarah is scheduled for Oct 14th at 10:00 AM in Rehabilitation Center.",
+      type: "therapy",
+      time: "1 day ago",
+      date: "2025-10-12T15:30:00Z",
+      isRead: true,
+      icon: "fitness",
+      color: "#059669"
+    },
+    {
+      id: 9,
+      title: "🍎 Diet Plan Updated",
+      message: "Your nutritionist has updated your diet plan. New diabetic-friendly meal options are now available.",
+      type: "diet",
+      time: "1 day ago",
+      date: "2025-10-12T14:00:00Z",
+      isRead: true,
+      icon: "restaurant",
+      color: "#16A34A"
+    },
+    {
+      id: 10,
+      title: "📱 Telemedicine Available",
+      message: "You can now consult with Dr. K. Divyavani via video call. Book your online consultation today!",
+      type: "telemedicine",
+      time: "1 day ago",
+      date: "2025-10-12T12:00:00Z",
+      isRead: true,
+      icon: "videocam",
+      color: "#0EA5E9"
+    },
+    {
+      id: 11,
+      title: "🚨 Emergency Contact Update",
+      message: "Please update your emergency contact information in your profile for better patient care coordination.",
+      type: "emergency",
+      time: "2 days ago",
+      date: "2025-10-11T16:00:00Z",
+      isRead: true,
+      icon: "call",
+      color: "#DC2626"
+    },
+    {
+      id: 12,
+      title: "📑 Discharge Summary Ready",
+      message: "Your discharge summary and follow-up care instructions are ready for download. Take care!",
+      type: "document",
+      time: "3 days ago",
+      date: "2025-10-10T11:30:00Z",
+      isRead: true,
+      icon: "document-text",
+      color: "#06B6D4"
+    },
+    {
+      id: 13,
+      title: "🏆 Health Milestone",
+      message: "Congratulations! You've completed 30 days of your diabetes management program. Keep it up!",
+      type: "achievement",
+      time: "4 days ago",
+      date: "2025-10-09T10:00:00Z",
+      isRead: true,
+      icon: "trophy",
+      color: "#F59E0B"
+    },
+    {
+      id: 14,
+      title: "🔔 Vaccine Reminder",
+      message: "Annual flu vaccination is now available at KBR Hospitals. Book your slot to stay protected!",
+      type: "vaccine",
+      time: "5 days ago",
+      date: "2025-10-08T09:00:00Z",
+      isRead: true,
+      icon: "shield-checkmark",
+      color: "#059669"
+    },
+    {
+      id: 15,
+      title: "📊 Monthly Health Report",
+      message: "Your September health summary is ready with insights on your blood pressure, weight, and medication adherence.",
+      type: "report",
+      time: "1 week ago",
+      date: "2025-10-06T08:00:00Z",
+      isRead: true,
+      icon: "analytics",
+      color: "#7C3AED"
+    }
+  ]);
   
   // Get services from context
   const { getAllServices } = useServices();
@@ -157,9 +352,6 @@ const PatientHomeScreen = ({ navigation }) => {
   
   // Get user context
   const { isLoggedIn, userData, loginUser } = useUser();
-  
-  // Get app context for dynamic doctors
-  const { doctors: appDoctors } = useApp();
   
   // Get theme context
   const { theme } = useTheme();
@@ -252,6 +444,17 @@ const PatientHomeScreen = ({ navigation }) => {
       try {
         // Quick initialization without network dependencies
         await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Prefetch data for Services screen to make navigation faster
+        try {
+          // This will ensure the data is already in context when we navigate
+          // to the Services screen, reducing loading time
+          const servicesData = getAllServices();
+          console.log('Prefetched services data:', servicesData?.length || 0, 'services');
+        } catch (err) {
+          console.log('Error prefetching services data:', err);
+        }
+        
         setIsLoading(false);
       } catch (error) {
         console.error('Error initializing app:', error);
@@ -276,6 +479,39 @@ const PatientHomeScreen = ({ navigation }) => {
       }
     };
   }, [isPlaying, isLoading]);
+  
+  // Auto-scroll for doctors horizontal scroll view
+  const doctorsScrollViewRef = useRef(null);
+  const [doctorScrollPosition, setDoctorScrollPosition] = useState(0);
+  const [isDoctorScrollPaused, setIsDoctorScrollPaused] = useState(false);
+  
+  useEffect(() => {
+    // Only auto-scroll if not paused by user touch
+    if (!isDoctorScrollPaused) {
+      const scrollInterval = setInterval(() => {
+        if (doctorsScrollViewRef.current) {
+          // Calculate the next scroll position based on card width + margins
+          const cardWidth = screenWidth - 40; // Card width with side margins
+          const fullCardWidth = screenWidth; // Total width including margins
+          
+          // Calculate next position with snap points
+          const nextPosition = Math.floor(doctorScrollPosition / fullCardWidth + 1) * fullCardWidth;
+          const maxScroll = (doctors.length - 1) * fullCardWidth;
+          
+          // If at the end, scroll back to start, otherwise advance
+          if (doctorScrollPosition >= maxScroll) {
+            doctorsScrollViewRef.current.scrollTo({ x: 0, animated: true });
+            setDoctorScrollPosition(0);
+          } else {
+            doctorsScrollViewRef.current.scrollTo({ x: nextPosition, animated: true });
+            setDoctorScrollPosition(nextPosition);
+          }
+        }
+      }, 2100); // Scroll every 2.1 seconds for faster transitions
+      
+      return () => clearInterval(scrollInterval);
+    }
+  }, [doctorScrollPosition, doctors.length, isDoctorScrollPaused, screenWidth]);
 
   const handleLogin = () => {
     if (loginTab === 'signin') {
@@ -349,6 +585,94 @@ const PatientHomeScreen = ({ navigation }) => {
         Alert.alert('Coming Soon', `${serviceName} feature will be available soon!`);
     }
   };
+  
+  // Handle health package selection with prefetching data
+  const handlePackageSelect = async (packageId) => {
+    setSelectedPackage(packageId);
+    
+    // Prepare data ahead of time to reduce loading delay
+    let packageData = healthPackages.find(p => p.id === packageId);
+    
+    // Extract relevant package details for sending to services screen
+    const packageDetails = {
+      id: packageId,
+      name: packageData?.name || "",
+      price: packageData?.price || "",
+      features: packageData?.features || []
+    };
+    
+    // Navigate with the pre-fetched data
+    navigation.navigate('Services', { 
+      scrollToSection: 'diagnosticTests',
+      focusOnTests: true,
+      selectedPackage: packageId,
+      packageDetails: packageDetails,
+      preloaded: true // Flag to indicate data is already available
+    });
+  };
+  
+  // Handle test selection with prefetching data
+  const handleTestSelect = (testId) => {
+    // Find the test data
+    const testData = popularTests.find(t => t.id === testId);
+    
+    // Navigate to Services screen with test details
+    navigation.navigate('Services', {
+      scrollToSection: 'diagnosticTests',
+      focusOnTests: true,
+      selectedTest: testId,
+      testDetails: testData,
+      preloaded: true
+    });
+  };
+
+  // Notification handlers
+  const handleNotificationPress = (notification) => {
+    // Mark notification as read
+    setNotifications(prev => 
+      prev.map(notif => 
+        notif.id === notification.id 
+          ? { ...notif, isRead: true }
+          : notif
+      )
+    );
+    
+    // Set selected notification for detailed view
+    setSelectedNotification(notification);
+    setShowNotifications(false);
+  };
+
+  const handleViewAllNotifications = () => {
+    setShowAllNotifications(true);
+    setShowNotifications(false);
+  };
+
+  const handleCloseNotificationDetail = () => {
+    setSelectedNotification(null);
+  };
+
+  const handleCloseAllNotifications = () => {
+    setShowAllNotifications(false);
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => 
+      prev.map(notif => ({ ...notif, isRead: true }))
+    );
+  };
+
+  const deleteNotification = (notificationId) => {
+    setNotifications(prev => 
+      prev.filter(notif => notif.id !== notificationId)
+    );
+    if (selectedNotification?.id === notificationId) {
+      setSelectedNotification(null);
+    }
+  };
+
+  const getUnreadCount = () => {
+    return notifications.filter(notif => !notif.isRead).length;
+  };
 
   const makeCall = (phoneNumber) => {
     Linking.openURL(`tel:${phoneNumber}`);
@@ -358,10 +682,65 @@ const PatientHomeScreen = ({ navigation }) => {
     Linking.openURL(`mailto:${emailAddress}`);
   };
 
+  const openLocation = () => {
+    const address = "KBR Life Care Hospitals, Sangareddy, Telangana, India";
+    const url = `https://maps.google.com/maps?q=${encodeURIComponent(address)}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert(
+        "Location",
+        "KBR Life Care Hospitals\nSangareddy, Telangana, India\n\nUnable to open maps. Please search for 'KBR Life Care Hospitals Sangareddy' in your maps app."
+      );
+    });
+  };
+
+  const showHospitalInfo = () => {
+    Alert.alert(
+      "🏥 Hospital Hours",
+      "KBR Life Care Hospitals\n\n⏰ Operating Hours:\n• Mon - Sun: 24/7 Open\n• Emergency Services: Always Available\n• Outpatient: 8:00 AM - 8:00 PM\n• Inpatient: Round-the-clock care\n\n📞 For appointments: +91 8466 999 000",
+      [
+        { text: "Call Now", onPress: () => makeCall('+918466999000') },
+        { text: "OK", style: "cancel" }
+      ]
+    );
+  };
+
   // Render Patient Treatment Status for admitted patients
   const renderPatientTreatmentStatus = () => {
     // Only show treatment status if user is logged in AND patient is admitted
     if (!isLoggedIn || !userData || !patientStatus.isAdmitted) return null;
+
+    // Handler to toggle the treatment card expansion
+    const toggleTreatmentExpansion = () => {
+      // Configure layout animation for smooth transitions
+      LayoutAnimation.configureNext({
+        duration: 300,
+        create: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+          property: LayoutAnimation.Properties.opacity,
+        },
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+      });
+      
+      // Toggle state
+      setIsTreatmentExpanded(!isTreatmentExpanded);
+      
+      // Animate the rotation of the chevron
+      Animated.spring(animatedRotation, {
+        toValue: isTreatmentExpanded ? 0 : 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+      
+      // Animate the content height
+      Animated.timing(animatedHeight, {
+        toValue: isTreatmentExpanded ? 0 : 1,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    };
 
     return (
       <View style={styles.treatmentStatusContainer}>
@@ -376,12 +755,46 @@ const PatientHomeScreen = ({ navigation }) => {
               <Text style={styles.treatmentSubtitle}>Room {patientStatus.roomNumber} • {patientStatus.roomType}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.expandButton}>
-            <Ionicons name="chevron-down" size={20} color={Colors.kbrBlue} />
+          <TouchableOpacity 
+            style={styles.expandButton}
+            onPress={toggleTreatmentExpansion}
+            activeOpacity={0.7}
+          >
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: animatedRotation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '180deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Ionicons 
+                name="chevron-down" 
+                size={20} 
+                color={Colors.kbrBlue} 
+              />
+            </Animated.View>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.treatmentContent}>
+        <Animated.View 
+          style={[
+            styles.treatmentContentContainer,
+            {
+              opacity: animatedHeight,
+              maxHeight: animatedHeight.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 500], // Max height when expanded
+              }),
+              overflow: 'hidden',
+            }
+          ]}
+        >
+          <View style={styles.treatmentContent}>
           {/* Doctor & Department */}
           <View style={styles.treatmentRow}>
             <View style={styles.treatmentItem}>
@@ -412,19 +825,65 @@ const PatientHomeScreen = ({ navigation }) => {
 
           {/* Quick Actions */}
           <View style={styles.quickActionsRow}>
-            <TouchableOpacity style={styles.quickActionButton}>
-              <Ionicons name="clipboard" size={16} color={Colors.kbrBlue} />
-              <Text style={styles.quickActionText}>Treatments</Text>
+            <TouchableOpacity 
+              style={[
+                styles.quickActionButton,
+                showUpcomingTreatments && styles.activeQuickAction
+              ]}
+              onPress={() => {
+                setShowUpcomingTreatments(!showUpcomingTreatments);
+                if (!showUpcomingTreatments) {
+                  setShowAllTreatments(false); // Close All Treatments when opening Upcoming Treatments
+                }
+              }}
+            >
+              <Ionicons 
+                name="clipboard" 
+                size={16} 
+                color={showUpcomingTreatments ? Colors.white : Colors.kbrBlue} 
+              />
+              <Text style={[
+                styles.quickActionText, 
+                showUpcomingTreatments && styles.activeQuickActionText
+              ]}>Treatments</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionButton}>
-              <Ionicons name="flask" size={16} color={Colors.kbrGreen} />
-              <Text style={styles.quickActionText}>Tests</Text>
+            <TouchableOpacity 
+              style={[
+                styles.quickActionButton,
+                showTests && styles.activeTestAction
+              ]}
+              onPress={() => {
+                setShowTests(!showTests);
+                if (!showTests) {
+                  // Close other expanded sections
+                  setShowUpcomingTreatments(false);
+                  setShowAllTreatments(false);
+                }
+              }}
+            >
+              <Ionicons 
+                name="flask" 
+                size={16} 
+                color={showTests ? Colors.white : Colors.kbrGreen} 
+              />
+              <Text style={[
+                styles.quickActionText, 
+                showTests && styles.activeTestActionText
+              ]}>Tests</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionButton}>
-              <Ionicons name="restaurant" size={16} color={Colors.kbrPurple} />
-              <Text style={styles.quickActionText}>Meals</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionButton}>
+            <TouchableOpacity 
+              style={[styles.quickActionButton, styles.emergencyButton]}
+              onPress={() => {
+                Alert.alert(
+                  "Emergency Contact",
+                  "Call hospital emergency line?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Call Now", onPress: () => Linking.openURL('tel:+919876543210') }
+                  ]
+                );
+              }}
+            >
               <Ionicons name="call" size={16} color={Colors.kbrRed} />
               <Text style={styles.quickActionText}>Emergency</Text>
             </TouchableOpacity>
@@ -433,7 +892,8 @@ const PatientHomeScreen = ({ navigation }) => {
           {/* Current Treatments Preview */}
           <View style={styles.treatmentsPreview}>
             <Text style={styles.previewTitle}>Today's Treatments</Text>
-            {patientStatus.treatments.slice(0, 2).map((treatment) => (
+            {/* Show only 2 treatments when not expanded */}
+            {(!showAllTreatments && !showUpcomingTreatments && !showTests) && patientStatus.treatments.slice(0, 2).map((treatment) => (
               <View key={treatment.id} style={styles.treatmentItemPreview}>
                 <View style={styles.treatmentStatus}>
                   <View style={[styles.statusDot, { 
@@ -445,12 +905,108 @@ const PatientHomeScreen = ({ navigation }) => {
                 <Text style={styles.treatmentTime}>{treatment.time}</Text>
               </View>
             ))}
-            <TouchableOpacity style={styles.viewAllTreatments}>
-              <Text style={styles.viewAllText}>View All Treatments</Text>
-              <Ionicons name="arrow-forward" size={14} color={Colors.kbrBlue} />
+            
+            {/* Show all treatments when expanded */}
+            {showAllTreatments && (
+              <View style={styles.allTreatmentsContainer}>
+                {patientStatus.treatments.map((treatment) => (
+                  <View key={treatment.id} style={styles.treatmentItemPreview}>
+                    <View style={styles.treatmentStatus}>
+                      <View style={[styles.statusDot, { 
+                        backgroundColor: treatment.status === 'Ongoing' ? Colors.kbrGreen : 
+                                       treatment.status === 'Scheduled' ? Colors.kbrBlue : Colors.kbrPurple 
+                      }]} />
+                      <Text style={styles.treatmentName}>{treatment.name}</Text>
+                    </View>
+                    <Text style={styles.treatmentTime}>{treatment.time}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Show upcoming treatments */}
+            {showUpcomingTreatments && (
+              <View style={styles.allTreatmentsContainer}>
+                <Text style={styles.sectionSubtitle}>Upcoming Treatments</Text>
+                {patientStatus.treatments
+                  .filter(treatment => treatment.status === 'Scheduled')
+                  .map((treatment) => (
+                    <View key={treatment.id} style={styles.treatmentItemPreview}>
+                      <View style={styles.treatmentStatus}>
+                        <View style={[styles.statusDot, { backgroundColor: Colors.kbrBlue }]} />
+                        <Text style={styles.treatmentName}>{treatment.name}</Text>
+                      </View>
+                      <Text style={styles.treatmentTime}>{treatment.time}</Text>
+                    </View>
+                  ))}
+              </View>
+            )}
+            
+            {/* Show upcoming tests */}
+            {showTests && (
+              <View style={styles.allTreatmentsContainer}>
+                <Text style={[styles.sectionSubtitle, { color: Colors.kbrGreen }]}>Scheduled Tests</Text>
+                {patientStatus.upcomingTests.map((test) => (
+                  <View key={test.id} style={styles.testItemPreview}>
+                    <View style={styles.treatmentStatus}>
+                      <View style={[styles.statusDot, { backgroundColor: Colors.kbrGreen }]} />
+                      <Text style={styles.treatmentName}>{test.name}</Text>
+                    </View>
+                    <View style={styles.testDetails}>
+                      <Text style={styles.testDepartment}>{test.department}</Text>
+                      <Text style={styles.testTime}>{test.scheduledTime}</Text>
+                    </View>
+                  </View>
+                ))}
+                
+                <Text style={[styles.sectionSubtitle, { color: Colors.kbrGreen, marginTop: 12 }]}>Available Tests</Text>
+                <View style={styles.availableTestsGrid}>
+                  {popularTests.map((test) => (
+                    <TouchableOpacity 
+                      key={test.id} 
+                      style={styles.availableTestCard}
+                      onPress={() => Alert.alert("Book Test", `Would you like to schedule the ${test.name} test?`, [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Book", onPress: () => Alert.alert("Success", `${test.name} test has been scheduled.`) }
+                      ])}
+                    >
+                      <Ionicons name="flask-outline" size={16} color={Colors.kbrGreen} />
+                      <Text style={styles.availableTestName}>{test.name}</Text>
+                      <Text style={styles.availableTestPrice}>{test.price}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={[
+                styles.viewAllTreatments,
+                showAllTreatments && styles.activeViewAll
+              ]}
+              onPress={() => {
+                setShowAllTreatments(!showAllTreatments);
+                if (!showAllTreatments) {
+                  setShowUpcomingTreatments(false); // Close other sections
+                  setShowTests(false);
+                }
+              }}
+            >
+              <Text style={[
+                styles.viewAllText,
+                showAllTreatments && styles.activeViewAllText
+              ]}>
+                {showAllTreatments ? "Hide All Treatments" : "View All Treatments"}
+              </Text>
+              <Ionicons 
+                name={showAllTreatments ? "arrow-up" : "arrow-forward"} 
+                size={14} 
+                color={showAllTreatments ? Colors.white : Colors.kbrBlue} 
+              />
             </TouchableOpacity>
           </View>
-        </View>
+          </View>
+        </Animated.View>
       </View>
     );
   };
@@ -507,7 +1063,13 @@ const PatientHomeScreen = ({ navigation }) => {
             onPress={() => setShowNotifications(!showNotifications)}
           >
             <Ionicons name="notifications" size={20} color="#FFFFFF" />
-            <View style={styles.notificationBadge} />
+            {getUnreadCount() > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {getUnreadCount() > 9 ? '9+' : getUnreadCount()}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -517,6 +1079,11 @@ const PatientHomeScreen = ({ navigation }) => {
         <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
           {/* Hero Section - Simplified for better loading */}
           <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
+            <Image 
+              source={require('../../../assets/hospital-building.jpg.jpeg')}
+              style={styles.heroBackgroundImage}
+              resizeMode="cover"
+            />
             <View style={styles.heroFallback}>
               <View style={styles.heroIcon}>
                 <Image 
@@ -525,26 +1092,48 @@ const PatientHomeScreen = ({ navigation }) => {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
-              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
+              <Text style={[styles.heroTitle, { color: '#000000', fontWeight: 'bold', fontSize: 22 }]}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
+              <Text style={[styles.heroSubtitle, { color: '#000000', fontWeight: '600', fontSize: 16 }]}>
                 We blend compassionate care with cutting-edge medicine, driven by a dedicated team prioritizing your well-being.
               </Text>
             </View>
           </View>
 
           {/* Vision & Mission */}
-          <View style={[styles.visionSection, { backgroundColor: theme.background }]}>
-            <View style={[styles.visionItem, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.visionTitle, { color: theme.textPrimary }]}>Our Vision</Text>
-              <Text style={[styles.visionText, { color: theme.textSecondary }]}>
-                To be the preferred healthcare provider in Sangareddy and beyond, delivering world-class medical services with compassion, innovation, and excellence.
-              </Text>
+          <View style={styles.visionMissionSection}>
+            <View style={styles.visionMissionHeader}>
+              <Text style={styles.visionMissionMainTitle}>Our Foundation</Text>
+              <Text style={styles.visionMissionSubtitle}>Building healthcare excellence through our core values</Text>
             </View>
-            <View style={[styles.visionItem, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.visionTitle, { color: theme.textPrimary }]}>Our Mission</Text>
-              <Text style={[styles.visionText, { color: theme.textSecondary }]}>
-                Providing accessible, affordable, and advanced healthcare through dedicated professionals, state-of-the-art facilities, and patient-centered approach.
-              </Text>
+            
+            <View style={styles.visionMissionCards}>
+              {/* Vision Card */}
+              <View style={[styles.visionMissionCard, styles.visionCard]}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, styles.visionIcon]}>
+                    <Ionicons name="eye" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.cardTitle}>Our Vision</Text>
+                </View>
+                <Text style={styles.cardDescription}>
+                  To be the preferred healthcare provider in Sangareddy and beyond, delivering world-class medical services with compassion, innovation, and excellence.
+                </Text>
+                <View style={styles.cardAccent} />
+              </View>
+
+              {/* Mission Card */}
+              <View style={[styles.visionMissionCard, styles.missionCard]}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, styles.missionIcon]}>
+                    <Ionicons name="medical" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.cardTitle}>Our Mission</Text>
+                </View>
+                <Text style={styles.cardDescription}>
+                  Providing accessible, affordable, and advanced healthcare through dedicated professionals, state-of-the-art facilities, and patient-centered approach.
+                </Text>
+                <View style={styles.cardAccent} />
+              </View>
             </View>
           </View>
 
@@ -553,75 +1142,91 @@ const PatientHomeScreen = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Meet Our Expert Doctors</Text>
             <Text style={styles.sectionSubtitle}>Experienced specialists dedicated to your health</Text>
             
-            <View style={styles.doctorCard}>
-              <View style={styles.doctorImageContainer}>
-                <View style={styles.doctorImageWrapper}>
-                  <View style={styles.doctorPlaceholder}>
-                    <Ionicons name="person" size={60} color="#4AA3DF" />
+            <View style={styles.doctorsScrollViewContainer}>
+              <ScrollView
+                ref={doctorsScrollViewRef}
+                horizontal
+                pagingEnabled
+                decelerationRate="fast"
+                snapToInterval={screenWidth}
+                snapToAlignment="center"
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.doctorsScrollContent}
+                onMomentumScrollEnd={(event) => {
+                  // Update the current scroll position when user manually scrolls
+                  setDoctorScrollPosition(event.nativeEvent.contentOffset.x);
+                }}
+                onTouchStart={() => {
+                  // Pause auto-scrolling when user touches the scroll view
+                  setIsDoctorScrollPaused(true);
+                }}
+                onTouchEnd={() => {
+                  // Resume auto-scrolling when user stops touching
+                  setIsDoctorScrollPaused(false);
+                }}
+                onScrollBeginDrag={() => {
+                  // Another way to detect user interaction
+                  setIsDoctorScrollPaused(true);
+                }}
+                onScrollEndDrag={() => {
+                  // Resume after user finishes dragging
+                  setTimeout(() => setIsDoctorScrollPaused(false), 1500);
+                }}
+              >
+              {doctors.map((doctor, index) => (
+                <View key={doctor.id} style={styles.doctorSlideItem}>
+                  <View style={styles.doctorImageWrapper}>
+                    <Image 
+                      source={doctor.image}
+                      style={styles.doctorCarouselImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                  
+                  <View style={styles.doctorInfo}>
+                    <Text style={styles.doctorName} numberOfLines={1} ellipsizeMode="tail">{doctor.name}</Text>
+                    <Text style={styles.doctorCredentials} numberOfLines={1} ellipsizeMode="tail">{doctor.credentials}</Text>
+                    <Text style={styles.doctorRole} numberOfLines={2} ellipsizeMode="tail">{doctor.role}</Text>
+                    {doctor.fellowship && (
+                      <Text style={styles.doctorFellowship} numberOfLines={1} ellipsizeMode="tail">{doctor.fellowship}</Text>
+                    )}
+                    
+                    <View style={styles.expertiseSection}>
+                      <Text style={styles.expertiseTitle}>Areas of Expertise:</Text>
+                      {doctor.expertise.slice(0, 3).map((item, idx) => (
+                        <View key={idx} style={styles.expertiseItem}>
+                          <Ionicons name="checkmark-circle" size={16} color="#4AA3DF" />
+                          <Text style={styles.expertiseText} numberOfLines={1} ellipsizeMode="tail">{item}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    
+                    <TouchableOpacity
+                      style={styles.bookAppointmentButton}
+                      onPress={() => handleServicePress('Book Appointment')}
+                    >
+                      <Text style={styles.bookAppointmentText}>Book Appointment</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-                
-                <View style={styles.carouselControls}>
-                  <TouchableOpacity
-                    style={styles.controlButton}
-                    onPress={() => setCurrentDoctorIndex((prev) => (prev - 1 + (doctors?.length || 1)) % (doctors?.length || 1))}
-                  >
-                    <Ionicons name="chevron-back" size={20} color="#4AA3DF" />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.controlButton, styles.playButton]}
-                    onPress={() => setIsPlaying(!isPlaying)}
-                  >
-                    <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.controlButton}
-                    onPress={() => setCurrentDoctorIndex((prev) => (prev + 1) % (doctors?.length || 1))}
-                  >
-                    <Ionicons name="chevron-forward" size={20} color="#4AA3DF" />
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.dotsIndicator}>
-                  {doctors.map((_, index) => (
-                    <TouchableOpacity
+              ))}
+              </ScrollView>
+              
+              {/* Pagination indicators */}
+              <View style={styles.paginationDots}>
+                {doctors.map((_, index) => {
+                  // Calculate the current visible doctor based on scroll position
+                  const currentIndex = Math.round(doctorScrollPosition / screenWidth);
+                  return (
+                    <View
                       key={index}
                       style={[
-                        styles.dot,
-                        index === currentDoctorIndex && styles.activeDot
+                        styles.paginationDot,
+                        index === currentIndex && styles.paginationDotActive
                       ]}
-                      onPress={() => setCurrentDoctorIndex(index)}
                     />
-                  ))}
-                </View>
-              </View>
-              
-              <View style={styles.doctorInfo}>
-                <Text style={styles.doctorName}>{doctors[currentDoctorIndex].name}</Text>
-                <Text style={styles.doctorCredentials}>{doctors[currentDoctorIndex].credentials}</Text>
-                <Text style={styles.doctorRole}>{doctors[currentDoctorIndex].role}</Text>
-                {doctors[currentDoctorIndex].fellowship && (
-                  <Text style={styles.doctorFellowship}>{doctors[currentDoctorIndex].fellowship}</Text>
-                )}
-                
-                <View style={styles.expertiseSection}>
-                  <Text style={styles.expertiseTitle}>Areas of Expertise:</Text>
-                  {doctors[currentDoctorIndex].expertise.map((item, index) => (
-                    <View key={index} style={styles.expertiseItem}>
-                      <Ionicons name="checkmark-circle" size={16} color="#4AA3DF" />
-                      <Text style={styles.expertiseText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-                
-                <TouchableOpacity
-                  style={styles.bookAppointmentButton}
-                  onPress={() => handleServicePress('Book Appointment')}
-                >
-                  <Text style={styles.bookAppointmentText}>Book Appointment</Text>
-                </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>
@@ -661,57 +1266,44 @@ const PatientHomeScreen = ({ navigation }) => {
             
             <View style={styles.servicesGrid}>
               {services.map((service) => (
-                <TouchableOpacity key={service.id} style={styles.serviceCard}>
+                <TouchableOpacity 
+                  key={service.id} 
+                  style={styles.serviceCard}
+                  onPress={() => {
+                    // Prepare service data for faster loading
+                    const serviceDetails = {
+                      id: service.id,
+                      name: service.name,
+                      description: service.description,
+                      icon: service.icon,
+                      color: service.color,
+                      duration: service.duration || '30 mins',
+                      doctors: service.doctors || [],
+                      tags: service.tags || []
+                    };
+                    
+                    navigation.navigate('Services', { 
+                      selectedService: service.name, 
+                      serviceId: service.id,
+                      scrollToService: true,
+                      openServiceDetails: true,
+                      serviceDetails: serviceDetails,
+                      preloaded: true
+                    });
+                  }}
+                >
                   <View style={[styles.serviceIcon, { backgroundColor: service.color || '#E6F4FB' }]}>
                     <Ionicons name={service.icon || 'medical-outline'} size={28} color="#333333" />
                   </View>
                   <Text style={styles.serviceTitle}>{service.name || 'Service'}</Text>
                   <Text style={styles.serviceDescription}>{service.description || 'Description not available'}</Text>
+                  <View style={styles.serviceAction}>
+                    <Text style={styles.serviceActionText}>Learn More</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#4AA3DF" />
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
-
-          {/* Our Doctors Section - Dynamic from Admin */}
-          <View style={styles.doctorsSection}>
-            <Text style={styles.sectionTitle}>Our Expert Doctors</Text>
-            <Text style={styles.sectionSubtitle}>Meet our experienced medical professionals</Text>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.doctorsScroll}>
-              {appDoctors && appDoctors.length > 0 ? appDoctors.map((doctor) => (
-                <TouchableOpacity 
-                  key={doctor.id} 
-                  style={styles.doctorCard}
-                  onPress={() => handleServicePress('Book Appointment')}
-                >
-                  <View style={styles.doctorImageContainer}>
-                    <Image 
-                      source={{ uri: doctor.avatar || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80' }}
-                      style={styles.doctorImage}
-                    />
-                    <View style={styles.doctorStatus}>
-                      <View style={[styles.statusIndicator, { backgroundColor: doctor.status === 'Active' ? '#10B981' : '#EF4444' }]} />
-                    </View>
-                  </View>
-                  
-                  <View style={styles.doctorCardInfo}>
-                    <Text style={styles.doctorCardName}>{doctor.name}</Text>
-                    <Text style={styles.doctorCardCredentials}>{doctor.credentials}</Text>
-                    <Text style={styles.doctorCardSpecialization}>{doctor.specialization}</Text>
-                    <View style={styles.doctorCardRating}>
-                      <Ionicons name="star" size={14} color="#F59E0B" />
-                      <Text style={styles.ratingText}>{doctor.rating || 4.8}</Text>
-                      <Text style={styles.experienceText}>• {doctor.experience}</Text>
-                    </View>
-                    <Text style={styles.consultationFee}>₹{doctor.consultationFee}</Text>
-                  </View>
-                </TouchableOpacity>
-              )) : (
-                <View style={styles.noDoctorsContainer}>
-                  <Text style={styles.noDoctorsText}>No doctors available</Text>
-                </View>
-              )}
-            </ScrollView>
           </View>
 
           {/* Health Packages - Simplified */}
@@ -720,13 +1312,25 @@ const PatientHomeScreen = ({ navigation }) => {
             <Text style={styles.sectionSubtitle}>Comprehensive checkups tailored to your needs</Text>
             
             <View style={styles.quickPackagesGrid}>
-              <TouchableOpacity style={styles.quickPackageCard} onPress={() => setShowLoginModal(true)}>
+              <TouchableOpacity 
+                style={[
+                  styles.quickPackageCard,
+                  selectedPackage === 1 && styles.popularQuickPackage
+                ]}
+                onPress={() => handlePackageSelect(1)}
+              >
                 <Text style={styles.quickPackageName}>Basic Checkup</Text>
                 <Text style={styles.quickPackagePrice}>₹1,999</Text>
                 <Text style={styles.quickPackageButton}>Book Now</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={[styles.quickPackageCard, styles.popularQuickPackage]} onPress={() => setShowLoginModal(true)}>
+              <TouchableOpacity 
+                style={[
+                  styles.quickPackageCard,
+                  selectedPackage === 2 && styles.popularQuickPackage
+                ]}
+                onPress={() => handlePackageSelect(2)}
+              >
                 <View style={styles.quickPopularBadge}>
                   <Text style={styles.quickPopularText}>Popular</Text>
                 </View>
@@ -735,7 +1339,13 @@ const PatientHomeScreen = ({ navigation }) => {
                 <Text style={styles.quickPackageButton}>Book Now</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.quickPackageCard} onPress={() => setShowLoginModal(true)}>
+              <TouchableOpacity 
+                style={[
+                  styles.quickPackageCard,
+                  selectedPackage === 3 && styles.popularQuickPackage
+                ]}
+                onPress={() => handlePackageSelect(3)}
+              >
                 <Text style={styles.quickPackageName}>Executive</Text>
                 <Text style={styles.quickPackagePrice}>₹8,999</Text>
                 <Text style={styles.quickPackageButton}>Book Now</Text>
@@ -749,22 +1359,16 @@ const PatientHomeScreen = ({ navigation }) => {
             <Text style={styles.sectionSubtitle}>Quick and accurate test results</Text>
             
             <View style={styles.quickTestsContainer}>
-              <TouchableOpacity style={styles.quickTestCard}>
-                <Text style={styles.quickTestName}>CBC</Text>
-                <Text style={styles.quickTestPrice}>₹350</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickTestCard}>
-                <Text style={styles.quickTestName}>Lipid Profile</Text>
-                <Text style={styles.quickTestPrice}>₹500</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickTestCard}>
-                <Text style={styles.quickTestName}>Thyroid</Text>
-                <Text style={styles.quickTestPrice}>₹450</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickTestCard}>
-                <Text style={styles.quickTestName}>HbA1c</Text>
-                <Text style={styles.quickTestPrice}>₹400</Text>
-              </TouchableOpacity>
+              {popularTests.slice(0, 4).map((test) => (
+                <TouchableOpacity 
+                  key={test.id}
+                  style={styles.quickTestCard}
+                  onPress={() => handleTestSelect(test.id)}
+                >
+                  <Text style={styles.quickTestName}>{test.name.split('(')[0].trim()}</Text>
+                  <Text style={styles.quickTestPrice}>{test.price}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
@@ -792,23 +1396,23 @@ const PatientHomeScreen = ({ navigation }) => {
                 <Text style={styles.contactSubtext}>support@kbrhospitals.com</Text>
               </TouchableOpacity>
               
-              <View style={styles.contactCard}>
+              <TouchableOpacity style={styles.contactCard} onPress={openLocation}>
                 <View style={[styles.contactIcon, { backgroundColor: '#D1FAE5' }]}>
                   <Ionicons name="location" size={24} color="#10B981" />
                 </View>
                 <Text style={styles.contactTitle}>Location</Text>
                 <Text style={styles.contactText}>Sangareddy</Text>
-                <Text style={styles.contactSubtext}>Telangana, India</Text>
-              </View>
+                <Text style={styles.contactSubtext}>Tap to open maps</Text>
+              </TouchableOpacity>
               
-              <View style={styles.contactCard}>
+              <TouchableOpacity style={styles.contactCard} onPress={showHospitalInfo}>
                 <View style={[styles.contactIcon, { backgroundColor: '#FEF3C7' }]}>
                   <Ionicons name="time" size={24} color="#F59E0B" />
                 </View>
                 <Text style={styles.contactTitle}>Hours</Text>
                 <Text style={styles.contactText}>Mon - Sun</Text>
-                <Text style={styles.contactSubtext}>24/7 Open</Text>
-              </View>
+                <Text style={styles.contactSubtext}>Tap for details</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1000,30 +1604,178 @@ const PatientHomeScreen = ({ navigation }) => {
           </View>
         </Modal>
 
+        {/* All Notifications Modal */}
+        <Modal
+          visible={showAllNotifications}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseAllNotifications}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, styles.notificationsModalContent]}>
+              <View style={styles.notificationsModalHeader}>
+                <Text style={styles.notificationsModalTitle}>All Notifications</Text>
+                <TouchableOpacity onPress={handleCloseAllNotifications}>
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.notificationsModalList} showsVerticalScrollIndicator={false}>
+                {notifications.map((notification) => (
+                  <TouchableOpacity
+                    key={notification.id}
+                    style={[styles.notificationModalItem, !notification.isRead && styles.unreadNotification]}
+                    onPress={() => {
+                      setShowAllNotifications(false);
+                      handleNotificationPress(notification);
+                    }}
+                  >
+                    <View style={[styles.notificationIcon, { backgroundColor: notification.color }]}>
+                      <Ionicons name={notification.icon} size={20} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.notificationModalContent}>
+                      <Text style={[styles.notificationText, !notification.isRead && styles.unreadText]}>
+                        {notification.title}
+                      </Text>
+                      <Text style={styles.notificationSubtext} numberOfLines={2}>
+                        {notification.message}
+                      </Text>
+                      <Text style={styles.notificationTime}>{notification.time}</Text>
+                    </View>
+                    <View style={styles.notificationActions}>
+                      {!notification.isRead && <View style={styles.notificationDot} />}
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => deleteNotification(notification.id)}
+                      >
+                        <Ionicons name="trash" size={16} color="#C62828" />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Notification Detail Modal */}
+        <Modal
+          visible={selectedNotification !== null}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseNotificationDetail}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, styles.notificationDetailContent]}>
+              {selectedNotification && (
+                <>
+                  <View style={styles.notificationDetailHeader}>
+                    <View style={styles.notificationDetailTitle}>
+                      <View style={[styles.notificationIcon, { backgroundColor: selectedNotification.color }]}>
+                        <Ionicons name={selectedNotification.icon} size={24} color="#FFFFFF" />
+                      </View>
+                      <Text style={styles.notificationDetailTitleText}>{selectedNotification.title}</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleCloseNotificationDetail}>
+                      <Ionicons name="close" size={24} color="#333" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.notificationDetailBody}>
+                    <Text style={styles.notificationDetailMessage}>
+                      {selectedNotification.message}
+                    </Text>
+                    <Text style={styles.notificationDetailTime}>
+                      Received {selectedNotification.time}
+                    </Text>
+                    
+                    {selectedNotification.type === 'appointment' && (
+                      <TouchableOpacity 
+                        style={styles.notificationActionButton}
+                        onPress={() => {
+                          handleCloseNotificationDetail();
+                          navigation.navigate('BookAppointment');
+                        }}
+                      >
+                        <Text style={styles.notificationActionButtonText}>View Appointment</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {selectedNotification.type === 'report' && (
+                      <TouchableOpacity 
+                        style={styles.notificationActionButton}
+                        onPress={() => {
+                          handleCloseNotificationDetail();
+                          navigation.navigate('Reports');
+                        }}
+                      >
+                        <Text style={styles.notificationActionButtonText}>View Reports</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {/* Notifications Dropdown */}
         {showNotifications && (
-          <View style={styles.notificationsDropdown}>
+          <>
+            <TouchableOpacity 
+              style={styles.notificationBackdrop} 
+              onPress={() => setShowNotifications(false)}
+              activeOpacity={1}
+            />
+            <View style={styles.notificationsDropdown}>
             <View style={styles.notificationHeader}>
               <Text style={styles.notificationTitle}>Notifications</Text>
-              <View style={styles.newBadge}>
-                <Text style={styles.newBadgeText}>3 New</Text>
-              </View>
+              {getUnreadCount() > 0 && (
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>{getUnreadCount()} New</Text>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.markAllReadButton}
+                onPress={markAllAsRead}
+              >
+                <Text style={styles.markAllReadText}>Mark All Read</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.notificationItem}>
-              <View style={styles.notificationDot} />
-              <View style={styles.notificationContent}>
-                <Text style={styles.notificationText}>Appointment Confirmed</Text>
-                <Text style={styles.notificationSubtext}>Your appointment is confirmed for tomorrow at 2:00 PM</Text>
-                <Text style={styles.notificationTime}>2 minutes ago</Text>
-              </View>
-            </View>
+            
+            <ScrollView style={styles.notificationsList} showsVerticalScrollIndicator={false}>
+              {notifications.slice(0, 3).map((notification) => (
+                <TouchableOpacity
+                  key={notification.id}
+                  style={[styles.notificationItem, !notification.isRead && styles.unreadNotification]}
+                  onPress={() => handleNotificationPress(notification)}
+                >
+                  <View style={[styles.notificationIcon, { backgroundColor: notification.color }]}>
+                    <Ionicons name={notification.icon} size={16} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.notificationContent}>
+                    <Text style={[styles.notificationText, !notification.isRead && styles.unreadText]}>
+                      {notification.title}
+                    </Text>
+                    <Text style={styles.notificationSubtext} numberOfLines={2}>
+                      {notification.message}
+                    </Text>
+                    <Text style={styles.notificationTime}>{notification.time}</Text>
+                  </View>
+                  {!notification.isRead && <View style={styles.notificationDot} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
             <TouchableOpacity
               style={styles.viewAllButton}
-              onPress={() => setShowNotifications(false)}
+              onPress={handleViewAllNotifications}
             >
               <Text style={styles.viewAllText}>View All Notifications</Text>
+              <Ionicons name="arrow-forward" size={16} color="#4AA3DF" />
             </TouchableOpacity>
           </View>
+          </>
         )}
       </SafeAreaView>
     </View>
@@ -1142,12 +1894,20 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#C62828',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   signInButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -1210,11 +1970,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'linear-gradient(135deg, #4AA3DF 0%, #2563EB 100%)',
     position: 'relative',
   },
+  heroBackgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.8,
+  },
   heroFallback: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#4AA3DF',
+    backgroundColor: 'rgba(74, 163, 223, 0.3)',
     padding: Sizes.screenPadding,
   },
   heroIcon: {
@@ -1256,136 +2026,202 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   
-  // Vision Section
-  visionSection: {
-    backgroundColor: Colors.white,
+  // Vision & Mission Section - Modern Design
+  visionMissionSection: {
+    backgroundColor: '#F8FAFC',
     padding: Sizes.screenPadding,
+    paddingVertical: Sizes.xl,
   },
-  visionItem: {
-    marginBottom: Sizes.md,
+  visionMissionHeader: {
+    alignItems: 'center',
+    marginBottom: Sizes.xl,
   },
-  visionTitle: {
-    fontSize: Sizes.regular,
+  visionMissionMainTitle: {
+    fontSize: Sizes.xlarge,
     fontWeight: 'bold',
     color: Colors.textPrimary,
     marginBottom: Sizes.sm,
-    textDecorationLine: 'underline',
+    textAlign: 'center',
   },
-  visionText: {
+  visionMissionSubtitle: {
     fontSize: Sizes.medium,
     color: Colors.textSecondary,
-    lineHeight: 20,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  visionMissionCards: {
+    gap: Sizes.lg,
+  },
+  visionMissionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderLeftWidth: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  visionCard: {
+    borderLeftColor: '#4AA3DF',
+    backgroundColor: '#FAFBFF',
+  },
+  missionCard: {
+    borderLeftColor: '#10B981',
+    backgroundColor: '#FAFFFE',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Sizes.md,
+  },
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Sizes.md,
+  },
+  visionIcon: {
+    backgroundColor: '#4AA3DF',
+  },
+  missionIcon: {
+    backgroundColor: '#10B981',
+  },
+  cardTitle: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  cardDescription: {
+    fontSize: Sizes.regular,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+    marginBottom: Sizes.md,
+  },
+  cardAccent: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 60,
+    height: 60,
+    backgroundColor: 'rgba(74, 163, 223, 0.1)',
+    borderBottomLeftRadius: 30,
   },
   
   // Doctors Section
   doctorsSection: {
     backgroundColor: '#F8FAFC',
-    padding: Sizes.screenPadding,
+    paddingVertical: Sizes.screenPadding,
+    width: '100%',
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: 0.3,
+    marginBottom: Sizes.sm,
+    paddingHorizontal: Sizes.screenPadding,
   },
   sectionSubtitle: {
     fontSize: 16,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-    fontWeight: '400',
-  },
-  doctorCard: {
-    backgroundColor: Colors.white,
-    borderRadius: Sizes.radiusLarge,
-    padding: Sizes.lg,
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  doctorImageContainer: {
-    alignItems: 'center',
     marginBottom: Sizes.lg,
+    paddingHorizontal: Sizes.screenPadding,
   },
-  doctorImageWrapper: {
-    width: 200,
-    height: 200,
-    borderRadius: Sizes.radiusLarge,
-    backgroundColor: '#E6F4FB',
-    marginBottom: Sizes.md,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
+  doctorsScrollContent: {
+    paddingBottom: Sizes.md,
   },
-  doctorPlaceholder: {
+  doctorsScrollViewContainer: {
     width: '100%',
-    height: '100%',
+    marginVertical: Sizes.md,
+    position: 'relative',
+  },
+  paginationDots: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E6F4FB',
+    marginTop: 10,
+    marginBottom: 5,
   },
-  carouselControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Sizes.md,
-    marginBottom: Sizes.md,
-  },
-  controlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E6F4FB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playButton: {
-    backgroundColor: '#4AA3DF',
-  },
-  dotsIndicator: {
-    flexDirection: 'row',
-    gap: Sizes.sm,
-  },
-  dot: {
+  paginationDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.border,
+    margin: 4,
   },
-  activeDot: {
+  paginationDotActive: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#4AA3DF',
-    width: 20,
+  },
+  doctorSlideItem: {
+    width: screenWidth, // Full screen width
+    paddingHorizontal: 20, // Internal padding instead of margins
+    overflow: 'visible', // Allow elements to overflow (for the doctor info card)
+  },
+  doctorImageWrapper: {
+    width: '100%',
+    height: 260,
+    borderRadius: Sizes.radiusLarge,
+    backgroundColor: '#E6F4FB',
+    marginBottom: 0, // Removed margin since we're overlapping
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  doctorCarouselImage: {
+    width: '100%',
+    height: '100%',
   },
   doctorInfo: {
     alignItems: 'center',
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: Sizes.md,
+    borderRadius: Sizes.radiusLarge,
+    marginTop: -20, // Overlap with image
   },
   doctorName: {
     fontSize: Sizes.xlarge,
     fontWeight: 'bold',
     color: Colors.textPrimary,
     marginBottom: 4,
+    textAlign: 'center',
   },
   doctorCredentials: {
     fontSize: Sizes.medium,
     color: '#4AA3DF',
     fontWeight: '600',
     marginBottom: 4,
+    textAlign: 'center',
   },
   doctorRole: {
     fontSize: Sizes.regular,
     fontWeight: '600',
     color: Colors.textSecondary,
     marginBottom: Sizes.sm,
+    textAlign: 'center',
   },
   doctorFellowship: {
     fontSize: Sizes.medium,
     color: Colors.textSecondary,
     fontStyle: 'italic',
     marginBottom: Sizes.md,
+    textAlign: 'center',
   },
   expertiseSection: {
     width: '100%',
@@ -1396,6 +2232,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
     marginBottom: Sizes.sm,
+    textAlign: 'center',
   },
   expertiseItem: {
     flexDirection: 'row',
@@ -1493,6 +2330,22 @@ const styles = StyleSheet.create({
     fontSize: Sizes.medium,
     color: Colors.textSecondary,
     textAlign: 'center',
+    marginBottom: Sizes.sm,
+  },
+  serviceAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Sizes.sm,
+    paddingTop: Sizes.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  serviceActionText: {
+    fontSize: Sizes.small,
+    color: '#4AA3DF',
+    fontWeight: '600',
+    marginRight: 4,
   },
   
   // Packages Section - Simplified
@@ -1855,7 +2708,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // Notifications Dropdown
+  // Notifications Dropdown & Modals
   notificationsDropdown: {
     position: 'absolute',
     top: 80,
@@ -1863,7 +2716,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: Sizes.radiusLarge,
     padding: Sizes.lg,
-    width: 300,
+    width: 320,
+    maxHeight: 400,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1884,31 +2738,51 @@ const styles = StyleSheet.create({
     fontSize: Sizes.large,
     fontWeight: 'bold',
     color: Colors.textPrimary,
+    flex: 1,
   },
   newBadge: {
     backgroundColor: '#C62828',
     paddingHorizontal: Sizes.sm,
     paddingVertical: 2,
     borderRadius: 12,
+    marginRight: Sizes.sm,
   },
   newBadgeText: {
     color: Colors.white,
     fontSize: Sizes.small,
     fontWeight: '600',
   },
+  markAllReadButton: {
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 4,
+  },
+  markAllReadText: {
+    color: '#4AA3DF',
+    fontSize: Sizes.small,
+    fontWeight: '600',
+  },
+  notificationsList: {
+    maxHeight: 200,
+  },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: Sizes.md,
+    paddingHorizontal: Sizes.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: 4,
   },
-  notificationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#C62828',
-    marginTop: 6,
+  unreadNotification: {
+    backgroundColor: '#F0F8FF',
+  },
+  notificationIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: Sizes.sm,
   },
   notificationContent: {
@@ -1920,22 +2794,183 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: 4,
   },
+  unreadText: {
+    fontWeight: 'bold',
+  },
   notificationSubtext: {
     fontSize: Sizes.small,
     color: Colors.textSecondary,
     marginBottom: 4,
+    lineHeight: 18,
   },
   notificationTime: {
     fontSize: Sizes.small,
     color: '#4AA3DF',
   },
+  notificationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C62828',
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
   viewAllButton: {
+    flexDirection: 'row',
     paddingVertical: Sizes.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: Sizes.sm,
   },
   viewAllText: {
     color: '#4AA3DF',
     fontSize: Sizes.medium,
+    fontWeight: '600',
+    marginRight: Sizes.sm,
+  },
+  
+  // Notification Backdrop
+  notificationBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 999,
+  },
+  
+  // Notification Enhanced Styles
+  markAllReadButton: {
+    paddingHorizontal: Sizes.sm,
+    paddingVertical: 4,
+    backgroundColor: '#E6F4FB',
+    borderRadius: 12,
+  },
+  markAllReadText: {
+    color: '#4AA3DF',
+    fontSize: Sizes.small,
+    fontWeight: '600',
+  },
+  notificationsList: {
+    maxHeight: 200,
+  },
+  unreadNotification: {
+    backgroundColor: '#F0F8FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#4AA3DF',
+  },
+  unreadText: {
+    fontWeight: 'bold',
+  },
+  notificationIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Sizes.sm,
+    marginTop: 2,
+  },
+
+  // All Notifications Modal
+  notificationsModalContent: {
+    height: '80%',
+  },
+  notificationsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.lg,
+    paddingBottom: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notificationsModalTitle: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+  },
+  notificationsModalList: {
+    flex: 1,
+  },
+  notificationModalItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: Sizes.md,
+    paddingHorizontal: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    borderRadius: Sizes.radiusMedium,
+    marginBottom: Sizes.sm,
+    position: 'relative',
+  },
+  notificationModalContent: {
+    flex: 1,
+    marginRight: Sizes.sm,
+  },
+  notificationActions: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 40,
+  },
+  deleteButton: {
+    padding: Sizes.sm,
+    borderRadius: Sizes.radiusMedium,
+    backgroundColor: '#FEE2E2',
+  },
+
+  // Notification Detail Modal
+  notificationDetailContent: {
+    maxHeight: '70%',
+  },
+  notificationDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.lg,
+    paddingBottom: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notificationDetailTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  notificationDetailTitleText: {
+    fontSize: Sizes.large,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginLeft: Sizes.md,
+  },
+  notificationDetailBody: {
+    paddingBottom: Sizes.lg,
+  },
+  notificationDetailMessage: {
+    fontSize: Sizes.regular,
+    color: Colors.textPrimary,
+    lineHeight: 24,
+    marginBottom: Sizes.lg,
+  },
+  notificationDetailTime: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: Sizes.xl,
+  },
+  notificationActionButton: {
+    backgroundColor: '#4AA3DF',
+    paddingVertical: Sizes.md,
+    paddingHorizontal: Sizes.lg,
+    borderRadius: Sizes.radiusMedium,
+    alignItems: 'center',
+  },
+  notificationActionButtonText: {
+    color: Colors.white,
+    fontSize: Sizes.regular,
     fontWeight: '600',
   },
   
@@ -1994,10 +3029,18 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   expandButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(74, 163, 223, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  treatmentContentContainer: {
+    overflow: 'hidden',
   },
   treatmentContent: {
     gap: 12,
+    paddingTop: 12,
   },
   treatmentRow: {
     flexDirection: 'row',
@@ -2040,6 +3083,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
     marginHorizontal: 2,
+  },
+  activeQuickAction: {
+    backgroundColor: Colors.kbrBlue,
+  },
+  activeQuickActionText: {
+    color: Colors.white,
+  },
+  activeTestAction: {
+    backgroundColor: Colors.kbrGreen,
+  },
+  activeTestActionText: {
+    color: Colors.white,
+  },
+  emergencyButton: {
+    backgroundColor: 'rgba(220, 38, 38, 0.08)', // Light red background
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.2)', // Red border
   },
   quickActionText: {
     fontSize: 10,
@@ -2087,11 +3147,87 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#6B7280',
   },
+  allTreatmentsContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.kbrBlue,
+  },
+  testItemPreview: {
+    flexDirection: 'column',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  testDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingLeft: 16,
+  },
+  testDepartment: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: Colors.kbrGreen,
+  },
+  testTime: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  availableTestsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  availableTestCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  availableTestName: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#374151',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  availableTestPrice: {
+    fontSize: 10,
+    color: Colors.kbrGreen,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.kbrBlue,
+    marginBottom: 8,
+  },
   viewAllTreatments: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 4,
+    borderRadius: 12,
+  },
+  activeViewAll: {
+    backgroundColor: Colors.kbrBlue,
+  },
+  activeViewAllText: {
+    color: Colors.white,
+  },
+  viewAllTreatmentsWrapper: {
     marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
@@ -2116,8 +3252,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    marginRight: 16,
-    width: 280,
+    marginRight: 12,
+    minHeight: 200,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -2135,9 +3271,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   doctorImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#F3F4F6',
   },
   doctorStatus: {
@@ -2156,24 +3292,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doctorCardName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#1F2937',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 3,
+    numberOfLines: 2,
   },
   doctorCardCredentials: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   doctorCardSpecialization: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#4AA3DF',
     textAlign: 'center',
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 6,
+    numberOfLines: 2,
   },
   doctorCardRating: {
     flexDirection: 'row',
@@ -2198,10 +3336,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noDoctorsContainer: {
-    flex: 1,
+    width: screenWidth * 0.8,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
+    marginHorizontal: Sizes.screenPadding,
   },
   noDoctorsText: {
     fontSize: 16,
