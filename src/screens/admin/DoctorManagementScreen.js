@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
 import { Colors, Sizes } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
@@ -860,11 +859,12 @@ const DoctorManagementScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Editing: {selectedDoctor?.name}</Text>
-              <Text style={styles.subtitle}>Make changes to doctor information below</Text>
-            </View>
+          <View style={[styles.modalContent, { flex: 1 }]}>
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Editing: {selectedDoctor?.name}</Text>
+                <Text style={styles.subtitle}>Make changes to doctor information below</Text>
+              </View>
 
             {/* Image Section */}
             <View style={styles.imageSection}>
@@ -907,23 +907,24 @@ const DoctorManagementScreen = ({ navigation }) => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Department *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={doctorForm.department}
-                    onValueChange={(value) => setDoctorForm(prev => ({ ...prev, department: value }))}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select Department" value="" />
-                    <Picker.Item label="General Medicine" value="General Medicine" />
-                    <Picker.Item label="Cardiology" value="Cardiology" />
-                    <Picker.Item label="Neurology" value="Neurology" />
-                    <Picker.Item label="Orthopedics" value="Orthopedics" />
-                    <Picker.Item label="Pediatrics" value="Pediatrics" />
-                    <Picker.Item label="Gynecology" value="Gynecology" />
-                    <Picker.Item label="Dermatology" value="Dermatology" />
-                    <Picker.Item label="ENT" value="ENT" />
-                    <Picker.Item label="Emergency" value="Emergency" />
-                  </Picker>
+                <View style={styles.departmentSelectorEdit}>
+                  {['General Medicine', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Gynecology', 'Dermatology', 'ENT', 'Emergency'].map((dept) => (
+                    <TouchableOpacity
+                      key={dept}
+                      style={[
+                        styles.departmentOptionEdit,
+                        doctorForm.department === dept && styles.selectedDepartment
+                      ]}
+                      onPress={() => setDoctorForm(prev => ({ ...prev, department: dept }))}
+                    >
+                      <Text style={[
+                        styles.departmentTextEdit,
+                        doctorForm.department === dept && styles.selectedDepartmentText
+                      ]}>
+                        {dept}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
 
@@ -1191,8 +1192,9 @@ const DoctorManagementScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <View style={{ height: 50 }} />
-          </ScrollView>
+              <View style={{ height: 50 }} />
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -1425,6 +1427,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  actionSection: {
+    paddingBottom: 16,
+  },
+  addDoctorButton: {
+    backgroundColor: Colors.kbrBlue,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   statsContainer: {
     marginBottom: 20,
@@ -1823,6 +1842,25 @@ const styles = StyleSheet.create({
   selectedDepartmentText: {
     color: '#FFF',
   },
+  departmentSelectorEdit: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    gap: 8,
+  },
+  departmentOptionEdit: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  departmentTextEdit: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
   starContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1849,10 +1887,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   addButtonText: {
-    fontSize: 14,
-    color: Colors.kbrBlue,
-    fontWeight: '500',
-    marginLeft: 4,
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   scheduleSelector: {
     flexDirection: 'row',

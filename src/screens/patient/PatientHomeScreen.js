@@ -22,8 +22,7 @@ import {
   ActivityIndicator,
   Animated,
   LayoutAnimation,
-  Platform,
-  UIManager
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,10 +35,8 @@ import AppHeader from '../../components/AppHeader';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Enable LayoutAnimation for Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+// Note: LayoutAnimation is automatically enabled in React Native's New Architecture (Fabric)
+// No need to call setLayoutAnimationEnabledExperimental which is deprecated
 
 // Sample data - same as web version but adapted for React Native
 const doctors = [

@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: '#FFFFFF',
   },
   addButtonContainer: {
     padding: 16,

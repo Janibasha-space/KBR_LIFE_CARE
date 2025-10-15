@@ -121,7 +121,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
+          <Ionicons name="chevron-back" size={24} color="#1F2937" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Appointment Details</Text>
@@ -131,7 +131,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
           style={styles.headerAction} 
           onPress={() => handleCall(appointmentData.patientPhone)}
         >
-          <Ionicons name="call" size={24} color="#FFF" />
+          <Ionicons name="call" size={24} color={Colors.kbrBlue} />
         </TouchableOpacity>
       </View>
 
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: '#FFFFFF',
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(31, 41, 55, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
@@ -399,15 +399,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1F2937',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#E0E7FF',
+    color: '#6B7280',
     marginTop: 2,
   },
   headerAction: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
     padding: 8,
     borderRadius: 8,
   },

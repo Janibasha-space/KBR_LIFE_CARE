@@ -189,15 +189,7 @@ const EditProfileScreen = ({ navigation, route }) => {
               <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={formData.dateOfBirth ? new Date(formData.dateOfBirth) : new Date()}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-                maximumDate={new Date()}
-              />
-            )}
+
 
             <Text style={styles.inputLabel}>Blood Group</Text>
             <TouchableOpacity
@@ -262,6 +254,17 @@ const EditProfileScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* DateTimePicker - Outside ScrollView to avoid VirtualizedList nesting warnings */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={formData.dateOfBirth ? new Date(formData.dateOfBirth) : new Date()}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

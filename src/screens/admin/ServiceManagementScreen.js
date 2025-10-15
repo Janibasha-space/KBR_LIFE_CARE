@@ -178,6 +178,17 @@ const ServiceManagementScreen = ({ navigation }) => {
           </ScrollView>
         </View>
 
+        {/* Add Service Button */}
+        <View style={styles.actionSection}>
+          <TouchableOpacity 
+            style={styles.addServiceButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Ionicons name="add" size={20} color="#FFF" />
+            <Text style={styles.addServiceText}>Add New Service</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Services List */}
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.servicesContainer}>
@@ -222,6 +233,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  actionSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  addServiceButton: {
+    backgroundColor: Colors.kbrBlue,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  addServiceText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   header: {
     backgroundColor: Colors.kbrBlue,

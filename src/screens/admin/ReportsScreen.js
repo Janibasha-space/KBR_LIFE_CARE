@@ -489,79 +489,82 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
           useSimpleAdminHeader={true}
         />
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Stats Cards */}
-          <View style={styles.statsSection}>
-            <View style={styles.statsRow}>
-              <StatCard
-                title="Total Reports"
-                value={reportsStats.totalReports.toString()}
-                icon="document-text"
-                color="#3B82F6"
-                bgColor="#EBF4FF"
-              />
-              <StatCard
-                title="Patients"
-                value={reportsStats.totalPatients.toString()}
-                icon="people"
-                color="#10B981"
-                bgColor="#ECFDF5"
-              />
-              <StatCard
-                title="Storage"
-                value={formatFileSize(reportsStats.totalStorage)}
-                icon="server"
-                color="#8B5CF6"
-                bgColor="#F3F0FF"
-              />
-            </View>
-            <View style={styles.statsRowSecond}>
-              <StatCard
-                title="Sent Reports"
-                value={reportsStats.sentReports.toString()}
-                icon="send"
-                color="#059669"
-                bgColor="#ECFDF5"
-              />
-              <StatCard
-                title="Pending"
-                value={reportsStats.pendingReports.toString()}
-                icon="time"
-                color="#D97706"
-                bgColor="#FFFBEB"
-              />
-            </View>
-          </View>
-
-          {/* Patient Reports Section */}
-          <View style={styles.reportsSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Patient Reports</Text>
-              <TouchableOpacity 
-                style={styles.addButton}
-                onPress={() => setShowAddModal(true)}
-              >
-                <Ionicons name="add" size={16} color={Colors.white} />
-                <Text style={styles.addButtonText}>Add Report</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.reportsList}>
-              {(reports || []).length > 0 ? (
-                (reports || []).map((report) => (
-                  <ReportCard key={report.id} report={report} />
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <Ionicons name="document-text-outline" size={48} color={Colors.textSecondary} />
-                  <Text style={styles.emptyStateTitle}>No Reports Yet</Text>
-                  <Text style={styles.emptyStateText}>
-                    Start by adding your first patient report using the "Add Report" button above.
-                  </Text>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
+              {/* Stats Cards */}
+              <View style={styles.statsSection}>
+                <View style={styles.statsRow}>
+                  <StatCard
+                    title="Total Reports"
+                    value={reportsStats.totalReports.toString()}
+                    icon="document-text"
+                    color="#3B82F6"
+                    bgColor="#EBF4FF"
+                  />
+                  <StatCard
+                    title="Patients"
+                    value={reportsStats.totalPatients.toString()}
+                    icon="people"
+                    color="#10B981"
+                    bgColor="#ECFDF5"
+                  />
+                  <StatCard
+                    title="Storage"
+                    value={formatFileSize(reportsStats.totalStorage)}
+                    icon="server"
+                    color="#8B5CF6"
+                    bgColor="#F3F0FF"
+                  />
                 </View>
-              )}
-            </View>
-          </View>
+                <View style={styles.statsRowSecond}>
+                  <StatCard
+                    title="Sent Reports"
+                    value={reportsStats.sentReports.toString()}
+                    icon="send"
+                    color="#059669"
+                    bgColor="#ECFDF5"
+                  />
+                  <StatCard
+                    title="Pending"
+                    value={reportsStats.pendingReports.toString()}
+                    icon="time"
+                    color="#D97706"
+                    bgColor="#FFFBEB"
+                  />
+                </View>
+              </View>
+
+              {/* Patient Reports Section */}
+              <View style={styles.reportsSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Patient Reports</Text>
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => setShowAddModal(true)}
+                  >
+                    <Ionicons name="add" size={16} color={Colors.white} />
+                    <Text style={styles.addButtonText}>Add Report</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.reportsList}>
+                  {(reports || []).length > 0 ? (
+                    (reports || []).map((report) => (
+                      <ReportCard key={report.id} report={report} />
+                    ))
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons name="document-text-outline" size={48} color={Colors.textSecondary} />
+                      <Text style={styles.emptyStateTitle}>No Reports Yet</Text>
+                      <Text style={styles.emptyStateText}>
+                        Start by adding your first patient report using the "Add Report" button above.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
         </ScrollView>
 
         {/* Enhanced Add Report Modal */}
