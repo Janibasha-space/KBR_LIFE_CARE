@@ -43,10 +43,24 @@ const ServicesScreen = ({ navigation, route }) => {
   // State for expanded service details
   const [expandedService, setExpandedService] = useState(null);
   
+  // State for expanded specialty category
+  // Initialize as null - we'll set it from params in useEffect
+  const [expandedSpecialty, setExpandedSpecialty] = useState(null);
+  
   // References for scrolling
   const scrollViewRef = React.useRef(null);
   // Reference for tests section position
   const [testsPosition, setTestsPosition] = useState(0);
+  
+  // Get services data from context
+  const { getServicesByCategory } = useServices();
+  
+  // Get services by category
+  const services = {
+    medical: getServicesByCategory('medical'),
+    surgical: getServicesByCategory('surgical'),
+    specialized: getServicesByCategory('specialized')
+  };
   
   let serviceCounts;
   let allServices;
@@ -77,16 +91,26 @@ const ServicesScreen = ({ navigation, route }) => {
     }
   };
   
-  // Automatically handle navigation, expanding services, and scrolling
+  // Reference positions for specialty categories
+  const [specialtiesPosition, setSpecialtiesPosition] = useState(0);
+  
+  // Function to scroll to the expanded specialty
+  const scrollToSpecialties = () => {
+    if (specialtiesPosition > 0 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current.scrollTo({
+          y: specialtiesPosition - 20, // Scroll a bit above to make it clearly visible
+          animated: true
+        });
+      }, 300);
+    }
+  };
+  
+  // Handle content loading, scrolling, and initial rendering
   useEffect(() => {
     // Initialize with pre-loaded data if available
     if (preloaded) {
       setContentLoaded(true);
-    }
-    
-    // Expand selected service if provided
-    if (selectedService && serviceId && openServiceDetails) {
-      setExpandedService(serviceId);
     }
     
     // Handle scrolling to sections based on navigation params
@@ -100,7 +124,46 @@ const ServicesScreen = ({ navigation, route }) => {
     }, 300);
     
     return () => clearTimeout(loadTimer);
-  }, [selectedService, serviceId, openServiceDetails, scrollToSection, testsPosition]);
+  }, [preloaded, scrollToSection, testsPosition]);
+  
+  // Handle navigation focus/blur events
+  useEffect(() => {
+    // When focusing on this screen
+    const focusListener = navigation.addListener('focus', () => {
+      // Only expand if explicitly provided in route params - otherwise reset
+      if (route?.params?.expandedSpecialty) {
+        setExpandedSpecialty(route.params.expandedSpecialty);
+        
+        // If there's a specific service selected, highlight it
+        if (route?.params?.selectedService && route?.params?.serviceId) {
+          setExpandedService(route?.params?.serviceId);
+        }
+      } else {
+        // If no specialty specified in route, reset expanded state
+        setExpandedSpecialty(null);
+        setExpandedService(null);
+      }
+    });
+
+    // When navigating away from this screen
+    const blurListener = navigation.addListener('blur', () => {
+      // Clear the route params to ensure fresh state next time
+      navigation.setParams({
+        expandedSpecialty: null,
+        selectedService: null,
+        serviceId: null
+      });
+      
+      // Reset expanded states
+      setExpandedSpecialty(null);
+      setExpandedService(null);
+    });
+
+    return () => {
+      focusListener();
+      blurListener();
+    };
+  }, [navigation, route?.params]);
 
   const specialtyCategories = [
     {
@@ -169,34 +232,195 @@ const ServicesScreen = ({ navigation, route }) => {
     },
   ];
 
-  const renderSpecialtyCard = (specialty) => (
-    <TouchableOpacity
-      key={specialty.id}
-      style={[styles.specialtyCard, { backgroundColor: specialty.backgroundColor || '#4285F4' }]}
-      activeOpacity={0.8}
-      onPress={() => navigation.navigate('BookAppointment', { category: specialty.id })}
-    >
-      <View style={styles.specialtyContent}>
-        <View style={styles.specialtyLeft}>
-          <View style={styles.specialtyIconContainer}>
-            <Ionicons name={specialty.icon || 'medical-outline'} size={28} color={specialty.color || '#FFFFFF'} />
-          </View>
-          <View style={styles.specialtyInfo}>
-            <Text style={styles.specialtyTitle}>{specialty.title || 'Specialty'}</Text>
-            {specialty.subtitle && <Text style={styles.specialtySubtitle}>{specialty.subtitle}</Text>}
-            <Text style={styles.specialtyCount}>{(specialty.count || 0)} specialties available</Text>
-          </View>
+  const renderSpecialtyCard = (specialty) => {
+    const isExpanded = expandedSpecialty === specialty.id;
+    
+    // Get specialty services from the context instead of hardcoded data
+    const getSpecialtyServices = (id) => {
+      try {
+        // Get services from context based on category
+        const categoryServices = services[id] || [];
+        
+        // Map the services to include icons and other UI properties
+        return categoryServices.map(service => {
+          // Define default tags if none are present
+          let tags = service.tags || [];
+          if (!tags.length) {
+            if (id === 'medical') {
+              tags = ['Health Check-ups', 'Chronic Disease Management'];
+            } else if (id === 'surgical') {
+              tags = ['Surgery', 'Consultation'];
+            } else if (id === 'specialized') {
+              tags = ['Specialized Care', 'Expert Consultation'];
+            }
+          }
+          
+          return {
+            ...service,
+            // Use service icon from the context or derive a default one
+            icon: service.icon || getServiceIcon(service.name || ''),
+            tags: tags
+          };
+        });
+      } catch (error) {
+        console.error(`Error getting services for ${id}:`, error);
+        return [];
+      }
+    };
+    
+    // Helper function to get appropriate icon for service
+    const getServiceIcon = (serviceName) => {
+      if (!serviceName || typeof serviceName !== 'string') {
+        return 'medical-outline';
+      }
+      const name = serviceName.toLowerCase();
+      if (name.includes('general') || name.includes('medicine')) return 'medkit-outline';
+      if (name.includes('cardiology') || name.includes('heart')) return 'heart-outline';
+      if (name.includes('surgery') || name.includes('surgical')) return 'cut-outline';
+      if (name.includes('orthopedics') || name.includes('bone')) return 'body-outline';
+      if (name.includes('diabetes') || name.includes('diabetology')) return 'pulse-outline';  
+      if (name.includes('gynecology') || name.includes('obstetrics')) return 'woman-outline';
+      if (name.includes('trauma')) return 'bandage-outline';
+      if (name.includes('oncology') || name.includes('cancer')) return 'ribbon-outline';
+      if (name.includes('neurology') || name.includes('brain')) return 'brain-outline';
+      return 'medical-outline'; // Default icon
+    };
+    
+    const specialtyServices = getSpecialtyServices(specialty.id);
+    
+    // Render tags for each specialty service
+    const renderTags = (tags) => {
+      return (
+        <View style={styles.tagsContainer}>
+          {tags.map((tag, index) => (
+            <View key={index} style={styles.tagChip}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.specialtyRight}>
-          <View style={styles.seeDetailsButton}>
-            <View style={styles.seeDetailsDot} />
-            <Text style={styles.seeDetailsText}>See Details</Text>
+      );
+    };
+    
+    // Get appropriate icon for each tag type
+    const getTagIcon = (tag) => {
+      const tagLower = tag.toLowerCase();
+      if (tagLower.includes('check') || tagLower.includes('monitor'))
+        return 'checkmark-circle-outline';
+      if (tagLower.includes('disease') || tagLower.includes('management'))
+        return 'pulse-outline';
+      if (tagLower.includes('preventive') || tagLower.includes('prevention'))
+        return 'shield-checkmark-outline';
+      if (tagLower.includes('emergency'))
+        return 'alert-circle-outline';
+      if (tagLower.includes('therapy') || tagLower.includes('treatment'))
+        return 'fitness-outline';
+      if (tagLower.includes('diet') || tagLower.includes('nutrition'))
+        return 'nutrition-outline';
+      if (tagLower.includes('surgery'))
+        return 'cut-outline';
+      if (tagLower.includes('heart') || tagLower.includes('cardio'))
+        return 'heart-outline';
+      
+      // Default icon
+      return 'medical-outline';
+    };
+    
+    return (
+      <View key={specialty.id} style={styles.specialtyCardContainer}>
+        {/* Main Specialty Card */}
+        <TouchableOpacity
+          style={[
+            styles.specialtyCard, 
+            { 
+              backgroundColor: specialty.backgroundColor || '#4285F4',
+              borderBottomLeftRadius: isExpanded ? 0 : Sizes.radiusLarge,
+              borderBottomRightRadius: isExpanded ? 0 : Sizes.radiusLarge
+            }
+          ]}
+          activeOpacity={0.8}
+          onPress={() => {
+            if (isExpanded) {
+              setExpandedSpecialty(null);
+            } else {
+              setExpandedSpecialty(specialty.id);
+            }
+          }}
+        >
+          <View style={styles.specialtyContent}>
+            <View style={styles.specialtyLeft}>
+              <View style={styles.specialtyIconContainer}>
+                <Ionicons name={specialty.icon || 'medical-outline'} size={24} color={specialty.color || '#FFFFFF'} />
+              </View>
+              <View style={styles.specialtyInfo}>
+                <Text style={styles.specialtyTitle}>{specialty.title || 'Specialty'}</Text>
+                {specialty.subtitle && <Text style={styles.specialtySubtitle}>{specialty.subtitle}</Text>}
+                <Text style={styles.specialtyCount}>{(specialty.count || 0)} specialties available</Text>
+              </View>
+            </View>
+            <View style={styles.specialtyRight}>
+              <View style={styles.seeDetailsButton}>
+                <Text style={styles.seeDetailsText}>{isExpanded ? 'Hide' : 'See'} Details</Text>
+                <Ionicons 
+                  name={isExpanded ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color={Colors.white} 
+                  style={{marginLeft: 4}}
+                />
+              </View>
+            </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.white} />
-        </View>
+        </TouchableOpacity>
+        
+        {/* Expanded Content */}
+        {isExpanded && (
+          <View style={styles.specialtyDropdown}>
+            {specialtyServices.map((service, index) => (
+              <View key={service.id} style={[
+                styles.specialtyServiceItem,
+                index < specialtyServices.length - 1 && styles.serviceItemBorder
+              ]}>
+                {/* Service Icon and Info Layout */}
+                <View style={styles.serviceHeaderRow}>
+                  <View style={[
+                    styles.serviceIconContainer,
+                    { backgroundColor: specialty.backgroundColor } // Match the specialty color
+                  ]}>
+                    <Ionicons name={service.icon} size={22} color={Colors.white} />
+                  </View>
+                  
+                  <View style={styles.serviceHeaderContent}>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <Text style={styles.serviceDescription}>{service.description}</Text>
+                  </View>
+                </View>
+                
+                {/* Tags */}
+                {renderTags(service.tags)}
+                
+                {/* Book Appointment Button */}
+                <TouchableOpacity 
+                  style={[
+                    styles.bookAppointmentButton,
+                    { backgroundColor: specialty.backgroundColor } // Match the specialty color
+                  ]}
+                  onPress={() => navigation.navigate('BookAppointment', { 
+                    category: specialty.id,
+                    service: service.name,
+                    serviceId: service.id,
+                    serviceDetails: service
+                  })}
+                >
+                  <Ionicons name="calendar-outline" size={16} color={Colors.white} style={styles.bookBtnIcon} />
+                  <Text style={styles.bookAppointmentText}>Book Appointment</Text>
+                  <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   const renderTestCard = (test) => (
     <TouchableOpacity
@@ -326,13 +550,6 @@ const ServicesScreen = ({ navigation, route }) => {
           subtitle="Services"
           navigation={navigation}
           showBackButton={true}
-          customBackAction={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('PatientMain', { screen: 'Home' });
-            }
-          }}
         />
         
         {/* Loading Overlay - Shown when content is still loading */}
@@ -370,25 +587,19 @@ const ServicesScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Individual Services Section */}
-        {allServices && allServices.length > 0 && (
-          <View style={styles.individualServicesSection}>
-            <View style={styles.servicesHeaderRow}>
-              <Ionicons name="medical" size={20} color="#4AA3DF" />
-              <Text style={[styles.servicesTitle, { color: theme.textPrimary }]}>Our Medical Services</Text>
-            </View>
-            <Text style={[styles.servicesSubtitle, { color: theme.textSecondary }]}>
-              Tap on any service to see detailed information and book appointments
-            </Text>
-            
-            <View style={styles.servicesContainer}>
-              {allServices.map(renderServiceCard)}
-            </View>
-          </View>
-        )}
-
         {/* Specialty Categories */}
-        <View style={styles.specialtiesSection}>
+        <View 
+          style={styles.specialtiesSection}
+          onLayout={(event) => {
+            const layout = event.nativeEvent.layout;
+            setSpecialtiesPosition(layout.y);
+            
+            // If there is an expanded specialty from route params, scroll to it
+            if (expandedSpecialty && contentLoaded) {
+              scrollToSpecialties();
+            }
+          }}
+        >
           {specialtyCategories.map(renderSpecialtyCard)}
         </View>
 
@@ -553,10 +764,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     paddingBottom: Sizes.lg,
   },
+  specialtyCardContainer: {
+    marginBottom: Sizes.md,
+  },
   specialtyCard: {
     borderRadius: Sizes.radiusLarge,
     padding: Sizes.lg,
-    marginBottom: Sizes.md,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -574,13 +787,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   specialtyIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Sizes.md,
+    elevation: 2,
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    shadowOpacity: 0.3,
   },
   specialtyInfo: {
     flex: 1,
@@ -603,29 +821,21 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   specialtyRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   seeDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: Sizes.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: Sizes.xs,
-  },
-  seeDetailsDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.white,
-    marginRight: 6,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   seeDetailsText: {
     fontSize: Sizes.small,
     color: Colors.white,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   expandSection: {
     paddingHorizontal: Sizes.screenPadding,
@@ -697,6 +907,92 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.9,
     lineHeight: 20,
+  },
+  specialtyDropdown: {
+    backgroundColor: Colors.white,
+    borderBottomLeftRadius: Sizes.radiusLarge,
+    borderBottomRightRadius: Sizes.radiusLarge,
+    overflow: 'hidden',
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  specialtyServiceItem: {
+    padding: Sizes.xl,
+  },
+  serviceItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
+  },
+  serviceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Sizes.md,
+  },
+  serviceIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceHeaderContent: {
+    flex: 1,
+    marginLeft: Sizes.md,
+  },
+  serviceName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  serviceDescription: {
+    fontSize: 15,
+    color: '#666666',
+    lineHeight: 22,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginVertical: Sizes.md,
+    marginHorizontal: -2,
+  },
+  tagChip: {
+    backgroundColor: '#F5F5F5',
+    paddingVertical: 8,
+    paddingHorizontal: Sizes.md,
+    borderRadius: 6,
+    marginRight: Sizes.sm,
+    marginBottom: Sizes.sm,
+    borderWidth: 0,
+  },
+  tagText: {
+    fontSize: 14,
+    color: '#333333',
+    fontWeight: '500',
+  },
+  bookAppointmentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4285F4',
+    paddingVertical: 12,
+    paddingHorizontal: Sizes.xl,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: Sizes.md,
+  },
+  bookBtnIcon: {
+    marginRight: 5,
+  },
+  bookAppointmentText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '600',
+    marginRight: Sizes.xs,
   },
   
   // Tests Section Styles

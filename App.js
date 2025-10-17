@@ -14,7 +14,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
-import { ROUTES } from './src/constants/navigation';
 import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UserProvider } from './src/contexts/UserContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
@@ -31,6 +30,7 @@ import ServicesScreen from './src/screens/patient/ServicesScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
 import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
 import DoctorsScreen from './src/screens/patient/DoctorsScreen';
+import TreatmentDetailsScreen from './src/screens/patient/TreatmentDetailsScreen';
 
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
@@ -324,7 +324,7 @@ function AdminDrawerNavigator() {
           ),
         }}
       />
-      <Drawer.Screen 
+      <Drawer.Screen
         name="PaymentManagement" 
         component={PaymentManagementScreen}
         options={{
@@ -386,30 +386,28 @@ export default function App() {
           <ServicesProvider>
             <AppProvider>
               <NavigationContainer>
-            <StatusBar style="light" backgroundColor={Colors.primary} />
-            <Stack.Navigator 
-              initialRouteName="Splash"
-              screenOptions={{
-                headerShown: false
-              }}
-            >
-              <Stack.Screen name="Splash" component={SplashScreen} />
-              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-              <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
-              <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
-              <Stack.Screen name="Profile" component={ProfileScreen} />
-              <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
-              <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
-              <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
-              <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-              <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
-              <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
-              <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
-              <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
-              <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
-              <Stack.Screen name="PaymentManagement" component={PaymentManagementScreen} />
-              <Stack.Screen name="InvoiceManagement" component={InvoiceManagementScreen} />
-            </Stack.Navigator>
+                <StatusBar style="light" backgroundColor={Colors.primary} />
+                <Stack.Navigator 
+                  initialRouteName="Splash"
+                  screenOptions={{
+                    headerShown: false
+                  }}
+                >
+                  <Stack.Screen name="Splash" component={SplashScreen} />
+                  <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+                  <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
+                  <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
+                  <Stack.Screen name="Profile" component={ProfileScreen} />
+                  <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+                  <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+                  <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
+                  <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                  <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
+                  <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
+                  <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
+                  <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+                  <Stack.Screen name="TreatmentDetails" component={TreatmentDetailsScreen} />
+                </Stack.Navigator>
               </NavigationContainer>
             </AppProvider>
           </ServicesProvider>

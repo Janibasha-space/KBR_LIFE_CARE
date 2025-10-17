@@ -706,304 +706,34 @@ const PatientHomeScreen = ({ navigation }) => {
     // Only show treatment status if user is logged in AND patient is admitted
     if (!isLoggedIn || !userData || !patientStatus.isAdmitted) return null;
 
-    // Handler to toggle the treatment card expansion
-    const toggleTreatmentExpansion = () => {
-      // Configure layout animation for smooth transitions
-      LayoutAnimation.configureNext({
-        duration: 300,
-        create: {
-          type: LayoutAnimation.Types.easeInEaseOut,
-          property: LayoutAnimation.Properties.opacity,
-        },
-        update: {
-          type: LayoutAnimation.Types.easeInEaseOut,
-        },
-      });
-      
-      // Toggle state
-      setIsTreatmentExpanded(!isTreatmentExpanded);
-      
-      // Animate the rotation of the chevron
-      Animated.spring(animatedRotation, {
-        toValue: isTreatmentExpanded ? 0 : 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-      
-      // Animate the content height
-      Animated.timing(animatedHeight, {
-        toValue: isTreatmentExpanded ? 0 : 1,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
+    // Handler to navigate to treatment details screen
+    const navigateToTreatmentDetails = () => {
+      navigation.navigate('TreatmentDetails', { patientStatus });
     };
 
     return (
       <View style={styles.treatmentStatusContainer}>
-        <View style={styles.treatmentHeader}>
+        <TouchableOpacity 
+          style={styles.treatmentHeader}
+          onPress={navigateToTreatmentDetails}
+          activeOpacity={0.7}
+        >
           <View style={styles.treatmentHeaderLeft}>
             <View style={styles.admissionBadge}>
               <Ionicons name="medical" size={16} color="#FFFFFF" />
               <Text style={styles.admissionBadgeText}>{patientStatus.admissionType}</Text>
             </View>
             <View style={styles.treatmentInfo}>
-              <Text style={styles.treatmentTitle}>Current Treatment</Text>
+              <View style={styles.treatmentTitleRow}>
+                <Text style={styles.treatmentTitle}>Current Treatment</Text>
+              </View>
               <Text style={styles.treatmentSubtitle}>Room {patientStatus.roomNumber} • {patientStatus.roomType}</Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={styles.expandButton}
-            onPress={toggleTreatmentExpansion}
-            activeOpacity={0.7}
-          >
-            <Animated.View
-              style={{
-                transform: [
-                  {
-                    rotate: animatedRotation.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '180deg'],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <Ionicons 
-                name="chevron-down" 
-                size={20} 
-                color={Colors.kbrBlue} 
-              />
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
-
-        <Animated.View 
-          style={[
-            styles.treatmentContentContainer,
-            {
-              opacity: animatedHeight,
-              maxHeight: animatedHeight.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 500], // Max height when expanded
-              }),
-              overflow: 'hidden',
-            }
-          ]}
-        >
-          <View style={styles.treatmentContent}>
-          {/* Doctor & Department */}
-          <View style={styles.treatmentRow}>
-            <View style={styles.treatmentItem}>
-              <Ionicons name="person" size={16} color={Colors.kbrBlue} />
-              <Text style={styles.treatmentLabel}>Doctor</Text>
-              <Text style={styles.treatmentValue}>{patientStatus.currentDoctor}</Text>
-            </View>
-            <View style={styles.treatmentItem}>
-              <Ionicons name="medical" size={16} color={Colors.kbrBlue} />
-              <Text style={styles.treatmentLabel}>Department</Text>
-              <Text style={styles.treatmentValue}>{patientStatus.department}</Text>
-            </View>
+          <View style={styles.expandButton}>
+            <Ionicons name="chevron-forward" size={20} color={Colors.kbrBlue} />
           </View>
-
-          {/* Admission Details */}
-          <View style={styles.treatmentRow}>
-            <View style={styles.treatmentItem}>
-              <Ionicons name="calendar" size={16} color={Colors.kbrGreen} />
-              <Text style={styles.treatmentLabel}>Admitted</Text>
-              <Text style={styles.treatmentValue}>{patientStatus.admissionDate}</Text>
-            </View>
-            <View style={styles.treatmentItem}>
-              <Ionicons name="time" size={16} color={Colors.kbrPurple} />
-              <Text style={styles.treatmentLabel}>Est. Discharge</Text>
-              <Text style={styles.treatmentValue}>{patientStatus.estimatedDischargeDate}</Text>
-            </View>
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.quickActionsRow}>
-            <TouchableOpacity 
-              style={[
-                styles.quickActionButton,
-                showUpcomingTreatments && styles.activeQuickAction
-              ]}
-              onPress={() => {
-                setShowUpcomingTreatments(!showUpcomingTreatments);
-                if (!showUpcomingTreatments) {
-                  setShowAllTreatments(false); // Close All Treatments when opening Upcoming Treatments
-                }
-              }}
-            >
-              <Ionicons 
-                name="clipboard" 
-                size={16} 
-                color={showUpcomingTreatments ? Colors.white : Colors.kbrBlue} 
-              />
-              <Text style={[
-                styles.quickActionText, 
-                showUpcomingTreatments && styles.activeQuickActionText
-              ]}>Treatments</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[
-                styles.quickActionButton,
-                showTests && styles.activeTestAction
-              ]}
-              onPress={() => {
-                setShowTests(!showTests);
-                if (!showTests) {
-                  // Close other expanded sections
-                  setShowUpcomingTreatments(false);
-                  setShowAllTreatments(false);
-                }
-              }}
-            >
-              <Ionicons 
-                name="flask" 
-                size={16} 
-                color={showTests ? Colors.white : Colors.kbrGreen} 
-              />
-              <Text style={[
-                styles.quickActionText, 
-                showTests && styles.activeTestActionText
-              ]}>Tests</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.quickActionButton, styles.emergencyButton]}
-              onPress={() => {
-                Alert.alert(
-                  "Emergency Contact",
-                  "Call hospital emergency line?",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Call Now", onPress: () => Linking.openURL('tel:+919876543210') }
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="call" size={16} color={Colors.kbrRed} />
-              <Text style={styles.quickActionText}>Emergency</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Current Treatments Preview */}
-          <View style={styles.treatmentsPreview}>
-            <Text style={styles.previewTitle}>Today's Treatments</Text>
-            {/* Show only 2 treatments when not expanded */}
-            {(!showAllTreatments && !showUpcomingTreatments && !showTests) && patientStatus.treatments.slice(0, 2).map((treatment) => (
-              <View key={treatment.id} style={styles.treatmentItemPreview}>
-                <View style={styles.treatmentStatus}>
-                  <View style={[styles.statusDot, { 
-                    backgroundColor: treatment.status === 'Ongoing' ? Colors.kbrGreen : 
-                                   treatment.status === 'Scheduled' ? Colors.kbrBlue : Colors.kbrPurple 
-                  }]} />
-                  <Text style={styles.treatmentName}>{treatment.name}</Text>
-                </View>
-                <Text style={styles.treatmentTime}>{treatment.time}</Text>
-              </View>
-            ))}
-            
-            {/* Show all treatments when expanded */}
-            {showAllTreatments && (
-              <View style={styles.allTreatmentsContainer}>
-                {patientStatus.treatments.map((treatment) => (
-                  <View key={treatment.id} style={styles.treatmentItemPreview}>
-                    <View style={styles.treatmentStatus}>
-                      <View style={[styles.statusDot, { 
-                        backgroundColor: treatment.status === 'Ongoing' ? Colors.kbrGreen : 
-                                       treatment.status === 'Scheduled' ? Colors.kbrBlue : Colors.kbrPurple 
-                      }]} />
-                      <Text style={styles.treatmentName}>{treatment.name}</Text>
-                    </View>
-                    <Text style={styles.treatmentTime}>{treatment.time}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            
-            {/* Show upcoming treatments */}
-            {showUpcomingTreatments && (
-              <View style={styles.allTreatmentsContainer}>
-                <Text style={styles.sectionSubtitle}>Upcoming Treatments</Text>
-                {patientStatus.treatments
-                  .filter(treatment => treatment.status === 'Scheduled')
-                  .map((treatment) => (
-                    <View key={treatment.id} style={styles.treatmentItemPreview}>
-                      <View style={styles.treatmentStatus}>
-                        <View style={[styles.statusDot, { backgroundColor: Colors.kbrBlue }]} />
-                        <Text style={styles.treatmentName}>{treatment.name}</Text>
-                      </View>
-                      <Text style={styles.treatmentTime}>{treatment.time}</Text>
-                    </View>
-                  ))}
-              </View>
-            )}
-            
-            {/* Show upcoming tests */}
-            {showTests && (
-              <View style={styles.allTreatmentsContainer}>
-                <Text style={[styles.sectionSubtitle, { color: Colors.kbrGreen }]}>Scheduled Tests</Text>
-                {patientStatus.upcomingTests.map((test) => (
-                  <View key={test.id} style={styles.testItemPreview}>
-                    <View style={styles.treatmentStatus}>
-                      <View style={[styles.statusDot, { backgroundColor: Colors.kbrGreen }]} />
-                      <Text style={styles.treatmentName}>{test.name}</Text>
-                    </View>
-                    <View style={styles.testDetails}>
-                      <Text style={styles.testDepartment}>{test.department}</Text>
-                      <Text style={styles.testTime}>{test.scheduledTime}</Text>
-                    </View>
-                  </View>
-                ))}
-                
-                <Text style={[styles.sectionSubtitle, { color: Colors.kbrGreen, marginTop: 12 }]}>Available Tests</Text>
-                <View style={styles.availableTestsGrid}>
-                  {popularTests.map((test) => (
-                    <TouchableOpacity 
-                      key={test.id} 
-                      style={styles.availableTestCard}
-                      onPress={() => Alert.alert("Book Test", `Would you like to schedule the ${test.name} test?`, [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Book", onPress: () => Alert.alert("Success", `${test.name} test has been scheduled.`) }
-                      ])}
-                    >
-                      <Ionicons name="flask-outline" size={16} color={Colors.kbrGreen} />
-                      <Text style={styles.availableTestName}>{test.name}</Text>
-                      <Text style={styles.availableTestPrice}>{test.price}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-            
-            <TouchableOpacity 
-              style={[
-                styles.viewAllTreatments,
-                showAllTreatments && styles.activeViewAll
-              ]}
-              onPress={() => {
-                setShowAllTreatments(!showAllTreatments);
-                if (!showAllTreatments) {
-                  setShowUpcomingTreatments(false); // Close other sections
-                  setShowTests(false);
-                }
-              }}
-            >
-              <Text style={[
-                styles.viewAllText,
-                showAllTreatments && styles.activeViewAllText
-              ]}>
-                {showAllTreatments ? "Hide All Treatments" : "View All Treatments"}
-              </Text>
-              <Ionicons 
-                name={showAllTreatments ? "arrow-up" : "arrow-forward"} 
-                size={14} 
-                color={showAllTreatments ? Colors.white : Colors.kbrBlue} 
-              />
-            </TouchableOpacity>
-          </View>
-          </View>
-        </Animated.View>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -1267,6 +997,20 @@ const PatientHomeScreen = ({ navigation }) => {
                   key={service.id} 
                   style={styles.serviceCard}
                   onPress={() => {
+                    // Determine which specialty category this service belongs to
+                    let specialtyCategory = 'medical'; // Default
+                    
+                    // Map service to specialty categories based on their type or category field
+                    if (service.category) {
+                      specialtyCategory = service.category;
+                    } else if (service.type === 'surgical' || service.name.toLowerCase().includes('surgery')) {
+                      specialtyCategory = 'surgical';
+                    } else if (service.type === 'specialized' || 
+                               service.name.toLowerCase().includes('specialist') ||
+                               service.name.toLowerCase().includes('specialty')) {
+                      specialtyCategory = 'specialized';
+                    }
+                    
                     // Prepare service data for faster loading
                     const serviceDetails = {
                       id: service.id,
@@ -1279,9 +1023,11 @@ const PatientHomeScreen = ({ navigation }) => {
                       tags: service.tags || []
                     };
                     
+                    // Navigate to ServicesScreen with the selected specialty and service
                     navigation.navigate('Services', { 
                       selectedService: service.name, 
                       serviceId: service.id,
+                      expandedSpecialty: specialtyCategory, // Pass the specialty ID to expand
                       scrollToService: true,
                       openServiceDetails: true,
                       serviceDetails: serviceDetails,
@@ -2427,7 +2173,7 @@ const styles = StyleSheet.create({
   quickTestName: {
     fontSize: Sizes.medium,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: '#374151',
     marginBottom: 4,
     textAlign: 'center',
   },
@@ -2781,6 +2527,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Sizes.sm,
+    marginTop: 2,
   },
   notificationContent: {
     flex: 1,
@@ -2985,12 +2732,19 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderLeftWidth: 4,
     borderLeftColor: Colors.kbrBlue,
+    position: 'relative', // For positioning the hint overlay
   },
   treatmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   treatmentHeaderLeft: {
     flexDirection: 'row',
@@ -3015,6 +2769,16 @@ const styles = StyleSheet.create({
   treatmentInfo: {
     flex: 1,
   },
+  treatmentTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tapHint: {
+    fontSize: 12,
+    color: '#888',
+    marginLeft: 8,
+    fontStyle: 'italic',
+  },
   treatmentTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -3026,11 +2790,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   expandButton: {
-    padding: 8,
+    padding: 10,
     borderRadius: 20,
-    backgroundColor: 'rgba(74, 163, 223, 0.1)',
+    backgroundColor: 'rgba(74, 163, 223, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 163, 223, 0.3)',
   },
   treatmentContentContainer: {
     overflow: 'hidden',

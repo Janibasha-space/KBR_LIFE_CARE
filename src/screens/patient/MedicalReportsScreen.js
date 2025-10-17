@@ -292,13 +292,7 @@ const MedicalReportsScreen = ({ navigation }) => {
           subtitle="Reports"
           navigation={navigation}
           showBackButton={true}
-          customBackAction={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('PatientMain', { screen: 'Home' });
-            }
-          }}
+          // Use default back behavior from AppHeader
         />
 
         <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>

@@ -1579,13 +1579,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           showBackButton={true}
           customBackAction={() => {
             if (currentStep === 1) {
-              // Check if we can go back, otherwise navigate to PatientMain
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate('PatientMain', { screen: 'Home' });
-              }
+              // Just go back using normal navigation - don't force to home
+              navigation.goBack();
             } else {
+              // If we're in a multi-step flow, go back to previous step
               goToPreviousStep();
             }
           }}

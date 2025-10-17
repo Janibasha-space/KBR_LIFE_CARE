@@ -9,21 +9,21 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../constants/theme';
 import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AuthModal from './AuthModal';
 
-const AppHeader = ({ 
-  title, 
-  subtitle, 
-  navigation, 
-  showBackButton = false, 
+const AppHeader = ({
+  title,
+  subtitle,
+  navigation,
+  showBackButton = false,
   backAction = null,
   customBackAction = null,
   showMenuButton = false,
-  showAdminStatus = false,
   hideProfileButton = false,
   useSimpleAdminHeader = false
 }) => {
@@ -36,36 +36,10 @@ const AppHeader = ({
       customBackAction();
     } else if (backAction) {
       backAction();
+    } else if (navigation?.canGoBack()) {
+      navigation.goBack();
     } else {
-      try {
-        // Get current navigation state
-        const state = navigation?.getState();
-        const canGoBack = navigation?.canGoBack();
-        
-        if (canGoBack && state?.routes?.length > 1) {
-          // We have navigation history, go back properly
-          navigation.goBack();
-        } else {
-          // Check parent navigators (drawer/tab navigators)
-          const parentNav = navigation?.getParent();
-          if (parentNav?.canGoBack()) {
-            parentNav.goBack();
-          } else {
-            // For admin screens, go back to dashboard instead of patient home
-            const currentRoute = state?.routes?.[state?.index];
-            if (currentRoute?.name?.includes('Admin') || navigation?.getId()?.includes('Admin')) {
-              navigation?.navigate('AdminTabs', { screen: 'Dashboard' });
-            } else {
-              navigation?.navigate('PatientMain', { screen: 'Home' });
-            }
-          }
-        }
-      } catch (error) {
-        // Fallback - just try to go back
-        if (navigation?.canGoBack()) {
-          navigation.goBack();
-        }
-      }
+      navigation?.navigate('PatientMain', { screen: 'Home' });
     }
   };
 
@@ -122,7 +96,19 @@ const AppHeader = ({
   };
 
   return (
-    <View style={[styles.header, { backgroundColor: theme.primary }]}>
+    <View 
+      style={[
+        styles.header, 
+        useSimpleAdminHeader ? styles.adminHeader : styles.dashboardHeader,
+        { backgroundColor: theme.primary || '#007bff' }
+      ]}
+    >
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      
       {useSimpleAdminHeader ? (
         // Simple Admin Header Layout
         <View style={styles.simpleAdminHeader}>
@@ -135,74 +121,82 @@ const AppHeader = ({
             </TouchableOpacity>
           )}
           <View style={styles.simpleHeaderContent}>
-            <Text style={[styles.simpleHeaderTitle, { color: theme.white }]}>{title}</Text>
+            <Text style={styles.simpleHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
+              {title}
+            </Text>
             {subtitle && (
-              <Text style={[styles.simpleHeaderSubtitle, { color: theme.white }]}>{subtitle}</Text>
+              <Text style={styles.simpleHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                {subtitle}
+              </Text>
             )}
           </View>
         </View>
       ) : (
-        // Default Header Layout
-        <View style={styles.leftSection}>
-          {showBackButton && (
-            <TouchableOpacity 
-              onPress={handleBackPress}
-              style={styles.backButton}
-            >
-              <Ionicons name="chevron-back" size={24} color={Colors.white} />
-            </TouchableOpacity>
-          )}
-          <View style={styles.headerCenter}>
-            <Image 
-              source={require('../../assets/hospital-logo.jpeg')}
-              style={styles.headerLogoImage}
-              resizeMode="contain"
-            />
-            <View style={styles.titleContainer}>
-              <Text style={[styles.headerTitle, { color: theme.white }]}>KBR LIFE CARE HOSPITALS</Text>
-              {subtitle && (
-                <Text style={[styles.headerSubtitle, { color: theme.white }]}>{subtitle}</Text>
-              )}
+        // Default Header Layout (Dashboard)
+        <View style={styles.dashboardLayout}>
+          <View style={styles.leftSection}>
+            {showBackButton && (
+              <TouchableOpacity 
+                onPress={handleBackPress}
+                style={styles.backButton}
+              >
+                <Ionicons name="chevron-back" size={24} color={Colors.white} />
+              </TouchableOpacity>
+            )}
+            <View style={styles.headerCenter}>
+              <Image 
+                source={require('../../assets/hospital-logo.jpeg')}
+                style={styles.headerLogoImage}
+                resizeMode="contain"
+              />
+              <View style={styles.titleContainer}>
+                <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {title || "KBR Life Care Hospitals"}
+                </Text>
+                {subtitle && (
+                  <Text style={styles.headerSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                    {subtitle}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
-        </View>
-      )}
-      
-      {!useSimpleAdminHeader && (
-        <View style={styles.rightSection}>
-          {!hideProfileButton && (
-            <TouchableOpacity 
-              style={styles.profileIconButton}
-              onPress={handleAuthPress}
-            >
-              {isLoggedIn ? (
-                userData?.userData?.profileImage ? (
-                  <Image 
-                    source={{ uri: userData.userData.profileImage }} 
-                    style={styles.profileIconImage}
-                    onError={() => console.log('Profile image failed to load:', userData.userData.profileImage)}
-                  />
+          
+          <View style={styles.rightSection}>
+            {!hideProfileButton && (
+              <TouchableOpacity 
+                style={styles.profileIconButton}
+                onPress={handleAuthPress}
+              >
+                {isLoggedIn ? (
+                  userData?.userData?.profileImage ? (
+                    <Image 
+                      source={{ uri: userData.userData.profileImage }} 
+                      style={styles.profileIconImage}
+                      onError={() => console.log('Profile image failed to load')}
+                    />
+                  ) : (
+                    <View style={styles.profileIconPlaceholder}>
+                      <Ionicons name="person-circle" size={24} color={Colors.white} />
+                    </View>
+                  )
                 ) : (
-                  <View style={styles.profileIconPlaceholder}>
-                    <Ionicons name="person-circle" size={22} color={theme.white} />
+                  <View style={styles.loginIconContainer}>
+                    <Ionicons name="person-circle-outline" size={24} color={Colors.white} />
                   </View>
-                )
-              ) : (
-                <View style={styles.loginIconContainer}>
-                  <Ionicons name="person-circle-outline" size={22} color={theme.white} />
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+                )}
+              </TouchableOpacity>
+            )}
 
-          {showMenuButton && (
-            <TouchableOpacity 
-              style={styles.menuButton}
-              onPress={handleMenuPress}
-            >
-              <Ionicons name="menu" size={24} color={theme.white} />
-            </TouchableOpacity>
-          )}
+            {showMenuButton && (
+              <TouchableOpacity 
+                style={styles.menuButton}
+                onPress={handleMenuPress}
+              >
+                <Ionicons name="menu-outline" size={24} color={Colors.white} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -212,186 +206,227 @@ const AppHeader = ({
         onClose={() => setShowAuthModal(false)}
         navigation={navigation}
       />
-      
-      {/* Admin Status Section */}
-      {showAdminStatus && (
-        <View style={styles.adminStatusSection}>
-          <Text style={styles.adminStatusText}>Hospital Management System</Text>
-          <View style={styles.statusIndicator}>
-            <View style={styles.onlineIndicator} />
-            <Text style={styles.statusText}>System Online • Live Dashboard</Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: Colors.kbrBlue,
-    paddingHorizontal: Sizes.screenPadding,
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + 8,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 4,
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    alignItems: 'stretch',
+    height: Platform.OS === 'ios' ? 120 : 110,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 10,
+    overflow: 'hidden',
+  },
+  adminHeader: {
+    // Optimized for admin screens with typically longer titles
+    paddingBottom: 12,
+  },
+  dashboardHeader: {
+    // Optimized for dashboard screens
+    paddingBottom: 14,
+  },
+  dashboardLayout: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    overflow: 'hidden', // Ensure no content overflow
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 2,
+    flexShrink: 1,
+    overflow: 'hidden',
+    marginRight: 8, // Give space between left and right sections
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4A90E2',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    marginRight: 8,
+    marginLeft: -4,
+    // Keep back button perfectly centered
+    paddingLeft: 0,
+    paddingRight: 2,
   },
   headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    flexShrink: 1,
+    overflow: 'hidden',
+    marginRight: 4, // Ensure there's space for the right section
   },
   headerLogoImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   titleContainer: {
     flex: 1,
+    justifyContent: 'center',
+    flexShrink: 1,
+    marginRight: 10,
+    overflow: 'hidden',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.white,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    flexShrink: 1,
+    marginRight: 4,
+    maxWidth: '95%',
+    overflow: 'hidden',
+    // Ensure text truncates if too long
+    ellipsizeMode: 'tail',
+    numberOfLines: 1,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#FFD700',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  profileIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  profileIconImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  profileIconPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loginIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '400',
+    marginTop: 1,
+    opacity: 0.85,
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    flexShrink: 1,
+    maxWidth: '95%',
+    // Ensure subtitle truncates if too long
+    ellipsizeMode: 'tail',
+    numberOfLines: 1,
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  menuButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  profileIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'transparent',
   },
-  adminStatusSection: {
-    position: 'absolute',
-    bottom: -40,
-    left: Sizes.screenPadding,
-    right: Sizes.screenPadding,
+  profileIconImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  adminStatusText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.white,
-    marginBottom: 4,
-  },
-  statusIndicator: {
-    flexDirection: 'row',
+  profileIconPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  onlineIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-    marginRight: 8,
+  loginIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  statusText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
+  menuButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   simpleAdminHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-start',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    flexWrap: 'nowrap',
+    marginTop: -4,
+    overflow: 'hidden', // Ensure content doesn't overflow
   },
   simpleBackButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4A90E2',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: 'transparent',
+    marginRight: 6,
+    marginLeft: -4,
+    marginTop: -1,
+    // Keep back button perfectly centered
+    paddingLeft: 0,
+    paddingRight: 2,
   },
   simpleHeaderContent: {
     flex: 1,
+    flexShrink: 1,
+    justifyContent: 'center',
+    height: '100%',
+    paddingVertical: 0,
+    marginLeft: 4,
+    marginTop: -2,
+    marginRight: 10,
+    overflow: 'hidden',
   },
   simpleHeaderTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: Colors.white,
-    letterSpacing: 0.3,
-    marginBottom: 2,
-    lineHeight: 24,
+    letterSpacing: 0.2,
+    marginBottom: 4,
+    lineHeight: 26,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    flexShrink: 1,
+    maxWidth: '98%',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    // Ensure text truncates if too long
+    ellipsizeMode: 'tail',
+    numberOfLines: 1,
   },
   simpleHeaderSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: '#FFFFFF',
     fontWeight: '400',
-    lineHeight: 16,
+    lineHeight: 18,
+    opacity: 0.9,
+    letterSpacing: 0.1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    flexShrink: 1,
+    maxWidth: '98%',
+    // Ensure subtitle truncates if too long
+    ellipsizeMode: 'tail',
+    numberOfLines: 1,
   },
 });
 
