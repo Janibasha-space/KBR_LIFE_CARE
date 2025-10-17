@@ -13,9 +13,10 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
-  Modal
+  Modal,
+  StatusBar,
+  Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import AppHeader from '../../components/AppHeader';
@@ -181,7 +182,8 @@ const DoctorsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <View style={styles.safeArea}>
         {/* App Header */}
         <AppHeader 
           title="Our Doctors"
@@ -437,7 +439,7 @@ const DoctorsScreen = ({ navigation }) => {
             </View>
           </View>
         </Modal>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -445,7 +447,7 @@ const DoctorsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: Colors.primaryDark || '#0056b3',
   },
   safeArea: {
     flex: 1,
@@ -453,12 +455,14 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
   loadingText: {
     marginTop: Sizes.md,
@@ -469,7 +473,15 @@ const styles = StyleSheet.create({
   // Hero Section
   heroSection: {
     padding: Sizes.screenPadding,
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: Colors.primary,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   heroTitle: {
     fontSize: Sizes.xlarge,
@@ -496,9 +508,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   doctorImageContainer: {
     height: 220,
@@ -557,16 +571,22 @@ const styles = StyleSheet.create({
     marginLeft: Sizes.md,
   },
   bookButton: {
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: Colors.primary,
     paddingVertical: Sizes.md,
     paddingHorizontal: Sizes.lg,
     borderRadius: Sizes.radiusMedium,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   bookButtonText: {
     color: Colors.white,
     fontSize: Sizes.regular,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   
   // Team Section
@@ -622,8 +642,16 @@ const styles = StyleSheet.create({
   // CTA Section
   ctaSection: {
     padding: Sizes.screenPadding,
-    backgroundColor: Colors.kbrBlue,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   ctaTitle: {
     fontSize: Sizes.large,
@@ -652,7 +680,7 @@ const styles = StyleSheet.create({
     marginLeft: Sizes.sm,
   },
   
-  // Modal Styles
+  // Doctor Detail Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -664,6 +692,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     height: '90%',
     paddingTop: Sizes.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',

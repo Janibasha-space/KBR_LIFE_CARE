@@ -1,5 +1,6 @@
 export const Colors = {
   primary: '#4A90E2',
+  primaryDark: '#0056b3',
   secondary: '#6C757D',
   success: '#22C55E',
   danger: '#EF4444',

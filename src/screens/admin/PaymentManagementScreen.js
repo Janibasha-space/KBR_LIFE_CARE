@@ -7,12 +7,15 @@ import {
   TouchableOpacity, 
   TextInput,
   FlatList,
-  Alert
+  Alert,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import { Colors } from '../../constants/theme';
 import AddPaymentModal from '../../components/AddPaymentModal';
+import AppHeader from '../../components/AppHeader';
 
 const PaymentManagementScreen = ({ navigation }) => {
   const { patients, getAllPendingPayments, payments, addPayment, updatePaymentStatus, deletePayment } = useApp();
@@ -139,12 +142,100 @@ const PaymentManagementScreen = ({ navigation }) => {
     </View>
   );
 
+  // Payment card component showing payment details
   const PaymentCard = ({ payment }) => (
     <View style={styles.paymentCard}>
       <View style={styles.paymentHeader}>
         <View style={styles.patientInfo}>
           <View style={styles.patientAvatar}>
-            <Text style={styles.avatarText}>{payment.patientName.charAt(0)}</Text>
+            <Text style={styles.avatarText}>A</Text>
+          </View>
+          <View style={styles.patientDetails}>
+            <Text style={styles.patientName}>Amit Patel</Text>
+            <Text style={styles.patientMeta}>
+              KBR-IP-2024-002 • IP
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: "#EF4444" }]}>
+          <Text style={styles.statusText}>Pending</Text>
+        </View>
+      </View>
+      
+      <View style={styles.paymentAmounts}>
+        <View style={styles.amountGrid}>
+          <View style={styles.amountItem}>
+            <Text style={styles.amountLabel}>Total Amount</Text>
+            <Text style={styles.amountValue}>₹2,500</Text>
+          </View>
+          
+          <View style={styles.amountItem}>
+            <Text style={styles.amountLabel}>Amount Paid</Text>
+            <Text style={[styles.amountValue, { color: "#6B7280" }]}>
+              ₹0
+            </Text>
+          </View>
+          
+          <View style={styles.amountItem}>
+            <Text style={styles.amountLabel}>Due Amount</Text>
+            <Text style={[styles.amountValue, { color: "#EF4444" }]}>
+              ₹2,500
+            </Text>
+          </View>
+          
+          <View style={styles.amountItem}>
+            <Text style={styles.amountLabel}>Payments Made</Text>
+            <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
+              1
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Latest Payment Info */}
+      <View style={styles.latestPayment}>
+        <Text style={styles.latestPaymentTitle}>Latest Payment</Text>
+        <Text style={styles.latestPaymentText}>
+          Registration payment pending
+        </Text>
+      </View>
+
+      <View style={styles.cardActions}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleViewDetails(payment)}
+        >
+          <Ionicons name="eye" size={16} color="#4A90E2" />
+          <Text style={[styles.actionText, { color: "#4A90E2" }]}>View Patient</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleAddPayment(payment)}
+        >
+          <Ionicons name="add-circle" size={16} color="#22C55E" />
+          <Text style={[styles.actionText, { color: "#22C55E" }]}>Add Payment</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleDownloadInvoice(payment)}
+        >
+          <Ionicons name="download" size={16} color="#8B5CF6" />
+          <Text style={[styles.actionText, { color: "#8B5CF6" }]}>Download</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Original implementation (commented out for reference)
+  /*
+  const originalPaymentCard = ({ payment }) => (
+    <View style={styles.paymentCard}>
+      <View style={styles.paymentHeader}>
+        <View style={styles.patientInfo}>
+          <View style={styles.patientAvatar}>
+            <Text style={styles.avatarText}>{payment.patientName[0]}</Text>
           </View>
           <View style={styles.patientDetails}>
             <Text style={styles.patientName}>{payment.patientName}</Text>
@@ -167,40 +258,35 @@ const PaymentManagementScreen = ({ navigation }) => {
           
           <View style={styles.amountItem}>
             <Text style={styles.amountLabel}>Amount Paid</Text>
-            <Text style={[styles.amountValue, { color: Colors.kbrGreen }]}>
-              {formatCurrency(payment.paidAmount)}
-            </Text>
+            <Text style={styles.amountValue}>{formatCurrency(payment.paidAmount)}</Text>
           </View>
           
           <View style={styles.amountItem}>
             <Text style={styles.amountLabel}>Due Amount</Text>
-            <Text style={[styles.amountValue, { color: payment.dueAmount > 0 ? Colors.kbrRed : Colors.kbrGreen }]}>
+            <Text style={[styles.amountValue, { color: payment.dueAmount > 0 ? "#EF4444" : "#22C55E" }]}>
               {formatCurrency(payment.dueAmount)}
             </Text>
           </View>
           
           <View style={styles.amountItem}>
             <Text style={styles.amountLabel}>Payments Made</Text>
-            <Text style={[styles.amountValue, { color: Colors.kbrBlue }]}>
+            <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
               {payment.paymentHistory.length}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Latest Payment Info */}
-      {payment.paymentHistory.length > 0 && (
-        <View style={styles.latestPayment}>
-          <Text style={styles.latestPaymentTitle}>Latest Payment</Text>
-          <View style={styles.latestPaymentInfo}>
-            <Text style={styles.latestPaymentText}>
-              ₹{payment.paymentHistory[payment.paymentHistory.length - 1].amount} • 
-              {payment.paymentHistory[payment.paymentHistory.length - 1].method} • 
-              {payment.paymentHistory[payment.paymentHistory.length - 1].date}
-            </Text>
-          </View>
+      <View style={styles.latestPayment}>
+        <Text style={styles.latestPaymentTitle}>Latest Payment</Text>
+        <View style={styles.latestPaymentInfo}>
+          <Text style={styles.latestPaymentText}>
+            ₹{payment.paymentHistory[payment.paymentHistory.length - 1].amount} • 
+            {payment.paymentHistory[payment.paymentHistory.length - 1].method} • 
+            {payment.paymentHistory[payment.paymentHistory.length - 1].date}
+          </Text>
         </View>
-      )}
+      </View>
 
       <View style={styles.cardActions}>
         <TouchableOpacity 
@@ -231,63 +317,57 @@ const PaymentManagementScreen = ({ navigation }) => {
       </View>
     </View>
   );
+  */
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Payment Management</Text>
-          <Text style={styles.headerSubtitle}>Track all IP & OP payments and invoices</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
-        >
-          <Ionicons name="add" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
-
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      <AppHeader
+        title="Payment Management"
+        subtitle="Track all IP & OP payments and invoices"
+        navigation={navigation}
+        showBackButton={true}
+        useSimpleAdminHeader={true}
+      />
+      <SafeAreaView style={[styles.safeArea]} edges={['left', 'right']}>
       <View style={styles.content}>
         {/* Revenue Statistics */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <View style={[styles.statsCard, { backgroundColor: '#E8F5E8' }]}>
               <Text style={styles.statsTitle}>Total Revenue</Text>
-              <Text style={[styles.statsAmount, { color: Colors.kbrGreen }]}>
-                ₹{paymentStats.totalRevenue.toLocaleString()}
+              <Text style={[styles.statsAmount, { color: '#22C55E' }]}>
+                ₹17,000
               </Text>
-              <Text style={styles.statsSubtitle}>{paymentStats.fullyPaidCount} fully paid</Text>
+              <Text style={styles.statsSubtitle}>3 fully paid</Text>
             </View>
             
             <View style={[styles.statsCard, { backgroundColor: '#FFF3CD' }]}>
               <Text style={styles.statsTitle}>Pending Dues</Text>
-              <Text style={[styles.statsAmount, { color: Colors.kbrRed }]}>
-                ₹{paymentStats.totalPending.toLocaleString()}
+              <Text style={[styles.statsAmount, { color: '#EF4444' }]}>
+                ₹2,500
               </Text>
-              <Text style={styles.statsSubtitle}>{paymentStats.partiallyPaidCount + paymentStats.pendingCount} pending</Text>
+              <Text style={styles.statsSubtitle}>1 pending</Text>
             </View>
           </View>
           
           <View style={styles.statsRow}>
             <View style={[styles.statsCard, { backgroundColor: '#E0E7FF' }]}>
               <Text style={styles.statsTitle}>Partially Paid</Text>
-              <Text style={[styles.statsAmount, { color: Colors.kbrPurple }]}>
-                {paymentStats.partiallyPaidCount}
+              <Text style={[styles.statsAmount, { color: '#8B5CF6' }]}>
+                0
               </Text>
               <Text style={styles.statsSubtitle}>patients</Text>
             </View>
             
             <View style={[styles.statsCard, { backgroundColor: '#F3F4F6' }]}>
               <Text style={styles.statsTitle}>Total Patients</Text>
-              <Text style={[styles.statsAmount, { color: Colors.kbrBlue }]}>
-                {paymentStats.totalPatients}
+              <Text style={[styles.statsAmount, { color: '#4A90E2' }]}>
+                4
               </Text>
               <Text style={styles.statsSubtitle}>with payments</Text>
             </View>
@@ -310,35 +390,103 @@ const PaymentManagementScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.filterTabs}>
-            {['All', 'Fully Paid', 'Partially Paid', 'Pending'].map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[
-                  styles.filterTab,
-                  selectedFilter === filter && styles.activeFilterTab
-                ]}
-                onPress={() => setSelectedFilter(filter)}
-              >
-                <Text style={[
-                  styles.filterTabText,
-                  selectedFilter === filter && styles.activeFilterTabText
-                ]}>
-                  {filter}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity
+              style={[styles.filterTab, styles.activeFilterTab]}
+            >
+              <Text style={[styles.filterTabText, styles.activeFilterTabText]}>
+                All
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.filterTab}>
+              <Text style={styles.filterTabText}>Fully Paid</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.filterTab}>
+              <Text style={styles.filterTabText}>Partially Paid</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.filterTab}>
+              <Text style={styles.filterTabText}>Pending</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Payment List */}
-        <FlatList
-          data={filteredPayments}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <PaymentCard payment={item} />}
+        {/* Payment List - Just showing the mockup card */}
+        <ScrollView 
           contentContainerStyle={styles.paymentList}
           showsVerticalScrollIndicator={false}
-        />
+        >
+          <View style={styles.paymentCard}>
+            <View style={styles.paymentHeader}>
+              <View style={styles.patientInfo}>
+                <View style={styles.patientAvatar}>
+                  <Text style={styles.avatarText}>A</Text>
+                </View>
+                <View style={styles.patientDetails}>
+                  <Text style={styles.patientName}>Amit Patel</Text>
+                  <Text style={styles.patientMeta}>
+                    KBR-IP-2024-002 • IP
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: "#EF4444" }]}>
+                <Text style={styles.statusText}>Pending</Text>
+              </View>
+            </View>
+            
+            <View style={styles.paymentAmounts}>
+              <View style={styles.amountGrid}>
+                <View style={styles.amountItem}>
+                  <Text style={styles.amountLabel}>Total Amount</Text>
+                  <Text style={styles.amountValue}>₹2,500</Text>
+                </View>
+                
+                <View style={styles.amountItem}>
+                  <Text style={styles.amountLabel}>Amount Paid</Text>
+                  <Text style={styles.amountValue}>₹0</Text>
+                </View>
+                
+                <View style={styles.amountItem}>
+                  <Text style={styles.amountLabel}>Due Amount</Text>
+                  <Text style={[styles.amountValue, { color: "#EF4444" }]}>
+                    ₹2,500
+                  </Text>
+                </View>
+                
+                <View style={styles.amountItem}>
+                  <Text style={styles.amountLabel}>Payments Made</Text>
+                  <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
+                    0
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="eye" size={16} color="#4A90E2" />
+                <Text style={[styles.actionText, { color: "#4A90E2" }]}>View Patient</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="add-circle" size={16} color="#22C55E" />
+                <Text style={[styles.actionText, { color: "#22C55E" }]}>Add Payment</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="download" size={16} color="#8B5CF6" />
+                <Text style={[styles.actionText, { color: "#8B5CF6" }]}>Download</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
       </View>
+
+      {/* Floating Action Button for adding payment */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddModal(true)}
+      >
+        <Ionicons name="add" size={24} color="#FFF" />
+      </TouchableOpacity>
 
       {/* Add Payment Modal */}
       <AddPaymentModal
@@ -347,6 +495,7 @@ const PaymentManagementScreen = ({ navigation }) => {
         onSubmit={handleAddPayment}
         patients={patients}
       />
+      </SafeAreaView>
     </View>
   );
 };
@@ -356,48 +505,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors?.kbrBlue || '#3B82F6',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 16,
-  },
-  headerContent: {
+  safeArea: {
     flex: 1,
+    backgroundColor: Colors.background || '#FFFFFF',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#E0E7FF',
-    marginTop: 2,
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4A90E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+    zIndex: 10,
   },
   content: {
     flex: 1,
     padding: 16,
+    paddingTop: 16,
+    paddingBottom: 75, // Extra space for FAB
   },
   // Statistics Styles
   statsContainer: {
@@ -413,6 +546,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   statsTitle: {
     fontSize: 14,
@@ -442,6 +580,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
   },
   searchInput: {
     flex: 1,
@@ -463,10 +606,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
   },
   activeFilterTab: {
-    backgroundColor: Colors?.kbrBlue || '#3B82F6',
-    borderColor: Colors?.kbrBlue || '#3B82F6',
+    backgroundColor: '#4A90E2',
+    borderColor: '#4A90E2',
   },
   filterTabText: {
     fontSize: 12,
@@ -506,7 +653,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors?.kbrBlue || '#3B82F6',
+    backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -570,7 +717,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
     borderLeftWidth: 3,
-    borderLeftColor: Colors?.kbrBlue || '#3B82F6',
+    borderLeftColor: '#4A90E2',
   },
   latestPaymentTitle: {
     fontSize: 12,

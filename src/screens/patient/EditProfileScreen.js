@@ -27,7 +27,6 @@ const EditProfileScreen = ({ navigation, route }) => {
   
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showBloodGroupPicker, setShowBloodGroupPicker] = useState(false);
   const [profileImage, setProfileImage] = useState(userProfile?.profileImage || null);
   
   const [formData, setFormData] = useState({
@@ -35,12 +34,17 @@ const EditProfileScreen = ({ navigation, route }) => {
     email: userProfile?.email || '',
     phone: userProfile?.phone || '',
     dateOfBirth: userProfile?.dateOfBirth || '',
-    bloodGroup: userProfile?.bloodGroup || '',
+    bloodGroup: userProfile?.bloodGroup || '', // Keep blood group in form data
     address: userProfile?.address || '',
     emergencyContact: userProfile?.emergencyContact || '',
   });
 
-  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const isValidBloodGroup = (bloodGroup) => {
+    // Valid blood groups: A+, A-, B+, B-, AB+, AB-, O+, O-
+    const normalizedInput = bloodGroup.trim().toUpperCase();
+    const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    return validBloodGroups.includes(normalizedInput);
+  };
 
   const pickImage = async () => {
     // Request permission
@@ -84,6 +88,11 @@ const EditProfileScreen = ({ navigation, route }) => {
     }
     if (!formData.phone.trim()) {
       Alert.alert('Error', 'Phone number is required');
+      return;
+    }
+    // Validate blood group format if entered (optional field)
+    if (formData.bloodGroup.trim() && !isValidBloodGroup(formData.bloodGroup)) {
+      Alert.alert('Error', 'Please enter a valid blood group format (e.g., A+, B-, AB+, O-)');
       return;
     }
 
@@ -188,36 +197,18 @@ const EditProfileScreen = ({ navigation, route }) => {
               </Text>
               <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
-
-
-
+            
             <Text style={styles.inputLabel}>Blood Group</Text>
-            <TouchableOpacity
+            <TextInput
               style={styles.input}
-              onPress={() => setShowBloodGroupPicker(!showBloodGroupPicker)}
-            >
-              <Text style={[styles.inputText, !formData.bloodGroup && { color: theme.textSecondary }]}>
-                {formData.bloodGroup || 'Select blood group'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
-
-            {showBloodGroupPicker && (
-              <View style={styles.pickerContainer}>
-                {bloodGroups.map((bloodGroup) => (
-                  <TouchableOpacity
-                    key={bloodGroup}
-                    style={styles.pickerItem}
-                    onPress={() => {
-                      setFormData(prev => ({ ...prev, bloodGroup }));
-                      setShowBloodGroupPicker(false);
-                    }}
-                  >
-                    <Text style={styles.pickerItemText}>{bloodGroup}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+              placeholder="Enter your blood group (e.g., A+, B-, AB+, O-)"
+              placeholderTextColor={theme.textSecondary}
+              value={formData.bloodGroup}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, bloodGroup: text.toUpperCase() }))}
+              autoCapitalize="characters"
+              maxLength={3}
+            />
+            <Text style={styles.helperText}>Valid formats: A+, A-, B+, B-, AB+, AB-, O+, O-</Text>
 
             <Text style={styles.inputLabel}>Address</Text>
             <TextInput
@@ -346,6 +337,13 @@ const createStyles = (theme) => StyleSheet.create({
     color: theme.textPrimary,
     marginBottom: 8,
     fontWeight: '500',
+  },
+  helperText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: -10,
+    marginBottom: 15,
+    marginLeft: 5,
   },
   input: {
     borderWidth: 1,

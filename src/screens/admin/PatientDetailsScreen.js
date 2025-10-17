@@ -174,14 +174,14 @@ const PatientDetailsScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
+          <Ionicons name="chevron-back" size={26} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Patient Details</Text>
           <Text style={styles.headerSubtitle}>{patient.id}</Text>
         </View>
         <TouchableOpacity style={styles.headerAction} onPress={handleCall}>
-          <Ionicons name="call" size={24} color="#FFF" />
+          <Ionicons name="call" size={26} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -579,17 +579,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#3B82F6',
     paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
   },
   headerContent: {
     flex: 1,
@@ -605,7 +605,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerAction: {
-    marginLeft: 15,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 16,
   },
   content: {
     flex: 1,

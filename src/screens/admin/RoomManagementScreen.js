@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
+import AppHeader from '../../components/AppHeader';
 
 const RoomManagementScreen = ({ navigation }) => {
   const { rooms, addRoom, updateRoom, deleteRoom, dischargePatient } = useApp();
@@ -491,25 +492,22 @@ const RoomManagementScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Room Management</Text>
-          <Text style={styles.headerSubtitle}>Monitor room occupancy and patient assignments</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowAddRoomModal(true)}
-        >
-          <Ionicons name="add" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+      {/* Header - Using AppHeader component for consistent look */}
+      <AppHeader
+        title="Room Management"
+        subtitle="Monitor room occupancy and patient assignments"
+        navigation={navigation}
+        showBackButton={true}
+        useSimpleAdminHeader={true}
+      />
+      
+      {/* Add Room Button */}
+      <TouchableOpacity 
+        style={styles.floatingAddButton}
+        onPress={() => setShowAddRoomModal(true)}
+      >
+        <Ionicons name="add" size={24} color="#FFF" />
+      </TouchableOpacity>
 
       <View style={styles.content}>
         {/* Statistics Cards */}
@@ -658,13 +656,15 @@ const RoomManagementScreen = ({ navigation }) => {
         </View>
 
         {/* Rooms List */}
-        <FlatList
-          data={filteredRooms}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RoomCard room={item} />}
-          contentContainerStyle={styles.roomsList}
-          showsVerticalScrollIndicator={false}
-        />
+        <View style={styles.roomsListContainer}>
+          <FlatList
+            data={filteredRooms}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <RoomCard room={item} />}
+            contentContainerStyle={styles.roomsList}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
       </View>
 
       {/* Add Room Modal */}
@@ -1292,45 +1292,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    position: 'relative',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  floatingAddButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.kbrBlue,
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    zIndex: 999,
   },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#E0E7FF',
-    marginTop: 2,
-  },
-  addButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 8,
-    borderRadius: 8,
-  },
+  // Header styles removed - using AppHeader component
+
+
+
+
+
   content: {
     flex: 1,
     padding: 16,
+    paddingTop: 25,
   },
   statsContainer: {
     marginBottom: 20,
@@ -1378,6 +1368,7 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     marginBottom: 16,
+    marginTop: 5,
   },
   searchContainer: {
     marginBottom: 12,

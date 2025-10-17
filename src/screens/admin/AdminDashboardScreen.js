@@ -153,7 +153,6 @@ const AdminDashboardScreen = ({ navigation }) => {
           subtitle="Admin Dashboard"
           navigation={navigation}
           showMenuButton={true}
-          showAdminStatus={true}
           hideProfileButton={true}
         />
 

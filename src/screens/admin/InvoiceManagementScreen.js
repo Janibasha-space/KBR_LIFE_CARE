@@ -17,6 +17,7 @@ import { useApp } from '../../contexts/AppContext';
 import { Colors } from '../../constants/theme';
 import CreateInvoiceModal from '../../components/CreateInvoiceModal';
 import InvoiceDetailsModal from '../../components/InvoiceDetailsModal';
+import AppHeader from '../../components/AppHeader';
 
 const InvoiceManagementScreen = ({ navigation }) => {
   const { invoices, addInvoice, updateInvoiceStatus, deleteInvoice, patients } = useApp();
@@ -349,63 +350,77 @@ KBR Life Care Hospital
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={Colors?.kbrBlue || '#4A90E2'} barStyle="light-content" translucent={false} />
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
+      <StatusBar backgroundColor={Colors?.kbrBlue || '#4A90E2'} barStyle="light-content" translucent={true} />
+      
+      {/* Header - Using AppHeader component for consistent look */}
+      <AppHeader
+        title="Invoice Management"
+        subtitle="Create & manage billing invoices"
+        navigation={navigation}
+        showBackButton={true}
+        useSimpleAdminHeader={true}
+      />
+      
+      {/* Add Invoice Button */}
+      <TouchableOpacity 
+        style={styles.floatingAddButton}
+        onPress={() => setShowCreateModal(true)}
+      >
+        <Ionicons name="add" size={24} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* Dashboard Statistics */}
+      <View style={styles.statsContainer}>
+        <TouchableOpacity style={styles.statCircle}>
+          <View style={[styles.circleIcon, { backgroundColor: Colors.kbrRed }]}>
+            <Ionicons name="document-text" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statCount}>{totalInvoices}</Text>
+            <Text style={styles.statTitle}>Total</Text>
+          </View>
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Invoice Management</Text>
-          <Text style={styles.headerSubtitle}>Create & manage billing invoices</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowCreateModal(true)}
-        >
-          <Ionicons name="add" size={24} color="#FFF" />
+
+        <TouchableOpacity style={styles.statCircle}>
+          <View style={[styles.circleIcon, { backgroundColor: Colors.kbrGreen }]}>
+            <Ionicons name="checkmark-circle" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statCount}>{paidInvoices}</Text>
+            <Text style={styles.statTitle}>Paid</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.statCircle}>
+          <View style={[styles.circleIcon, { backgroundColor: Colors.warning }]}>
+            <Ionicons name="time" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statCount}>{pendingInvoices}</Text>
+            <Text style={styles.statTitle}>Pending</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.statCircle}>
+          <View style={[styles.circleIcon, { backgroundColor: Colors.kbrRed }]}>
+            <Ionicons name="alert-circle" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statCount}>{overdueInvoices}</Text>
+            <Text style={styles.statTitle}>Overdue</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.statCircle}>
+          <View style={[styles.circleIcon, { backgroundColor: Colors.kbrBlue }]}>
+            <Ionicons name="cash" size={24} color={Colors.white} />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statCount}>₹{totalAmount.toLocaleString()}</Text>
+            <Text style={styles.statTitle}>Total Value</Text>
+          </View>
         </TouchableOpacity>
       </View>
-
-      {/* Summary Cards */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.summaryScroll}
-        contentContainerStyle={styles.summaryContainer}
-      >
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryNumber}>{totalInvoices}</Text>
-          <Text style={styles.summaryLabel}>Total Invoices</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryNumber, { color: Colors.kbrGreen }]}>
-            {paidInvoices}
-          </Text>
-          <Text style={styles.summaryLabel}>Paid</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryNumber, { color: Colors.warning }]}>
-            {pendingInvoices}
-          </Text>
-          <Text style={styles.summaryLabel}>Pending</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryNumber, { color: Colors.kbrRed }]}>
-            {overdueInvoices}
-          </Text>
-          <Text style={styles.summaryLabel}>Overdue</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryNumber, { color: Colors.kbrBlue }]}>
-            ₹{totalAmount.toLocaleString()}
-          </Text>
-          <Text style={styles.summaryLabel}>Total Value</Text>
-        </View>
-      </ScrollView>
 
       {/* Search and Filters */}
       <View style={styles.filtersContainer}>
@@ -492,48 +507,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+    position: 'relative',
   },
-  header: {
+  floatingAddButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.kbrBlue || '#4A90E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    zIndex: 999,
+  },
+  statsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors?.kbrBlue || '#4A90E2',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: Colors.white,
+    borderRadius: 0,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  statCircle: {
+    alignItems: 'center',
+    marginHorizontal: 5,
+    width: 65,
+  },
+  circleIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  headerContent: {
-    flex: 1,
+  statTextContainer: {
+    alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
+  statCount: {
     fontSize: 14,
-    color: '#E0E7FF',
-    marginTop: 2,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 2,
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  statTitle: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   summaryScroll: {
     backgroundColor: Colors?.white || '#FFFFFF',
     paddingVertical: 16,
+    paddingTop: 20,
   },
   summaryContainer: {
     paddingHorizontal: 16,

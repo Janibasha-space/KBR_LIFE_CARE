@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
 import AddPaymentInvoiceModal from '../../components/AddPaymentInvoiceModal';
+import AppHeader from '../../components/AppHeader';
 
 const PatientPaymentInvoicesScreen = ({ route, navigation }) => {
   const { patientId, patientName } = route.params || {};
@@ -330,22 +331,13 @@ const PatientPaymentInvoicesScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Payment Invoices</Text>
-          <Text style={styles.headerSubtitle}>{patientName}</Text>
-        </View>
-        <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+      <AppHeader
+        title="Payment Invoices"
+        subtitle={patientName}
+        navigation={navigation}
+        showBackButton={true}
+        useSimpleAdminHeader={true}
+      />
 
       {/* Summary Stats */}
       <View style={styles.summaryCard}>
@@ -414,42 +406,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#E0E7FF',
-    marginTop: 2,
-  },
-  searchButton: {
-    marginLeft: 15,
-  },
+
   summaryCard: {
     backgroundColor: '#FFFFFF',
     margin: 16,
+    marginTop: 20,
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
