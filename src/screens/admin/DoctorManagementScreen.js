@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Sizes } from '../../constants/theme';
-import { useApp } from '../../contexts/AppContext';
+import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
+import { FirebaseDoctorService } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase.config';
 
 const DoctorManagementScreen = ({ navigation }) => {
+  const { user, isAuthenticated } = useFirebaseAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
@@ -26,22 +30,55 @@ const DoctorManagementScreen = ({ navigation }) => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState([]);
+  const [availableServices, setAvailableServices] = useState([]);
 
-  // Get data from AppContext
-  const { 
-    doctors, 
-    addDoctor, 
-    updateDoctor, 
-    deleteDoctor,
-    adminStats 
-  } = useApp();
+  // Fetch doctors and services from Firebase
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch doctors
+        const doctorsResult = await FirebaseDoctorService.getDoctors();
+        if (doctorsResult.success) {
+          setDoctors(doctorsResult.data);
+        }
+        
+        // Fetch services to populate department options
+        const servicesResult = await FirebaseServiceApiService.getServices();
+        if (servicesResult.success) {
+          setAvailableServices(servicesResult.data);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        Alert.alert('Error', 'Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    // Set up real-time listener for doctors
+    const doctorsQuery = query(collection(db, 'doctors'));
+    const unsubscribe = onSnapshot(doctorsQuery, (snapshot) => {
+      const doctorsData = [];
+      snapshot.forEach((doc) => {
+        doctorsData.push({ id: doc.id, ...doc.data() });
+      });
+      setDoctors(doctorsData);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated]);
 
   // Form State
   const [doctorForm, setDoctorForm] = useState({
     name: '',
     credentials: '',
     specialization: '',
-    department: 'General Medicine',
+    department: '',
     fellowship: '',
     experience: '',
     rating: 5,
@@ -65,7 +102,8 @@ const DoctorManagementScreen = ({ navigation }) => {
     consultations: (doctors || []).reduce((sum, doc) => sum + (doc.todayAppointments || 0), 0)
   };
 
-  const departments = ['All', 'General Medicine', 'Gynecology', 'Cardiology', 'Dentistry', 'Pediatrics', 'Orthopedics'];
+  // Get departments from Firebase services, with fallback to default options
+  const departments = ['All', ...availableServices.map(service => service.name)];
 
   // Helper Functions
   const resetForm = () => {
@@ -73,7 +111,7 @@ const DoctorManagementScreen = ({ navigation }) => {
       name: '',
       credentials: '',
       specialization: '',
-      department: 'General Medicine',
+      department: '',
       fellowship: '',
       experience: '',
       rating: 5,
@@ -103,28 +141,42 @@ const DoctorManagementScreen = ({ navigation }) => {
   };
 
   const pickImage = async (source) => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library');
-      return;
-    }
+    try {
+      // Request permissions
+      if (source === 'camera') {
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!cameraPermission.granted) {
+          Alert.alert('Permission Required', 'Please allow camera access to take photos');
+          return;
+        }
+      } else {
+        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!libraryPermission.granted) {
+          Alert.alert('Permission Required', 'Please allow access to your photo library');
+          return;
+        }
+      }
 
-    const options = {
-      mediaTypes: ImagePicker.MediaType.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    };
+      const options = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      };
 
-    let result;
-    if (source === 'camera') {
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
+      let result;
+      if (source === 'camera') {
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      setDoctorForm(prev => ({ ...prev, avatar: result.assets[0].uri }));
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setDoctorForm(prev => ({ ...prev, avatar: result.assets[0].uri }));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -147,21 +199,37 @@ const DoctorManagementScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const newDoctor = {
-        ...doctorForm,
-        id: `doc-${Date.now()}`,
+      const newDoctorData = {
+        name: doctorForm.name,
+        credentials: doctorForm.credentials,
+        specialization: doctorForm.specialization,
+        department: doctorForm.department,
+        fellowship: doctorForm.fellowship || '',
+        experience: doctorForm.experience,
+        rating: doctorForm.rating || 4.5,
+        consultationFee: parseInt(doctorForm.consultationFee) || 500,
+        phone: doctorForm.phone,
+        email: doctorForm.email,
+        availability: doctorForm.availability || '6 days/week',
+        schedule: doctorForm.schedule || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        timeSlots: doctorForm.timeSlots || '9:00 AM - 6:00 PM',
+        expertise: doctorForm.expertise || [],
+        qualifications: doctorForm.qualifications || [],
+        avatar: doctorForm.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorForm.name)}&background=4AA3DF&color=fff`,
         status: 'Active',
-        statusColor: '#10B981',
-        todayAppointments: 0,
-        avatar: doctorForm.avatar || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&q=80'
       };
 
-      addDoctor(newDoctor);
-      setShowAddDoctorModal(false);
-      resetForm();
-      Alert.alert('Success', 'Doctor added successfully!');
+      const result = await FirebaseDoctorService.createDoctor(newDoctorData);
+      if (result.success) {
+        setShowAddDoctorModal(false);
+        resetForm();
+        Alert.alert('Success', 'Doctor added successfully!');
+      } else {
+        throw new Error(result.message || 'Failed to add doctor');
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to add doctor. Please try again.');
+      console.error('Error adding doctor:', error);
+      Alert.alert('Error', error.message || 'Failed to add doctor. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -193,19 +261,37 @@ const DoctorManagementScreen = ({ navigation }) => {
   const handleUpdateDoctor = async () => {
     setLoading(true);
     try {
-      const updatedDoctor = {
-        ...selectedDoctor,
-        ...doctorForm,
-        consultationFee: parseInt(doctorForm.consultationFee) || 0
+      const updatedDoctorData = {
+        name: doctorForm.name,
+        credentials: doctorForm.credentials,
+        specialization: doctorForm.specialization,
+        department: doctorForm.department,
+        fellowship: doctorForm.fellowship || '',
+        experience: doctorForm.experience,
+        rating: doctorForm.rating || 4.5,
+        consultationFee: parseInt(doctorForm.consultationFee) || 500,
+        phone: doctorForm.phone,
+        email: doctorForm.email,
+        availability: doctorForm.availability || '6 days/week',
+        schedule: doctorForm.schedule || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        timeSlots: doctorForm.timeSlots || '9:00 AM - 6:00 PM',
+        expertise: doctorForm.expertise || [],
+        qualifications: doctorForm.qualifications || [],
+        avatar: doctorForm.avatar || selectedDoctor.avatar,
       };
 
-      updateDoctor(selectedDoctor.id, updatedDoctor);
-      setShowEditModal(false);
-      resetForm();
-      setSelectedDoctor(null);
-      Alert.alert('Success', 'Doctor updated successfully!');
+      const result = await FirebaseDoctorService.updateDoctor(selectedDoctor.id, updatedDoctorData);
+      if (result.success) {
+        setShowEditModal(false);
+        resetForm();
+        setSelectedDoctor(null);
+        Alert.alert('Success', 'Doctor updated successfully!');
+      } else {
+        throw new Error(result.message || 'Failed to update doctor');
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update doctor. Please try again.');
+      console.error('Error updating doctor:', error);
+      Alert.alert('Error', error.message || 'Failed to update doctor. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -220,9 +306,21 @@ const DoctorManagementScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            deleteDoctor(doctorId);
-            Alert.alert('Success', 'Doctor removed successfully');
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const result = await FirebaseDoctorService.deleteDoctor(doctorId);
+              if (result.success) {
+                Alert.alert('Success', 'Doctor removed successfully');
+              } else {
+                throw new Error(result.message || 'Failed to delete doctor');
+              }
+            } catch (error) {
+              console.error('Error deleting doctor:', error);
+              Alert.alert('Error', error.message || 'Failed to delete doctor. Please try again.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
       ]
@@ -908,23 +1006,25 @@ const DoctorManagementScreen = ({ navigation }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Department *</Text>
                 <View style={styles.departmentSelectorEdit}>
-                  {['General Medicine', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Gynecology', 'Dermatology', 'ENT', 'Emergency'].map((dept) => (
+                  {availableServices.length > 0 ? availableServices.map((service) => (
                     <TouchableOpacity
-                      key={dept}
+                      key={service.id}
                       style={[
                         styles.departmentOptionEdit,
-                        doctorForm.department === dept && styles.selectedDepartment
+                        doctorForm.department === service.name && styles.selectedDepartment
                       ]}
-                      onPress={() => setDoctorForm(prev => ({ ...prev, department: dept }))}
+                      onPress={() => setDoctorForm(prev => ({ ...prev, department: service.name }))}
                     >
                       <Text style={[
                         styles.departmentTextEdit,
-                        doctorForm.department === dept && styles.selectedDepartmentText
+                        doctorForm.department === service.name && styles.selectedDepartmentText
                       ]}>
-                        {dept}
+                        {service.name}
                       </Text>
                     </TouchableOpacity>
-                  ))}
+                  )) : (
+                    <Text style={styles.noServicesText}>No services available. Please add services first.</Text>
+                  )}
                 </View>
               </View>
 
@@ -1841,6 +1941,13 @@ const styles = StyleSheet.create({
   },
   selectedDepartmentText: {
     color: '#FFF',
+  },
+  noServicesText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: 20,
   },
   departmentSelectorEdit: {
     flexDirection: 'row',

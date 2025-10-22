@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -18,6 +18,11 @@ import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UserProvider } from './src/contexts/UserContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppProvider } from './src/contexts/AppContext';
+
+// Import services
+import NetworkService from './src/services/networkService';
+import { FirebaseAuthProvider } from './src/contexts/FirebaseAuthContext';
+import FirebaseInitializer from './src/components/FirebaseInitializer';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -55,6 +60,9 @@ import AppointmentDetailsScreen from './src/screens/admin/AppointmentDetailsScre
 import TestManagementScreen from './src/screens/admin/TestManagementScreen';
 import ReportsScreen from './src/screens/admin/ReportsScreen';
 import AdminProfileScreen from './src/screens/admin/AdminProfileScreen';
+
+// Firebase Integration Test Screen
+import ExampleApiUsageScreen from './src/screens/ExampleApiUsageScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -379,42 +387,69 @@ function AdminDrawerNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Initialize network service
+    NetworkService.init();
+    
+    // Add network connectivity listener
+    const unsubscribe = NetworkService.addListener((isConnected) => {
+      if (!isConnected) {
+        Alert.alert(
+          'No Internet Connection',
+          'Please check your internet connection and try again.',
+          [{ text: 'OK' }]
+        );
+      }
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      NetworkService.cleanup();
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <UserProvider>
-          <ServicesProvider>
-            <AppProvider>
-              <NavigationContainer>
-                <StatusBar style="light" backgroundColor={Colors.primary} />
-                <Stack.Navigator 
-                  initialRouteName="Splash"
-                  screenOptions={{
-                    headerShown: false
-                  }}
-                >
-                  <Stack.Screen name="Splash" component={SplashScreen} />
-                  <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-                  <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
-                  <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
-                  <Stack.Screen name="Profile" component={ProfileScreen} />
-                  <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
-                  <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
-                  <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
-                  <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-                  <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
-                  <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
-                  <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
-                  <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
-                  <Stack.Screen name="TreatmentDetails" component={TreatmentDetailsScreen} />
-                </Stack.Navigator>
-              </NavigationContainer>
-            </AppProvider>
-          </ServicesProvider>
-        </UserProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
-  );
+        <FirebaseAuthProvider>
+          <FirebaseInitializer>
+            <UserProvider>
+              <ServicesProvider>
+                <AppProvider>
+                  <NavigationContainer>
+                  <StatusBar style="light" backgroundColor={Colors.primary} />
+                  <Stack.Navigator 
+                    initialRouteName="Splash"
+                    screenOptions={{
+                      headerShown: false
+                    }}
+                  >
+                    <Stack.Screen name="Splash" component={SplashScreen} />
+                    <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+                    <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
+                    <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
+                    <Stack.Screen name="Profile" component={ProfileScreen} />
+                    <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+                    <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+                    <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
+                    <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                    <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
+                    <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
+                    <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
+                    <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+                    <Stack.Screen name="TreatmentDetails" component={TreatmentDetailsScreen} />
+                    <Stack.Screen name="FirebaseTest" component={ExampleApiUsageScreen} />
+                  </Stack.Navigator>
+                </NavigationContainer>
+              </AppProvider>
+            </ServicesProvider>
+          </UserProvider>
+        </FirebaseInitializer>
+      </FirebaseAuthProvider>
+    </ThemeProvider>
+  </SafeAreaProvider>
+);
 }
 
 // Drawer Styles

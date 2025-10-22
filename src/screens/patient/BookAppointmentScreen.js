@@ -24,6 +24,7 @@ import { useApp } from '../../contexts/AppContext';
 import { LoadingOverlay } from '../../components/Loading';
 import { bookingStyles } from '../../styles/bookingStyles';
 import AppHeader from '../../components/AppHeader';
+import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 
 const BookAppointmentScreen = ({ navigation, route }) => {
   
@@ -56,12 +57,38 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   // Booking state management
   const [currentStep, setCurrentStep] = useState(1);
   const [bookingStarted, setBookingStarted] = useState(false);
+  const [firebaseDoctors, setFirebaseDoctors] = useState([]);
+  const [firebaseServices, setFirebaseServices] = useState([]);
   
-  // Reset to step 1 when component mounts
+  // Reset to step 1 when component mounts and load Firebase data
   useEffect(() => {
     setCurrentStep(1);
     setBookingStarted(false);
+    loadFirebaseData();
   }, []);
+
+  // Load Firebase doctors and services
+  const loadFirebaseData = async () => {
+    try {
+      // Load doctors from Firebase
+      const doctorsResponse = await firebaseHospitalServices.getDoctors();
+      if (doctorsResponse.success && doctorsResponse.data) {
+        setFirebaseDoctors(doctorsResponse.data);
+        console.log('Loaded Firebase doctors:', doctorsResponse);
+      } else {
+        console.error('Failed to load doctors:', doctorsResponse.message);
+        setFirebaseDoctors([]);
+      }
+
+      // Load services with doctors from Firebase  
+      const servicesData = await firebaseHospitalServices.getServicesWithDoctors();
+      setFirebaseServices(servicesData);
+      console.log('Loaded Firebase services with doctors:', servicesData);
+    } catch (error) {
+      console.error('Error loading Firebase data:', error);
+      setFirebaseDoctors([]);
+    }
+  };
 
   // Control tab bar visibility based on booking state
   useEffect(() => {
@@ -153,63 +180,39 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return () => backHandler.remove();
   }, [currentStep, navigation]);
 
-  // Get services and sample data
-  const allServices = getAllServices();
+  // Get services from Firebase or fallback to context services
+  const allServices = firebaseServices.length > 0 ? firebaseServices : getAllServices();
   
-  // Sample doctors data based on selected service
+  // Get doctors by service from Firebase data
   const getDoctorsByService = (serviceName) => {
-    const doctorsData = {
-      'General Medicine': [
-        {
-          id: 'dr-ramesh',
-          name: 'Dr. K. Ramesh',
-          specialization: 'General Physician, Diabetologist',
-          fellowship: 'Fellowship In Echocardiography',
-          rating: 4.9,
-          experience: '20+ years',
-          fees: 600,
-          availability: '6 days/week',
-          avatar: 'R',
-        },
-        {
-          id: 'dr-rajender',
-          name: 'Dr. Rajender Katroth',
-          specialization: 'Medical Duty Doctor',
-          rating: 4.6,
-          experience: '8+ years',
-          fees: 400,
-          availability: '7 days/week',
-          avatar: 'R',
-        },
-      ],
-      'Diabetology': [
-        {
-          id: 'dr-ramesh',
-          name: 'Dr. K. Ramesh',
-          specialization: 'General Physician, Diabetologist',
-          fellowship: 'Fellowship In Echocardiography',
-          rating: 4.9,
-          experience: '20+ years',
-          fees: 600,
-          availability: '6 days/week',
-          avatar: 'R',
-        },
-      ],
-      'Obstetrics & Gynecology': [
-        {
-          id: 'dr-divyavani',
-          name: 'Dr. K. Divyavani',
-          specialization: 'Obstetrics & Gynecology',
-          rating: 4.8,
-          experience: '15+ years',
-          fees: 700,
-          availability: '6 days/week',
-          avatar: 'D',
-        },
-      ],
-    };
+    // First try to find service in Firebase services with assigned doctors
+    const firebaseService = firebaseServices.find(service => service.name === serviceName);
+    if (firebaseService && firebaseService.assignedDoctors && firebaseService.assignedDoctors.length > 0) {
+      console.log(`Found ${firebaseService.assignedDoctors.length} doctors for service ${serviceName}:`, firebaseService.assignedDoctors);
+      return firebaseService.assignedDoctors.map(doctor => ({
+        ...doctor,
+        id: doctor.id,
+        specialization: doctor.specialty,
+        fees: doctor.consultationFee || 500,
+        avatar: doctor.name ? doctor.name.charAt(0) : 'D'
+      }));
+    }
     
-    return doctorsData[serviceName] || [];
+    // Fallback to all Firebase doctors if no specific assignment
+    if (firebaseDoctors.length > 0) {
+      console.log(`Using all Firebase doctors for service ${serviceName}:`, firebaseDoctors);
+      return firebaseDoctors.map(doctor => ({
+        ...doctor,
+        id: doctor.id,
+        specialization: doctor.specialty,
+        fees: doctor.consultationFee || 500,
+        avatar: doctor.name ? doctor.name.charAt(0) : 'D'
+      }));
+    }
+    
+    // Final fallback - return empty array
+    console.log(`No doctors found for service: ${serviceName}`);
+    return [];
   };
 
   // Sample time slots
@@ -544,53 +547,72 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         </Text>
         
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
-          {allServices.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 16,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                elevation: 4,
-              }}
-              onPress={() => handleServiceSelect(service)}
-              activeOpacity={0.9}
-            >
-              <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
-                <View style={{
-                  width: 56,
-                  height: 56,
+          {allServices.length > 0 ? (
+            allServices.map((service) => (
+              <TouchableOpacity
+                key={service.id}
+                style={{
+                  backgroundColor: 'white',
                   borderRadius: 16,
-                  backgroundColor: Colors.kbrBlue,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginRight: 16
-                }}>
-                  <Ionicons name={service.icon || 'medical-outline'} size={28} color="white" />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 6}}>
-                    {service.name}
-                  </Text>
-                  <Text style={{fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 12}} numberOfLines={2}>
-                    {service.description}
-                  </Text>
-                  <View style={{alignSelf: 'flex-end'}}>
-                    <Text style={{fontSize: 12, color: Colors.kbrBlue, fontWeight: '600'}}>
-                      {service.duration}
+                  padding: 20,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+                onPress={() => handleServiceSelect(service)}
+                activeOpacity={0.9}
+              >
+                <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+                  <View style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    backgroundColor: Colors.kbrBlue,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 16
+                  }}>
+                    <Ionicons name={service.icon || 'medical-outline'} size={28} color="white" />
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 6}}>
+                      {service.name}
                     </Text>
+                    <Text style={{fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 12}} numberOfLines={2}>
+                      {service.description}
+                    </Text>
+                    {service.assignedDoctors && service.assignedDoctors.length > 0 && (
+                      <View style={{marginBottom: 8}}>
+                        <Text style={{fontSize: 12, color: Colors.kbrGreen, fontWeight: '600'}}>
+                          {service.assignedDoctors.length} Doctor(s) Available
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{alignSelf: 'flex-end'}}>
+                      <Text style={{fontSize: 12, color: Colors.kbrBlue, fontWeight: '600'}}>
+                        {service.duration || 'Consultation'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
+              <Ionicons name="medical-outline" size={64} color="#D1D5DB" />
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
+                No Services Available
+              </Text>
+              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
+                Please contact the hospital to add services.
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </View>
     );
@@ -622,74 +644,86 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         </View>
         
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
-          {doctors.map((doctor) => (
-            <TouchableOpacity
-              key={doctor.id}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 16,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                elevation: 4,
-              }}
-              onPress={() => handleDoctorSelect(doctor)}
-              activeOpacity={0.9}
-            >
-              <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
-                <View style={{
-                  width: 70,
-                  height: 70,
-                  borderRadius: 35,
-                  backgroundColor: Colors.kbrBlue,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginRight: 16
-                }}>
-                  <Text style={{color: 'white', fontSize: 28, fontWeight: 'bold'}}>
-                    {doctor.avatar}
-                  </Text>
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 6}}>
-                    {doctor.name}
-                  </Text>
-                  <Text style={{fontSize: 14, color: '#6B7280', marginBottom: 4}}>
-                    {doctor.specialization}
-                  </Text>
-                  {doctor.fellowship && (
-                    <Text style={{fontSize: 12, color: '#9CA3AF', marginBottom: 8}}>
-                      {doctor.fellowship}
+          {doctors.length > 0 ? (
+            doctors.map((doctor) => (
+              <TouchableOpacity
+                key={doctor.id}
+                style={{
+                  backgroundColor: 'white',
+                  borderRadius: 16,
+                  padding: 20,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+                onPress={() => handleDoctorSelect(doctor)}
+                activeOpacity={0.9}
+              >
+                <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+                  <View style={{
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35,
+                    backgroundColor: Colors.kbrBlue,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 16
+                  }}>
+                    <Text style={{color: 'white', fontSize: 28, fontWeight: 'bold'}}>
+                      {doctor.avatar || doctor.name?.charAt(0) || 'D'}
                     </Text>
-                  )}
-                  <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-                    <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
-                        {doctor.rating}
+                  </View>
+                  <View style={{flex: 1}}>
+                    <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 6}}>
+                      {doctor.name}
+                    </Text>
+                    <Text style={{fontSize: 14, color: '#6B7280', marginBottom: 4}}>
+                      {doctor.specialization || doctor.specialty}
+                    </Text>
+                    {doctor.qualifications && (
+                      <Text style={{fontSize: 12, color: '#9CA3AF', marginBottom: 8}}>
+                        {doctor.qualifications}
+                      </Text>
+                    )}
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                      <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
+                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
+                          {doctor.rating || '4.8'}
+                        </Text>
+                      </View>
+                      <Text style={{fontSize: 13, color: '#6B7280'}}>
+                        {doctor.experience || 'Experienced'}
                       </Text>
                     </View>
-                    <Text style={{fontSize: 13, color: '#6B7280'}}>
-                      {doctor.experience}
-                    </Text>
-                  </View>
-                  <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
-                    <Text style={{fontSize: 16, color: Colors.kbrBlue, fontWeight: 'bold'}}>
-                      ₹{doctor.fees}
-                    </Text>
-                    <Text style={{fontSize: 12, color: '#9CA3AF'}}>
-                      {doctor.availability}
-                    </Text>
+                    <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <Text style={{fontSize: 16, color: Colors.kbrBlue, fontWeight: 'bold'}}>
+                        ₹{doctor.fees || doctor.consultationFee || 500}
+                      </Text>
+                      <Text style={{fontSize: 12, color: '#9CA3AF'}}>
+                        {doctor.availability || 'Available'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
+              <Ionicons name="person-outline" size={64} color="#D1D5DB" />
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
+                No Doctors Available
+              </Text>
+              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
+                No doctors are assigned to this service yet. Please contact the hospital.
+              </Text>
+            </View>
+          )}
           
           <TouchableOpacity 
             style={{

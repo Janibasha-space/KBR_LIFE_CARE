@@ -52,30 +52,25 @@ const AddServiceModal = ({ visible, onClose, onAddService, doctors }) => {
       Alert.alert('Error', 'Please select a category');
       return;
     }
-    if (selectedDoctors.length === 0) {
-      Alert.alert('Error', 'Please select at least one doctor');
-      return;
-    }
 
     const serviceData = {
       name: serviceName.trim(),
       description: serviceDescription.trim(),
       duration: serviceDuration.trim(),
-      doctors: selectedDoctors,
+      category: selectedCategory,
+      assignedDoctors: selectedDoctors, // Store as doctor IDs for Firebase
       tags: serviceTags.trim() ? serviceTags.split(',').map(tag => tag.trim()) : [],
     };
 
-    onAddService(selectedCategory, serviceData);
+    onAddService(serviceData);
     resetForm();
-    onClose();
-    Alert.alert('Success', 'Service added successfully!');
   };
 
-  const toggleDoctor = (doctor) => {
+  const toggleDoctor = (doctorId) => {
     setSelectedDoctors(prev => 
-      prev.includes(doctor) 
-        ? prev.filter(d => d !== doctor)
-        : [...prev, doctor]
+      prev.includes(doctorId) 
+        ? prev.filter(d => d !== doctorId)
+        : [...prev, doctorId]
     );
   };
 
@@ -160,33 +155,44 @@ const AddServiceModal = ({ visible, onClose, onAddService, doctors }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Assign Doctors *</Text>
             <Text style={styles.sectionSubtitle}>Select doctors who specialize in this service</Text>
-            {doctors.map((doctor) => (
-              <TouchableOpacity
-                key={doctor}
-                style={[
-                  styles.doctorOption,
-                  selectedDoctors.includes(doctor) && styles.selectedDoctorOption
-                ]}
-                onPress={() => toggleDoctor(doctor)}
-              >
-                <View style={styles.doctorInfo}>
-                  <Ionicons 
-                    name="person-circle-outline" 
-                    size={24} 
-                    color={selectedDoctors.includes(doctor) ? Colors.kbrBlue : Colors.textSecondary}
-                  />
-                  <Text style={[
-                    styles.doctorText,
-                    selectedDoctors.includes(doctor) && styles.selectedDoctorText
-                  ]}>
-                    {doctor}
-                  </Text>
-                </View>
-                {selectedDoctors.includes(doctor) && (
-                  <Ionicons name="checkmark" size={20} color={Colors.kbrBlue} />
-                )}
-              </TouchableOpacity>
-            ))}
+            {doctors && doctors.length > 0 ? (
+              doctors.map((doctor) => (
+                <TouchableOpacity
+                  key={doctor.id}
+                  style={[
+                    styles.doctorOption,
+                    selectedDoctors.includes(doctor.id) && styles.selectedDoctorOption
+                  ]}
+                  onPress={() => toggleDoctor(doctor.id)}
+                >
+                  <View style={styles.doctorInfo}>
+                    <View style={styles.doctorAvatar}>
+                      <Text style={styles.doctorInitials}>
+                        {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
+                      </Text>
+                    </View>
+                    <View style={styles.doctorDetails}>
+                      <Text style={[
+                        styles.doctorText,
+                        selectedDoctors.includes(doctor.id) && styles.selectedDoctorText
+                      ]}>
+                        Dr. {doctor.name}
+                      </Text>
+                      <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
+                      <Text style={styles.doctorExperience}>{doctor.experience} years experience</Text>
+                    </View>
+                  </View>
+                  {selectedDoctors.includes(doctor.id) && (
+                    <Ionicons name="checkmark" size={20} color={Colors.kbrBlue} />
+                  )}
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.noDoctorsContainer}>
+                <Ionicons name="person-outline" size={24} color={Colors.textSecondary} />
+                <Text style={styles.noDoctorsText}>No doctors available. Please add doctors first.</Text>
+              </View>
+            )}
           </View>
 
           {/* Service Tags */}
@@ -325,14 +331,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1, 
   },
+  doctorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.kbrBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Sizes.sm,
+  },
+  doctorInitials: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  doctorDetails: {
+    flex: 1,
+  },
   doctorText: {
     fontSize: Sizes.medium,
     color: Colors.textPrimary,
-    marginLeft: Sizes.sm,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   selectedDoctorText: {
     color: Colors.kbrBlue,
     fontWeight: '600',
+  },
+  doctorSpecialty: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  doctorExperience: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  noDoctorsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Sizes.lg,
+    paddingHorizontal: Sizes.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Sizes.radiusMedium,
+    borderStyle: 'dashed',
+  },
+  noDoctorsText: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginLeft: Sizes.sm,
+    fontStyle: 'italic',
   },
   buttonContainer: {
     flexDirection: 'row',

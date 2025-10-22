@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,84 +7,178 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUser } from '../../contexts/UserContext';
-import { useApp } from '../../contexts/AppContext';
+import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
 import AppHeader from '../../components/AppHeader';
+import { 
+  FirebaseAppointmentService,
+  FirebasePatientService, 
+  FirebaseDoctorService,
+  FirebaseServiceApiService 
+} from '../../services/firebaseHospitalServices';
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../config/firebase.config';
 
 // Helper function to create transparent colors
 const getTransparentColor = (color, opacity) => `${color}${opacity}`;
 
 const AdminDashboardScreen = ({ navigation }) => {
-  const [adminName] = useState('Admin King');
-  const { isLoggedIn, userData } = useUser();
-  
-  // Use AppContext for real-time data
-  const { 
-    adminStats, 
-    appointments,
-    invoices,
-    getPendingInvoices 
-  } = useApp();
+  const { user, isAuthenticated } = useFirebaseAuth();
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    totalUsers: 0,
+    totalAppointments: 0,
+    totalRevenue: 0,
+    activeDoctors: 0,
+    todayAppointments: 0,
+    recentAppointments: [],
+    pendingInvoicesCount: 0
+  });
 
-  // Calculate pending invoices count
-  const pendingInvoices = getPendingInvoices();
-  const pendingInvoicesCount = pendingInvoices.length;
+  // Fetch real-time dashboard data from Firebase
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
 
-  // Real-time stats cards with live data from AppContext
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch dashboard statistics in parallel
+        const [doctorsResult, appointmentsResult] = await Promise.all([
+          FirebaseDoctorService.getDoctors(),
+          FirebaseAppointmentService.getAppointments()
+        ]);
+
+        const doctors = doctorsResult.success ? doctorsResult.data : [];
+        const appointments = appointmentsResult.success ? appointmentsResult.data : [];
+        
+        // Calculate stats from real Firebase data
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = appointments.filter(apt => 
+          apt.appointmentDate && apt.appointmentDate.startsWith(today)
+        ).length;
+
+        // Calculate revenue from appointments (simple calculation)
+        const totalRevenue = appointments
+          .filter(apt => apt.status === 'completed')
+          .reduce((sum, apt) => sum + (apt.consultationFee || 0), 0);
+
+        // Get recent appointments (latest 3)
+        const recentAppointments = appointments
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 3)
+          .map(appointment => ({
+            id: appointment.id,
+            patientName: appointment.patientName || 'N/A',
+            doctor: `${appointment.doctorName || 'Dr. Unknown'} • ${appointment.specialty || 'General'}`,
+            time: `${appointment.appointmentDate || 'TBD'} • ₹${appointment.consultationFee || 0}`,
+            status: appointment.status || 'pending',
+            avatar: (appointment.patientName || 'U').charAt(0).toUpperCase(),
+          }));
+
+        setDashboardData({
+          totalUsers: appointments.length > 0 ? new Set(appointments.map(a => a.patientId)).size : 0,
+          totalAppointments: appointments.length,
+          totalRevenue: totalRevenue,
+          activeDoctors: doctors.length,
+          todayAppointments: todayAppointments,
+          recentAppointments: recentAppointments,
+          pendingInvoicesCount: appointments.filter(apt => apt.status === 'pending').length
+        });
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+
+    // Set up real-time listeners for live updates
+    const appointmentsQuery = query(
+      collection(db, 'appointments'), 
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+    
+    const unsubscribeAppointments = onSnapshot(appointmentsQuery, (snapshot) => {
+      // Refresh data when appointments change
+      fetchDashboardData();
+    });
+
+    const doctorsQuery = query(collection(db, 'doctors'));
+    const unsubscribeDoctors = onSnapshot(doctorsQuery, (snapshot) => {
+      // Refresh data when doctors change
+      fetchDashboardData();
+    });
+
+    // Cleanup listeners
+    return () => {
+      unsubscribeAppointments();
+      unsubscribeDoctors();
+    };
+  }, [isAuthenticated]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ marginTop: 16, color: Colors.textSecondary }}>Loading dashboard...</Text>
+      </View>
+    );
+  }
+
+  // Real-time stats cards with live Firebase data
   const statsCards = [
     {
       id: 'users',
-      title: 'Total Users',
-      value: adminStats.totalUsers.toString(),
-      change: `${adminStats.totalUsers} registered`,
+      title: 'Total Patients',
+      value: dashboardData.totalUsers.toString(),
+      change: `${dashboardData.totalUsers} registered`,
       icon: 'people-outline',
-      backgroundColor: Colors.totalUsers,
+      backgroundColor: Colors.totalUsers || '#E8F4FD',
       iconColor: Colors.kbrRed,
     },
     {
       id: 'appointments',
       title: 'Appointments',
-      value: adminStats.totalAppointments.toString(),
-      change: `${adminStats.todayAppointments} today`,
+      value: dashboardData.totalAppointments.toString(),
+      change: `${dashboardData.todayAppointments} today`,
       icon: 'calendar-outline',
-      backgroundColor: Colors.appointments,
+      backgroundColor: Colors.appointments || '#FFF2E8',
       iconColor: Colors.kbrBlue,
     },
     {
       id: 'revenue',
       title: 'Revenue',
-      value: `₹${adminStats.totalRevenue.toLocaleString()}`,
+      value: `₹${dashboardData.totalRevenue.toLocaleString()}`,
       change: 'Total collected',
       icon: 'trending-up-outline',
-      backgroundColor: Colors.revenue,
+      backgroundColor: Colors.revenue || '#E8F5E8',
       iconColor: Colors.kbrGreen,
     },
     {
       id: 'doctors',
       title: 'Active Doctors',
-      value: adminStats.activeDoctors.toString(),
-      change: 'All available',
+      value: dashboardData.activeDoctors.toString(),
+      change: 'Available now',
       icon: 'medical-outline',
-      backgroundColor: Colors.activeDoctors,
+      backgroundColor: Colors.activeDoctors || '#F3E8FF',
       iconColor: Colors.kbrPurple,
     },
   ];
 
-  // Recent appointments from real AppContext data
-  const recentAppointments = appointments
-    .slice(0, 3) // Show only latest 3
-    .map(appointment => ({
-      id: appointment.id,
-      patientName: appointment.patientName,
-      doctor: `${appointment.doctorName} • ${appointment.specialization}`,
-      time: `${appointment.date} ${appointment.time} • ₹${appointment.amount}`,
-      status: appointment.status,
-      avatar: appointment.patientName.charAt(0).toUpperCase(),
-    }));
+  // Recent appointments from Firebase data
+  const recentAppointments = dashboardData.recentAppointments;
 
   const renderStatsCard = (card) => (
     <View key={card.id} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
@@ -256,7 +350,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="trending-up" size={24} color="#10B981" />
-                <Text style={styles.financialAmount}>₹{adminStats.totalRevenue.toLocaleString()}</Text>
+                <Text style={styles.financialAmount}>₹{dashboardData.totalRevenue.toLocaleString()}</Text>
               </View>
               <Text style={styles.financialTitle}>Total Revenue</Text>
               <Text style={styles.financialSubtitle}>All payments collected</Text>
@@ -268,10 +362,10 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="time" size={24} color="#F59E0B" />
-                <Text style={styles.financialAmount}>{pendingInvoicesCount}</Text>
+                <Text style={styles.financialAmount}>{dashboardData.pendingInvoicesCount}</Text>
               </View>
-              <Text style={styles.financialTitle}>Pending Invoices</Text>
-              <Text style={styles.financialSubtitle}>Need follow-up</Text>
+              <Text style={styles.financialTitle}>Pending Appointments</Text>
+              <Text style={styles.financialSubtitle}>Need confirmation</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -286,7 +380,15 @@ const AdminDashboardScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.appointmentsList}>
-            {recentAppointments.map(renderAppointmentItem)}
+            {recentAppointments.length > 0 ? (
+              recentAppointments.map(renderAppointmentItem)
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={48} color={Colors.textSecondary} />
+                <Text style={styles.emptyStateText}>No appointments yet</Text>
+                <Text style={styles.emptyStateSubtext}>Appointments will appear here once patients start booking</Text>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -706,6 +808,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  
+  // Empty State Styles
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Sizes.xl * 2,
+  },
+  emptyStateText: {
+    fontSize: Sizes.large,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginTop: Sizes.md,
+    marginBottom: Sizes.xs,
+  },
+  emptyStateSubtext: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    opacity: 0.7,
+    lineHeight: 20,
   },
 });
 

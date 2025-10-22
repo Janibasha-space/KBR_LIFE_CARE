@@ -85,6 +85,12 @@ const OnboardingScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => navigation.navigate('FirebaseTest')} 
+          style={[styles.skipButton, { backgroundColor: '#FF9800', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }]}
+        >
+          <Text style={[styles.skipText, { color: Colors.white, fontSize: 12 }]}>Test Firebase</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>

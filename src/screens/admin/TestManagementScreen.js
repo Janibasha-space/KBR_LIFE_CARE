@@ -15,16 +15,23 @@ import {
   Modal,
   Alert,
   StatusBar,
-  Switch
+  Switch,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
+import { FirebaseTestService } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase.config';
 
 const TestManagementScreen = ({ navigation }) => {
+  const { user } = useFirebaseAuth();
   const [tests, setTests] = useState([]);
   const [testPackages, setTestPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
@@ -73,9 +80,29 @@ const TestManagementScreen = ({ navigation }) => {
     'Blood', 'Urine', 'Stool', 'Saliva', 'Tissue', 'None (Imaging)', 'Swab'
   ];
 
-  // Initialize with comprehensive test data
+  // Load tests from Firebase
   useEffect(() => {
-    initializeTestData();
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'tests')),
+      (querySnapshot) => {
+        const testsData = [];
+        querySnapshot.forEach((doc) => {
+          testsData.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+        setTests(testsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching tests:', error);
+        Alert.alert('Error', 'Failed to load tests');
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
   const initializeTestData = () => {
@@ -351,29 +378,53 @@ const TestManagementScreen = ({ navigation }) => {
     };
   };
 
-  const handleAddTest = () => {
+  const handleAddTest = async () => {
     if (!testForm.name || !testForm.price) {
       Alert.alert('Error', 'Please fill in test name and price');
       return;
     }
 
-    const newTest = {
-      id: Date.now().toString(),
-      ...testForm,
-      price: parseFloat(testForm.price),
-      bookings: 0,
-      lastUpdated: new Date().toISOString().split('T')[0]
-    };
+    setLoading(true);
+    try {
+      const testData = {
+        name: testForm.name,
+        price: parseFloat(testForm.price),
+        category: testForm.category || 'Blood Test',
+        department: testForm.department || 'Lab',
+        description: testForm.description || '',
+        sampleRequired: testForm.sampleRequired || 'Blood',
+        preparationInstructions: testForm.preparationInstructions || 'No special preparation required',
+        testDuration: testForm.testDuration || '15 minutes',
+        reportTime: testForm.reportTime || '4-6 hours',
+        isActive: testForm.isActive !== false,
+        requiresAppointment: testForm.requiresAppointment || false,
+        bookings: 0
+      };
 
-    if (editingTest) {
-      setTests(tests.map(test => test.id === editingTest.id ? { ...newTest, id: editingTest.id } : test));
-    } else {
-      setTests([...tests, newTest]);
+      if (editingTest) {
+        const result = await FirebaseTestService.updateTest(editingTest.id, testData);
+        if (result.success) {
+          Alert.alert('Success', 'Test updated successfully!');
+        } else {
+          throw new Error(result.message);
+        }
+      } else {
+        const result = await FirebaseTestService.createTest(testData);
+        if (result.success) {
+          Alert.alert('Success', 'Test added successfully!');
+        } else {
+          throw new Error(result.message);
+        }
+      }
+
+      resetTestForm();
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('Error saving test:', error);
+      Alert.alert('Error', error.message || 'Failed to save test. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    resetTestForm();
-    setShowAddModal(false);
-    Alert.alert('Success', editingTest ? 'Test updated successfully!' : 'Test added successfully!');
   };
 
   const handleDeleteTest = (testId) => {
@@ -385,9 +436,21 @@ const TestManagementScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setTests(tests.filter(test => test.id !== testId));
-            Alert.alert('Success', 'Test deleted successfully!');
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const result = await FirebaseTestService.deleteTest(testId);
+              if (result.success) {
+                Alert.alert('Success', 'Test deleted successfully!');
+              } else {
+                throw new Error(result.message);
+              }
+            } catch (error) {
+              console.error('Error deleting test:', error);
+              Alert.alert('Error', error.message || 'Failed to delete test. Please try again.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
       ]

@@ -17,6 +17,7 @@ import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { FirebaseServiceApiService } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
 
 const ServicesScreen = ({ navigation, route }) => {
@@ -40,6 +41,10 @@ const ServicesScreen = ({ navigation, route }) => {
   const testDetails = route?.params?.testDetails;
   const selectedTest = route?.params?.selectedTest;
   
+  // State for Firebase services with doctors
+  const [firebaseServices, setFirebaseServices] = useState([]);
+  const [loadingFirebaseServices, setLoadingFirebaseServices] = useState(true);
+  
   // State for expanded service details
   const [expandedService, setExpandedService] = useState(null);
   
@@ -62,22 +67,44 @@ const ServicesScreen = ({ navigation, route }) => {
     specialized: getServicesByCategory('specialized')
   };
   
-  let serviceCounts;
-  let allServices;
-  try {
-    serviceCounts = getServiceCounts();
-    allServices = getAllServices();
-  } catch (error) {
-    console.error('Error getting service counts:', error);
-    serviceCounts = { medical: 0, surgical: 0, specialized: 0 };
-    allServices = [];
-  }
+  // Calculate service counts from Firebase data
+  const getFirebaseServiceCounts = () => {
+    const counts = { medical: 0, surgical: 0, specialized: 0 };
+    firebaseServices.forEach(service => {
+      if (counts.hasOwnProperty(service.category)) {
+        counts[service.category]++;
+      }
+    });
+    return counts;
+  };
+
+  const serviceCounts = getFirebaseServiceCounts();
+  const allServices = firebaseServices;
 
   // Reference to the diagnostic tests section
   const testsRef = React.useRef(null);
   
   // Loading state for content
   const [contentLoaded, setContentLoaded] = useState(preloaded);
+
+  // Load services with doctor details from Firebase
+  useEffect(() => {
+    const loadServicesWithDoctors = async () => {
+      try {
+        setLoadingFirebaseServices(true);
+        const result = await FirebaseServiceApiService.getServicesWithDoctors();
+        if (result.success) {
+          setFirebaseServices(result.data);
+        }
+      } catch (error) {
+        console.error('Error loading services with doctors:', error);
+      } finally {
+        setLoadingFirebaseServices(false);
+      }
+    };
+
+    loadServicesWithDoctors();
+  }, []);
   
   // Function to scroll to tests section smoothly
   const scrollToTestsSection = () => {
@@ -235,11 +262,13 @@ const ServicesScreen = ({ navigation, route }) => {
   const renderSpecialtyCard = (specialty) => {
     const isExpanded = expandedSpecialty === specialty.id;
     
-    // Get specialty services from the context instead of hardcoded data
+    // Get specialty services from Firebase with doctor details
     const getSpecialtyServices = (id) => {
       try {
-        // Get services from context based on category
-        const categoryServices = services[id] || [];
+        // Filter Firebase services by category
+        const categoryServices = firebaseServices.filter(service => 
+          service.category === id
+        ) || [];
         
         // Map the services to include icons and other UI properties
         return categoryServices.map(service => {
@@ -257,9 +286,11 @@ const ServicesScreen = ({ navigation, route }) => {
           
           return {
             ...service,
-            // Use service icon from the context or derive a default one
+            // Use service icon from the Firebase data or derive a default one
             icon: service.icon || getServiceIcon(service.name || ''),
-            tags: tags
+            tags: tags,
+            // Include doctor details from Firebase
+            assignedDoctors: service.doctorDetails || []
           };
         });
       } catch (error) {
@@ -394,6 +425,36 @@ const ServicesScreen = ({ navigation, route }) => {
                   </View>
                 </View>
                 
+                {/* Assigned Doctors */}
+                {service.assignedDoctors && service.assignedDoctors.length > 0 && (
+                  <View style={styles.assignedDoctorsSection}>
+                    <Text style={styles.assignedDoctorsTitle}>Available Doctors:</Text>
+                    <View style={styles.assignedDoctorsContainer}>
+                      {service.assignedDoctors.map((doctor, doctorIndex) => (
+                        <View key={doctorIndex} style={styles.assignedDoctorChip}>
+                          <View style={styles.doctorAvatarSmall}>
+                            <Text style={styles.doctorInitialsSmall}>
+                              {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
+                            </Text>
+                          </View>
+                          <View style={styles.doctorInfoSmall}>
+                            <Text style={styles.doctorNameSmall}>Dr. {doctor.name}</Text>
+                            <Text style={styles.doctorSpecialtySmall}>{doctor.specialty}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Service Price */}
+                {service.price && (
+                  <View style={styles.servicePriceContainer}>
+                    <Text style={styles.servicePriceLabel}>Starting from:</Text>
+                    <Text style={styles.servicePriceValue}>₹{service.price}</Text>
+                  </View>
+                )}
+
                 {/* Tags */}
                 {renderTags(service.tags)}
                 
@@ -407,7 +468,8 @@ const ServicesScreen = ({ navigation, route }) => {
                     category: specialty.id,
                     service: service.name,
                     serviceId: service.id,
-                    serviceDetails: service
+                    serviceDetails: service,
+                    assignedDoctors: service.assignedDoctors
                   })}
                 >
                   <Ionicons name="calendar-outline" size={16} color={Colors.white} style={styles.bookBtnIcon} />
@@ -993,6 +1055,78 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     marginRight: Sizes.xs,
+  },
+  
+  // Assigned Doctors Styles
+  assignedDoctorsSection: {
+    marginVertical: Sizes.md,
+    paddingTop: Sizes.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  assignedDoctorsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: Sizes.sm,
+  },
+  assignedDoctorsContainer: {
+    gap: Sizes.sm,
+  },
+  assignedDoctorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: Sizes.md,
+    paddingVertical: Sizes.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  doctorAvatarSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#4285F4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Sizes.sm,
+  },
+  doctorInitialsSmall: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  doctorInfoSmall: {
+    flex: 1,
+  },
+  doctorNameSmall: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 2,
+  },
+  doctorSpecialtySmall: {
+    fontSize: 13,
+    color: '#666666',
+  },
+  
+  // Service Price Styles
+  servicePriceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Sizes.sm,
+    paddingVertical: Sizes.xs,
+  },
+  servicePriceLabel: {
+    fontSize: 14,
+    color: '#666666',
+    marginRight: Sizes.xs,
+  },
+  servicePriceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
   },
   
   // Tests Section Styles

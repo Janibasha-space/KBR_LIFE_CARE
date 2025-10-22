@@ -20,98 +20,43 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import AppHeader from '../../components/AppHeader';
+import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 
 const { width } = Dimensions.get('window');
 
-// Doctor data array using the existing assets
-const doctors = [
-  {
-    id: 1,
-    name: "DR. K. RAMESH",
-    credentials: "M.B.B.S., M.D",
-    role: "General Physician",
-    fellowship: "Fellowship in Echocardiography",
-    image: require('../../../assets/DR. K. RAMESH.jpeg'),
-    expertise: [
-      "Infectious diseases (Dengue, Malaria, RTIs, COVID-19)",
-      "Sepsis & Critical Care management",
-      "Chronic illnesses: Diabetes, Hypertension, Hypothyroidism",
-      "Medical emergencies: Poisonings, Snake bites, DKA",
-      "Preventive medicine & health screening"
-    ],
-    education: [
-      "MBBS - Osmania Medical College",
-      "MD - Gandhi Medical College",
-      "Fellowship in Echocardiography - NIMS"
-    ],
-    experience: "15+ years",
-    languages: ["English", "Hindi", "Telugu"],
-    availability: "Mon-Sat: 9:00 AM - 5:00 PM",
-    consultationFee: "₹500"
-  },
-  {
-    id: 2,
-    name: "DR. K. THUKARAM",
-    credentials: "B.D.S, M.D.S (Dental)",
-    role: "Orthodontics & Dentofacial Orthopaedics",
-    fellowship: "",
-    image: require('../../../assets/DR. K. THUKARAM.jpeg'),
-    expertise: [
-      "Orthodontic treatment, Invisalign/Aligners",
-      "Teeth whitening & cleaning, Laser dentistry",
-      "RCT (Root Canal), Cosmetic dentistry",
-      "Oral & Maxillofacial surgery, Dental implants",
-      "Pediatric dentistry & preventive care"
-    ],
-    education: [
-      "BDS - Government Dental College, Hyderabad",
-      "MDS - Osmania Dental College",
-      "Specialized training in Advanced Orthodontics - USA"
-    ],
-    experience: "12+ years",
-    languages: ["English", "Hindi", "Telugu"],
-    availability: "Mon-Fri: 10:00 AM - 6:00 PM",
-    consultationFee: "₹600"
-  },
-  {
-    id: 3,
-    name: "DR. K. DIVYAVANI",
-    credentials: "M.B.B.S, M.S (OBG)",
-    role: "Obstetrician & Gynaecologist",
-    fellowship: "",
-    image: require('../../../assets/DR.K. DIVYAVANI.jpeg'),
-    expertise: [
-      "24/7 elective & emergency delivery & LSCS",
-      "Antenatal check-ups, High-risk pregnancy care",
-      "Normal & painless delivery, Family-planning surgery",
-      "Ectopic pregnancy management",
-      "Gynecological surgeries & minimally invasive procedures"
-    ],
-    education: [
-      "MBBS - NTR University of Health Sciences",
-      "MS (OBG) - Kakatiya Medical College",
-      "Advanced training in Laparoscopic Gynecological Surgery"
-    ],
-    experience: "10+ years",
-    languages: ["English", "Hindi", "Telugu"],
-    availability: "Mon-Sat: 9:00 AM - 4:00 PM",
-    consultationFee: "₹700"
-  }
-];
-
 const DoctorsScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
+  const [doctors, setDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [bookingDoctor, setBookingDoctor] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
 
-  // Simulated loading effect
+  // Load doctors from Firebase
   useEffect(() => {
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    loadDoctors();
   }, []);
+
+  const loadDoctors = async () => {
+    try {
+      setIsLoading(true);
+      const doctorsResponse = await firebaseHospitalServices.getDoctors();
+      console.log('Loaded doctors from Firebase:', doctorsResponse);
+      
+      // Handle the response object format {success: boolean, data: array}
+      if (doctorsResponse.success && doctorsResponse.data) {
+        setDoctors(doctorsResponse.data);
+      } else {
+        console.error('Failed to load doctors:', doctorsResponse.message);
+        setDoctors([]);
+      }
+    } catch (error) {
+      console.error('Error loading doctors:', error);
+      setDoctors([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDoctorPress = (doctor) => {
     setSelectedDoctor(doctor);
@@ -141,19 +86,19 @@ const DoctorsScreen = ({ navigation }) => {
       onPress={() => handleDoctorPress(doctor)}
     >
       <View style={styles.doctorImageContainer}>
-        <Image
-          source={doctor.image}
-          style={styles.doctorImage}
-          resizeMode="cover"
-        />
+        <View style={styles.doctorAvatarContainer}>
+          <Text style={styles.doctorAvatarText}>
+            {doctor.name ? doctor.name.charAt(0) : 'D'}
+          </Text>
+        </View>
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>Available</Text>
         </View>
       </View>
       <View style={styles.doctorInfo}>
         <Text style={styles.doctorName}>{doctor.name}</Text>
-        <Text style={styles.doctorCredentials}>{doctor.credentials}</Text>
-        <Text style={styles.doctorRole}>{doctor.role}</Text>
+        <Text style={styles.doctorCredentials}>{doctor.qualifications}</Text>
+        <Text style={styles.doctorRole}>{doctor.specialty}</Text>
         <View style={styles.infoRow}>
           <Ionicons name="star" size={16} color="#FFB800" />
           <Text style={styles.infoText}>4.9</Text>
@@ -203,7 +148,13 @@ const DoctorsScreen = ({ navigation }) => {
 
           {/* Doctors List */}
           <View style={styles.doctorsContainer}>
-            {doctors.map(doctor => renderDoctorCard(doctor))}
+            {doctors && doctors.length > 0 ? (
+              doctors.map(doctor => renderDoctorCard(doctor))
+            ) : (
+              !isLoading && (
+                <Text style={styles.noDoctorsText}>No doctors available at the moment</Text>
+              )
+            )}
           </View>
 
           {/* Team Information */}
@@ -289,15 +240,15 @@ const DoctorsScreen = ({ navigation }) => {
                   
                   <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.modalDoctorHeader}>
-                      <Image
-                        source={selectedDoctor.image}
-                        style={styles.modalDoctorImage}
-                        resizeMode="cover"
-                      />
+                      <View style={styles.modalDoctorAvatarContainer}>
+                        <Text style={styles.modalDoctorAvatarText}>
+                          {selectedDoctor.name ? selectedDoctor.name.charAt(0) : 'D'}
+                        </Text>
+                      </View>
                       <View style={styles.modalDoctorInfo}>
                         <Text style={styles.modalDoctorName}>{selectedDoctor.name}</Text>
-                        <Text style={styles.modalDoctorCredentials}>{selectedDoctor.credentials}</Text>
-                        <Text style={styles.modalDoctorRole}>{selectedDoctor.role}</Text>
+                        <Text style={styles.modalDoctorCredentials}>{selectedDoctor.qualifications}</Text>
+                        <Text style={styles.modalDoctorRole}>{selectedDoctor.specialty}</Text>
                         <View style={styles.modalInfoRow}>
                           <Ionicons name="star" size={16} color="#FFB800" />
                           <Text style={styles.modalInfoText}>4.9</Text>
@@ -313,11 +264,11 @@ const DoctorsScreen = ({ navigation }) => {
                       <View style={styles.detailRow}>
                         <View style={styles.detailItem}>
                           <Text style={styles.detailLabel}>Consultation Fee</Text>
-                          <Text style={styles.detailValue}>{selectedDoctor.consultationFee}</Text>
+                          <Text style={styles.detailValue}>₹{selectedDoctor.consultationFee || '500'}</Text>
                         </View>
                         <View style={styles.detailItem}>
                           <Text style={styles.detailLabel}>Experience</Text>
-                          <Text style={styles.detailValue}>{selectedDoctor.experience}</Text>
+                          <Text style={styles.detailValue}>{selectedDoctor.experience || 'N/A'}</Text>
                         </View>
                       </View>
                       
@@ -326,42 +277,36 @@ const DoctorsScreen = ({ navigation }) => {
                         <Text style={styles.sectionBlockTitle}>
                           <Ionicons name="calendar" size={16} color={Colors.kbrBlue} /> Availability
                         </Text>
-                        <Text style={styles.sectionBlockContent}>{selectedDoctor.availability}</Text>
+                        <Text style={styles.sectionBlockContent}>
+                          {selectedDoctor.availability || 'Available for consultation'}
+                        </Text>
                       </View>
                       
-                      {/* Education */}
+                      {/* Specialty */}
                       <View style={styles.sectionBlock}>
                         <Text style={styles.sectionBlockTitle}>
-                          <Ionicons name="school" size={16} color={Colors.kbrBlue} /> Education
+                          <Ionicons name="medkit" size={16} color={Colors.kbrBlue} /> Specialty
                         </Text>
-                        {selectedDoctor.education.map((edu, index) => (
-                          <Text key={index} style={styles.bulletPoint}>• {edu}</Text>
-                        ))}
+                        <Text style={styles.bulletPoint}>• {selectedDoctor.specialty}</Text>
                       </View>
                       
-                      {/* Expertise */}
+                      {/* Qualifications */}
                       <View style={styles.sectionBlock}>
                         <Text style={styles.sectionBlockTitle}>
-                          <Ionicons name="medkit" size={16} color={Colors.kbrBlue} /> Areas of Expertise
+                          <Ionicons name="school" size={16} color={Colors.kbrBlue} /> Qualifications
                         </Text>
-                        {selectedDoctor.expertise.map((exp, index) => (
-                          <Text key={index} style={styles.bulletPoint}>• {exp}</Text>
-                        ))}
+                        <Text style={styles.bulletPoint}>• {selectedDoctor.qualifications}</Text>
                       </View>
                       
-                      {/* Languages */}
-                      <View style={styles.sectionBlock}>
-                        <Text style={styles.sectionBlockTitle}>
-                          <Ionicons name="chatbubbles" size={16} color={Colors.kbrBlue} /> Languages Spoken
-                        </Text>
-                        <View style={styles.languagesContainer}>
-                          {selectedDoctor.languages.map((lang, index) => (
-                            <View key={index} style={styles.languageTag}>
-                              <Text style={styles.languageText}>{lang}</Text>
-                            </View>
-                          ))}
+                      {/* Phone */}
+                      {selectedDoctor.phone && (
+                        <View style={styles.sectionBlock}>
+                          <Text style={styles.sectionBlockTitle}>
+                            <Ionicons name="call" size={16} color={Colors.kbrBlue} /> Contact
+                          </Text>
+                          <Text style={styles.bulletPoint}>• {selectedDoctor.phone}</Text>
                         </View>
-                      </View>
+                      )}
                     </View>
                     
                     <TouchableOpacity 
@@ -400,15 +345,15 @@ const DoctorsScreen = ({ navigation }) => {
                   
                   <View style={styles.bookingModalBody}>
                     <View style={styles.bookingDoctorInfo}>
-                      <Image
-                        source={bookingDoctor.image}
-                        style={styles.bookingDoctorImage}
-                        resizeMode="cover"
-                      />
+                      <View style={styles.bookingDoctorAvatarContainer}>
+                        <Text style={styles.bookingDoctorAvatarText}>
+                          {bookingDoctor.name ? bookingDoctor.name.charAt(0) : 'D'}
+                        </Text>
+                      </View>
                       <View>
                         <Text style={styles.bookingDoctorName}>{bookingDoctor.name}</Text>
-                        <Text style={styles.bookingDoctorRole}>{bookingDoctor.role}</Text>
-                        <Text style={styles.bookingDoctorFee}>Fee: {bookingDoctor.consultationFee}</Text>
+                        <Text style={styles.bookingDoctorRole}>{bookingDoctor.specialty}</Text>
+                        <Text style={styles.bookingDoctorFee}>Fee: ₹{bookingDoctor.consultationFee || '500'}</Text>
                       </View>
                     </View>
                     
@@ -518,10 +463,22 @@ const styles = StyleSheet.create({
     height: 220,
     width: '100%',
     position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
   },
-  doctorImage: {
-    width: '100%',
-    height: '100%',
+  doctorAvatarContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.kbrBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  doctorAvatarText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   statusBadge: {
     position: 'absolute',
@@ -724,11 +681,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  modalDoctorImage: {
+  modalDoctorAvatarContainer: {
     width: 100,
     height: 100,
-    borderRadius: Sizes.radiusMedium,
+    borderRadius: 50,
+    backgroundColor: Colors.kbrBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: Sizes.lg,
+  },
+  modalDoctorAvatarText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   modalDoctorInfo: {
     flex: 1,
@@ -873,11 +838,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Sizes.lg,
   },
-  bookingDoctorImage: {
+  bookingDoctorAvatarContainer: {
     width: 70,
     height: 70,
     borderRadius: 35,
+    backgroundColor: Colors.kbrBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: Sizes.md,
+  },
+  bookingDoctorAvatarText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   bookingDoctorName: {
     fontSize: Sizes.regular,
