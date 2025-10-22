@@ -12,6 +12,28 @@ import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
 
 export class FirebaseAuthService {
+  // Helper method for retry logic on network errors
+  static async retryOnNetworkError(operation, maxRetries = 3, delay = 2000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Auth attempt ${attempt}/${maxRetries}`);
+        return await operation();
+      } catch (error) {
+        console.log(`❌ Attempt ${attempt} failed:`, error.code);
+        
+        // Retry only on network errors and if we haven't reached max retries
+        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
+          console.log(`⏳ Network error detected. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // Re-throw error if max retries reached or different error type
+        throw error;
+      }
+    }
+  }
+
   // Login user with Firebase
   static async login(credentials) {
     try {
@@ -182,7 +204,7 @@ export class FirebaseAuthService {
       
       // Try anonymous authentication first
       try {
-        const result = await this.signInAnonymously();
+        const result = await this.retryOnNetworkError(() => this.signInAnonymously());
         return { success: true, user: auth.currentUser };
       } catch (anonError) {
         console.log('❌ Anonymous auth failed, trying test user login...');
@@ -195,7 +217,7 @@ export class FirebaseAuthService {
           };
           
           console.log('🧪 Attempting test user login...');
-          await this.login(testCredentials);
+          await this.retryOnNetworkError(() => this.login(testCredentials));
           console.log('✅ Test user login successful!');
           return { success: true, user: auth.currentUser };
         } catch (loginError) {
@@ -210,11 +232,22 @@ export class FirebaseAuthService {
               role: 'admin'
             };
             
-            await this.register(testUserData);
+            await this.retryOnNetworkError(() => this.register(testUserData));
             console.log('✅ Test user created and logged in!');
             return { success: true, user: auth.currentUser };
           } catch (registerError) {
             console.error('❌ All authentication methods failed');
+            
+            // Provide better error information for network issues
+            if (registerError.code === 'auth/network-request-failed') {
+              console.log('🔌 Network error detected. Please check your internet connection.');
+              return { 
+                success: false, 
+                error: 'Network connection failed. Please check your internet connection and try again.',
+                isNetworkError: true
+              };
+            }
+            
             return { success: false, error: 'All authentication methods failed' };
           }
         }

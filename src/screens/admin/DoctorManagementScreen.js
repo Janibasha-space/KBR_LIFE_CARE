@@ -541,7 +541,41 @@ const DoctorManagementScreen = ({ navigation }) => {
         useSimpleAdminHeader={true}
       />
 
-      <View style={styles.content}>
+      {/* Sticky Search and Filter - Always visible below header */}
+      <View style={styles.stickySearchContainer}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search doctors, specializations..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
+          {departments.map((dept) => (
+            <TouchableOpacity
+              key={dept}
+              style={[
+                styles.filterTab,
+                selectedDepartment === dept && styles.activeFilterTab
+              ]}
+              onPress={() => setSelectedDepartment(dept)}
+            >
+              <Text style={[
+                styles.filterTabText,
+                selectedDepartment === dept && styles.activeFilterTabText
+              ]}>
+                {dept}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Main Scrollable Content - Everything else scrolls together */}
+      <ScrollView style={styles.mainScrollView} showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContentContainer}>
         {/* Add Doctor Button */}
         <View style={styles.actionSection}>
           <TouchableOpacity 
@@ -588,50 +622,13 @@ const DoctorManagementScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
-          <View style={styles.searchContainer}>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={20} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search doctors, specializations..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
-            {departments.map((dept) => (
-              <TouchableOpacity
-                key={dept}
-                style={[
-                  styles.filterTab,
-                  selectedDepartment === dept && styles.activeFilterTab
-                ]}
-                onPress={() => setSelectedDepartment(dept)}
-              >
-                <Text style={[
-                  styles.filterTabText,
-                  selectedDepartment === dept && styles.activeFilterTabText
-                ]}>
-                  {dept}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
         {/* Doctors List */}
-        <FlatList
-          data={filteredDoctors}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <DoctorCard doctor={item} />}
-          contentContainerStyle={styles.doctorsList}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+        <View style={styles.contentContainer}>
+          {filteredDoctors.map((doctor) => (
+            <DoctorCard key={doctor.id} doctor={doctor} />
+          ))}
+        </View>
+      </ScrollView>
 
       {/* Add Doctor Modal */}
       <Modal
@@ -1489,6 +1486,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  stickySearchContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mainScrollView: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  scrollContentContainer: {
+    paddingBottom: 20,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1529,6 +1548,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   actionSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 16,
   },
   addDoctorButton: {
@@ -1547,6 +1568,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     marginBottom: 20,
+    paddingHorizontal: 16,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1598,12 +1620,11 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginBottom: 12,
   },
   searchInput: {
     flex: 1,
@@ -1612,25 +1633,21 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   filterTabs: {
-    marginBottom: 8,
+    flexDirection: 'row',
   },
   filterTab: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   activeFilterTab: {
     backgroundColor: Colors.kbrBlue,
-    borderColor: Colors.kbrBlue,
   },
   filterTabText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: '#666',
   },
   activeFilterTabText: {
     color: '#FFFFFF',

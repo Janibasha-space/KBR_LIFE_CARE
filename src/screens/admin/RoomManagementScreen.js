@@ -20,7 +20,6 @@ const RoomManagementScreen = ({ navigation }) => {
   const { rooms, addRoom, updateRoom, deleteRoom, dischargePatient } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All Rooms');
-  const [activeQuickFilters, setActiveQuickFilters] = useState([]);
   const [selectedFloor, setSelectedFloor] = useState('All');
   const [selectedRoomType, setSelectedRoomType] = useState('All');
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
@@ -311,26 +310,11 @@ const RoomManagementScreen = ({ navigation }) => {
     { label: 'Out of Order', value: 'Out of Order', color: '#6B7280' }
   ];
 
-  const quickFilters = [
-    { label: 'Ready for Admission', value: 'ready_admission', color: '#10B981' },
-    { label: 'Needs Attention', value: 'needs_attention', color: '#F59E0B' },
-    { label: 'Revenue Generating', value: 'revenue_generating', color: '#3B82F6' }
-  ];
-
   const floors = ['All', '1st Floor', '2nd Floor', '3rd Floor'];
   const roomTypes = ['All', 'General Ward', 'Private Room', 'ICU', 'VIP Suite'];
 
   // Use context rooms if available, otherwise fallback to mock data
   const allRooms = (rooms && rooms.length > 0) ? rooms : mockRooms;
-  
-  // Toggle quick filter
-  const toggleQuickFilter = (filterValue) => {
-    setActiveQuickFilters(prev => 
-      prev.includes(filterValue) 
-        ? prev.filter(f => f !== filterValue)
-        : [...prev, filterValue]
-    );
-  };
 
   // Apply filters
   const filteredRooms = allRooms.filter(room => {
@@ -342,23 +326,6 @@ const RoomManagementScreen = ({ navigation }) => {
     // Status filter
     const matchesStatus = selectedStatus === 'All Rooms' || room.status === selectedStatus;
 
-    // Quick filters
-    let matchesQuickFilter = true;
-    if (activeQuickFilters.length > 0) {
-      matchesQuickFilter = activeQuickFilters.some(filter => {
-        switch (filter) {
-          case 'ready_admission':
-            return room.status === 'Available' || room.status === 'Reserved';
-          case 'needs_attention':
-            return room.status === 'Under Maintenance' || room.status === 'Out of Order';
-          case 'revenue_generating':
-            return room.status === 'Occupied' || room.status === 'Reserved';
-          default:
-            return true;
-        }
-      });
-    }
-
     // Floor filter
     const matchesFloor = selectedFloor === 'All' || selectedFloor === `${room.floor}st Floor` || 
                         selectedFloor === `${room.floor}nd Floor` || selectedFloor === `${room.floor}rd Floor`;
@@ -366,7 +333,7 @@ const RoomManagementScreen = ({ navigation }) => {
     // Room type filter
     const matchesType = selectedRoomType === 'All' || room.type === selectedRoomType;
     
-    return matchesSearch && matchesStatus && matchesQuickFilter && matchesFloor && matchesType;
+    return matchesSearch && matchesStatus && matchesFloor && matchesType;
   });
 
   const StatsCard = ({ title, value, subtitle, icon, color }) => (
@@ -509,7 +476,92 @@ const RoomManagementScreen = ({ navigation }) => {
         <Ionicons name="add" size={24} color="#FFF" />
       </TouchableOpacity>
 
-      <View style={styles.content}>
+      {/* Sticky Search and Filters - Always visible below header */}
+      <View style={styles.stickySearchContainer}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search rooms, patients..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        {/* Status Filters - Primary */}
+        <Text style={styles.filterSectionTitle}>Room Status</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusFiltersContainer}>
+          {statusFilters.map((filter) => (
+            <TouchableOpacity
+              key={filter.value}
+              style={[
+                styles.statusFilterChip,
+                { borderColor: filter.color },
+                selectedStatus === filter.value && { backgroundColor: filter.color }
+              ]}
+              onPress={() => setSelectedStatus(filter.value)}
+            >
+              <View style={[
+                styles.statusIndicator, 
+                { backgroundColor: selectedStatus === filter.value ? '#FFF' : filter.color }
+              ]} />
+              <Text style={[
+                styles.statusFilterText,
+                { color: selectedStatus === filter.value ? '#FFF' : filter.color }
+              ]}>
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Floor & Room Type Filters - Tertiary */}
+        <View style={styles.secondaryFiltersContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
+            {floors.map((floor) => (
+              <TouchableOpacity
+                key={floor}
+                style={[
+                  styles.filterTab,
+                  selectedFloor === floor && styles.activeFilterTab
+                ]}
+                onPress={() => setSelectedFloor(floor)}
+              >
+                <Text style={[
+                  styles.filterTabText,
+                  selectedFloor === floor && styles.activeFilterTabText
+                ]}>
+                  {floor}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
+            {roomTypes.map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterTab,
+                  selectedRoomType === type && styles.activeFilterTab
+                ]}
+                onPress={() => setSelectedRoomType(type)}
+              >
+                <Text style={[
+                  styles.filterTabText,
+                  selectedRoomType === type && styles.activeFilterTabText
+                ]}>
+                  {type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+
+      {/* Main Scrollable Content - Everything else scrolls together */}
+      <ScrollView style={styles.mainScrollView} showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContentContainer}>
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
@@ -545,127 +597,13 @@ const RoomManagementScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
-          <View style={styles.searchContainer}>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={20} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search rooms, patients..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
-
-          {/* Status Filters - Primary */}
-          <Text style={styles.filterSectionTitle}>Room Status</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusFiltersContainer}>
-            {statusFilters.map((filter) => (
-              <TouchableOpacity
-                key={filter.value}
-                style={[
-                  styles.statusFilterChip,
-                  { borderColor: filter.color },
-                  selectedStatus === filter.value && { backgroundColor: filter.color }
-                ]}
-                onPress={() => setSelectedStatus(filter.value)}
-              >
-                <View style={[
-                  styles.statusIndicator, 
-                  { backgroundColor: selectedStatus === filter.value ? '#FFF' : filter.color }
-                ]} />
-                <Text style={[
-                  styles.statusFilterText,
-                  { color: selectedStatus === filter.value ? '#FFF' : filter.color }
-                ]}>
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Quick Filters - Secondary */}
-          <Text style={styles.filterSectionTitle}>Quick Filters</Text>
-          <View style={styles.quickFiltersContainer}>
-            {quickFilters.map((filter) => (
-              <TouchableOpacity
-                key={filter.value}
-                style={[
-                  styles.quickFilterChip,
-                  activeQuickFilters.includes(filter.value) && { 
-                    backgroundColor: filter.color,
-                    borderColor: filter.color 
-                  }
-                ]}
-                onPress={() => toggleQuickFilter(filter.value)}
-              >
-                <Text style={[
-                  styles.quickFilterText,
-                  activeQuickFilters.includes(filter.value) && styles.activeQuickFilterText
-                ]}>
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Floor & Room Type Filters - Tertiary */}
-          <View style={styles.secondaryFiltersContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
-              {floors.map((floor) => (
-                <TouchableOpacity
-                  key={floor}
-                  style={[
-                    styles.filterTab,
-                    selectedFloor === floor && styles.activeFilterTab
-                  ]}
-                  onPress={() => setSelectedFloor(floor)}
-                >
-                  <Text style={[
-                    styles.filterTabText,
-                    selectedFloor === floor && styles.activeFilterTabText
-                  ]}>
-                    {floor}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabs}>
-              {roomTypes.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.filterTab,
-                    selectedRoomType === type && styles.activeFilterTab
-                  ]}
-                  onPress={() => setSelectedRoomType(type)}
-                >
-                  <Text style={[
-                    styles.filterTabText,
-                    selectedRoomType === type && styles.activeFilterTabText
-                  ]}>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-
         {/* Rooms List */}
-        <View style={styles.roomsListContainer}>
-          <FlatList
-            data={filteredRooms}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <RoomCard room={item} />}
-            contentContainerStyle={styles.roomsList}
-            showsVerticalScrollIndicator={false}
-          />
+        <View style={styles.contentContainer}>
+          {filteredRooms.map((room) => (
+            <RoomCard key={room.id} room={room} />
+          ))}
         </View>
-      </View>
+      </ScrollView>
 
       {/* Add Room Modal */}
       <Modal
@@ -1294,6 +1232,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     position: 'relative',
   },
+  stickySearchContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mainScrollView: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  scrollContentContainer: {
+    paddingBottom: 100, // Space for floating add button
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+  },
   floatingAddButton: {
     position: 'absolute',
     bottom: 30,
@@ -1324,6 +1284,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     marginBottom: 20,
+    paddingHorizontal: 16,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1376,12 +1337,11 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginBottom: 12,
   },
   searchInput: {
     flex: 1,
@@ -1443,30 +1403,6 @@ const styles = StyleSheet.create({
   },
   statusFilterText: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  quickFiltersContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  quickFilterChip: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  quickFilterText: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  activeQuickFilterText: {
-    color: '#FFFFFF',
     fontWeight: '600',
   },
   secondaryFiltersContainer: {

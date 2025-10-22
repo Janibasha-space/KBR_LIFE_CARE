@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
+import { 
+  RoomService, 
+  InvoiceService, 
+  PaymentService, 
+  DischargeService, 
+  ReportService 
+} from '../services/hospitalServices';
 
 // Central App Context for Admin-Patient Integration
 // This context manages all shared data between admin and patient dashboards
@@ -582,6 +589,43 @@ const initialAppState = {
 
 export const AppProvider = ({ children }) => {
   const [appState, setAppState] = useState(initialAppState);
+  const [useBackend, setUseBackend] = useState(true); // Firebase backend integration
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Initialize data from Firebase
+  const initializeFirebaseData = async () => {
+    if (!useBackend) return;
+    
+    setIsLoading(true);
+    try {
+      // Load all data from Firebase
+      const [rooms, invoices, payments, reports] = await Promise.all([
+        RoomService.getAllRooms(),
+        InvoiceService.getAllInvoices(),
+        PaymentService.getAllPayments(),
+        ReportService.getAllReports()
+      ]);
+
+      setAppState(prev => ({
+        ...prev,
+        rooms: rooms || prev.rooms,
+        invoices: invoices || prev.invoices,
+        payments: payments || prev.payments,
+        reports: reports || prev.reports
+      }));
+    } catch (error) {
+      console.error('Error initializing Firebase data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initialize on mount
+  useEffect(() => {
+    if (useBackend) {
+      initializeFirebaseData();
+    }
+  }, [useBackend]);
 
   // Calculate real-time admin stats from actual data
   const calculateAdminStats = () => {
@@ -708,172 +752,410 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==== ROOM MANAGEMENT ====
-  const addRoom = (roomData) => {
-    const newRoom = {
-      id: `R${Date.now()}`,
-      status: 'Available',
-      statusColor: '#10B981',
-      patientName: null,
-      patientId: null,
-      admissionDate: null,
-      createdAt: new Date().toISOString(),
-      ...roomData
-    };
+  const addRoom = async (roomData) => {
+    if (useBackend) {
+      try {
+        const newRoom = await RoomService.createRoom(roomData);
+        setAppState(prev => ({
+          ...prev,
+          rooms: [...prev.rooms, newRoom]
+        }));
+        return newRoom;
+      } catch (error) {
+        console.error('Error adding room:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      const newRoom = {
+        id: `R${Date.now()}`,
+        status: 'Available',
+        statusColor: '#10B981',
+        patientName: null,
+        patientId: null,
+        admissionDate: null,
+        createdAt: new Date().toISOString(),
+        ...roomData
+      };
 
-    setAppState(prev => ({
-      ...prev,
-      rooms: [...prev.rooms, newRoom]
-    }));
+      setAppState(prev => ({
+        ...prev,
+        rooms: [...prev.rooms, newRoom]
+      }));
 
-    return newRoom;
+      return newRoom;
+    }
   };
 
-  const updateRoom = (roomId, updatedData) => {
-    setAppState(prev => ({
-      ...prev,
-      rooms: prev.rooms.map(room =>
-        room.id === roomId ? { 
-          ...room, 
-          ...updatedData, 
-          updatedAt: new Date().toISOString() 
-        } : room
-      )
-    }));
+  const updateRoom = async (roomId, updatedData) => {
+    if (useBackend) {
+      try {
+        await RoomService.updateRoom(roomId, updatedData);
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.map(room =>
+            room.id === roomId ? { 
+              ...room, 
+              ...updatedData, 
+              updatedAt: new Date().toISOString() 
+            } : room
+          )
+        }));
+      } catch (error) {
+        console.error('Error updating room:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(room =>
+          room.id === roomId ? { 
+            ...room, 
+            ...updatedData, 
+            updatedAt: new Date().toISOString() 
+          } : room
+        )
+      }));
+    }
   };
 
-  const deleteRoom = (roomId) => {
-    setAppState(prev => ({
-      ...prev,
-      rooms: prev.rooms.filter(room => room.id !== roomId)
-    }));
+  const deleteRoom = async (roomId) => {
+    if (useBackend) {
+      try {
+        await RoomService.deleteRoom(roomId);
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.filter(room => room.id !== roomId)
+        }));
+      } catch (error) {
+        console.error('Error deleting room:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.filter(room => room.id !== roomId)
+      }));
+    }
   };
 
-  const dischargePatient = (roomId) => {
-    setAppState(prev => ({
-      ...prev,
-      rooms: prev.rooms.map(room =>
-        room.id === roomId ? {
-          ...room,
-          status: 'Available',
-          statusColor: '#10B981',
-          patientName: null,
-          patientId: null,
-          admissionDate: null,
-          dischargedAt: new Date().toISOString()
-        } : room
-      )
-    }));
+  const dischargePatient = async (roomId) => {
+    if (useBackend) {
+      try {
+        await RoomService.dischargePatient(roomId);
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.map(room =>
+            room.id === roomId ? {
+              ...room,
+              status: 'Available',
+              statusColor: '#10B981',
+              patientName: null,
+              patientId: null,
+              admissionDate: null,
+              dischargedAt: new Date().toISOString()
+            } : room
+          )
+        }));
+      } catch (error) {
+        console.error('Error discharging patient:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(room =>
+          room.id === roomId ? {
+            ...room,
+            status: 'Available',
+            statusColor: '#10B981',
+            patientName: null,
+            patientId: null,
+            admissionDate: null,
+            dischargedAt: new Date().toISOString()
+          } : room
+        )
+      }));
+    }
   };
 
-  const assignPatientToRoom = (roomId, patientData) => {
-    setAppState(prev => ({
-      ...prev,
-      rooms: prev.rooms.map(room =>
-        room.id === roomId ? {
-          ...room,
-          status: 'Occupied',
-          statusColor: '#EF4444',
-          patientName: patientData.name,
-          patientId: patientData.id,
-          admissionDate: new Date().toISOString().split('T')[0],
-          assignedAt: new Date().toISOString()
-        } : room
-      )
-    }));
+  const assignPatientToRoom = async (roomId, patientData) => {
+    if (useBackend) {
+      try {
+        await RoomService.assignPatient(roomId, patientData);
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.map(room =>
+            room.id === roomId ? {
+              ...room,
+              status: 'Occupied',
+              statusColor: '#EF4444',
+              patientName: patientData.name,
+              patientId: patientData.id,
+              admissionDate: new Date().toISOString().split('T')[0],
+              assignedAt: new Date().toISOString()
+            } : room
+          )
+        }));
+      } catch (error) {
+        console.error('Error assigning patient to room:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(room =>
+          room.id === roomId ? {
+            ...room,
+            status: 'Occupied',
+            statusColor: '#EF4444',
+            patientName: patientData.name,
+            patientId: patientData.id,
+            admissionDate: new Date().toISOString().split('T')[0],
+            assignedAt: new Date().toISOString()
+          } : room
+        )
+      }));
+    }
   };
 
   // ==== PAYMENT MANAGEMENT ====
-  const addPayment = (paymentData) => {
-    // Generate unique invoice ID
-    const invoiceCount = appState.payments.length + 1;
-    const newPayment = {
-      id: `INV-2024-${invoiceCount.toString().padStart(3, '0')}`,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true 
-      }),
-      ...paymentData
-    };
+  const addPayment = async (paymentData) => {
+    if (useBackend) {
+      try {
+        const newPayment = await PaymentService.processPayment(paymentData);
+        setAppState(prev => ({
+          ...prev,
+          payments: [...prev.payments, newPayment]
+        }));
+        return newPayment;
+      } catch (error) {
+        console.error('Error adding payment:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state - Generate unique invoice ID
+      const invoiceCount = appState.payments.length + 1;
+      const newPayment = {
+        id: `INV-2024-${invoiceCount.toString().padStart(3, '0')}`,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: true 
+        }),
+        ...paymentData
+      };
 
-    setAppState(prev => ({
-      ...prev,
-      payments: [...prev.payments, newPayment]
-    }));
+      setAppState(prev => ({
+        ...prev,
+        payments: [...prev.payments, newPayment]
+      }));
 
-    return newPayment;
+      return newPayment;
+    }
   };
 
-  const updatePaymentStatus = (paymentId, newStatus, transactionId = null) => {
-    setAppState(prev => ({
-      ...prev,
-      payments: prev.payments.map(payment =>
-        payment.id === paymentId
-          ? { 
-              ...payment, 
-              status: newStatus,
-              ...(transactionId && { transactionId })
-            }
-          : payment
-      )
-    }));
+  const updatePaymentStatus = async (paymentId, newStatus, transactionId = null) => {
+    if (useBackend) {
+      try {
+        await PaymentService.updatePaymentStatus(paymentId, newStatus);
+        setAppState(prev => ({
+          ...prev,
+          payments: prev.payments.map(payment =>
+            payment.id === paymentId
+              ? { 
+                  ...payment, 
+                  status: newStatus,
+                  ...(transactionId && { transactionId })
+                }
+              : payment
+          )
+        }));
+      } catch (error) {
+        console.error('Error updating payment status:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        payments: prev.payments.map(payment =>
+          payment.id === paymentId
+            ? { 
+                ...payment, 
+                status: newStatus,
+                ...(transactionId && { transactionId })
+              }
+            : payment
+        )
+      }));
+    }
   };
 
-  const deletePayment = (paymentId) => {
-    setAppState(prev => ({
-      ...prev,
-      payments: prev.payments.filter(payment => payment.id !== paymentId)
-    }));
+  const deletePayment = async (paymentId) => {
+    if (useBackend) {
+      try {
+        await PaymentService.deletePayment(paymentId);
+        setAppState(prev => ({
+          ...prev,
+          payments: prev.payments.filter(payment => payment.id !== paymentId)
+        }));
+      } catch (error) {
+        console.error('Error deleting payment:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        payments: prev.payments.filter(payment => payment.id !== paymentId)
+      }));
+    }
+  };
+
+  const getPaymentsByPatient = async (patientId) => {
+    if (useBackend) {
+      try {
+        return await PaymentService.getPaymentsByPatient(patientId);
+      } catch (error) {
+        console.error('Error getting payments by patient:', error);
+        return [];
+      }
+    } else {
+      return appState.payments.filter(payment => payment.patientId === patientId);
+    }
+  };
+
+  const getPendingPayments = () => {
+    return appState.payments.filter(payment => payment.status === 'pending');
   };
 
   // ==== INVOICE MANAGEMENT ====
-  const addInvoice = (invoiceData) => {
-    const newInvoice = {
-      id: `inv-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      ...invoiceData
-    };
+  const addInvoice = async (invoiceData) => {
+    if (useBackend) {
+      try {
+        const newInvoice = await InvoiceService.createInvoice(invoiceData);
+        setAppState(prev => ({
+          ...prev,
+          invoices: [...prev.invoices, newInvoice]
+        }));
+        return newInvoice;
+      } catch (error) {
+        console.error('Error adding invoice:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      const newInvoice = {
+        id: `inv-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        ...invoiceData
+      };
 
-    setAppState(prev => ({
-      ...prev,
-      invoices: [...prev.invoices, newInvoice]
-    }));
+      setAppState(prev => ({
+        ...prev,
+        invoices: [...prev.invoices, newInvoice]
+      }));
 
-    return newInvoice;
+      return newInvoice;
+    }
   };
 
-  const updateInvoiceStatus = (invoiceId, newStatus) => {
-    setAppState(prev => ({
-      ...prev,
-      invoices: prev.invoices.map(invoice =>
-        invoice.id === invoiceId
-          ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString() }
-          : invoice
-      )
-    }));
+  const updateInvoiceStatus = async (invoiceId, newStatus) => {
+    if (useBackend) {
+      try {
+        await InvoiceService.updateInvoiceStatus(invoiceId, newStatus);
+        setAppState(prev => ({
+          ...prev,
+          invoices: prev.invoices.map(invoice =>
+            invoice.id === invoiceId
+              ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString() }
+              : invoice
+          )
+        }));
+      } catch (error) {
+        console.error('Error updating invoice status:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        invoices: prev.invoices.map(invoice =>
+          invoice.id === invoiceId
+            ? { ...invoice, status: newStatus, updatedAt: new Date().toISOString() }
+            : invoice
+        )
+      }));
+    }
   };
 
-  const deleteInvoice = (invoiceId) => {
-    setAppState(prev => ({
-      ...prev,
-      invoices: prev.invoices.filter(invoice => invoice.id !== invoiceId)
-    }));
+  const deleteInvoice = async (invoiceId) => {
+    if (useBackend) {
+      try {
+        await InvoiceService.deleteInvoice(invoiceId);
+        setAppState(prev => ({
+          ...prev,
+          invoices: prev.invoices.filter(invoice => invoice.id !== invoiceId)
+        }));
+      } catch (error) {
+        console.error('Error deleting invoice:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        invoices: prev.invoices.filter(invoice => invoice.id !== invoiceId)
+      }));
+    }
   };
 
-  const updateInvoice = (invoiceId, updatedData) => {
-    setAppState(prev => ({
-      ...prev,
-      invoices: prev.invoices.map(invoice =>
-        invoice.id === invoiceId
-          ? { ...invoice, ...updatedData, updatedAt: new Date().toISOString() }
-          : invoice
-      )
-    }));
+  const updateInvoice = async (invoiceId, updatedData) => {
+    if (useBackend) {
+      try {
+        await InvoiceService.updateInvoice(invoiceId, updatedData);
+        setAppState(prev => ({
+          ...prev,
+          invoices: prev.invoices.map(invoice =>
+            invoice.id === invoiceId
+              ? { ...invoice, ...updatedData, updatedAt: new Date().toISOString() }
+              : invoice
+          )
+        }));
+      } catch (error) {
+        console.error('Error updating invoice:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        invoices: prev.invoices.map(invoice =>
+          invoice.id === invoiceId
+            ? { ...invoice, ...updatedData, updatedAt: new Date().toISOString() }
+            : invoice
+        )
+      }));
+    }
   };
 
-  const getInvoicesByPatient = (patientId) => {
-    return appState.invoices.filter(invoice => invoice.patientId === patientId);
+  const getInvoicesByPatient = async (patientId) => {
+    if (useBackend) {
+      try {
+        return await InvoiceService.getInvoicesByPatient(patientId);
+      } catch (error) {
+        console.error('Error getting invoices by patient:', error);
+        return [];
+      }
+    } else {
+      return appState.invoices.filter(invoice => invoice.patientId === patientId);
+    }
   };
 
   const getPendingInvoices = () => {
@@ -972,6 +1254,90 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  // ==== DISCHARGE MANAGEMENT ====
+  const createDischargeSummary = async (patientId, dischargeData) => {
+    if (useBackend) {
+      try {
+        const dischargeSummary = await DischargeService.createDischargeSummary(patientId, dischargeData);
+        return dischargeSummary;
+      } catch (error) {
+        console.error('Error creating discharge summary:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state - Create discharge summary
+      const dischargeSummary = {
+        id: `discharge-${Date.now()}`,
+        patientId,
+        ...dischargeData,
+        createdAt: new Date().toISOString()
+      };
+      return dischargeSummary;
+    }
+  };
+
+  const getDischargeSummary = async (patientId) => {
+    if (useBackend) {
+      try {
+        return await DischargeService.getDischargeSummary(patientId);
+      } catch (error) {
+        console.error('Error getting discharge summary:', error);
+        return null;
+      }
+    } else {
+      // Fallback - return mock data
+      return null;
+    }
+  };
+
+  const getDischargesByPatient = async (patientId) => {
+    if (useBackend) {
+      try {
+        return await DischargeService.getDischargesByPatient(patientId);
+      } catch (error) {
+        console.error('Error getting patient discharges:', error);
+        return [];
+      }
+    } else {
+      // Fallback - return empty array
+      return [];
+    }
+  };
+
+  const getDischargeStatistics = async () => {
+    if (useBackend) {
+      try {
+        return await DischargeService.getDischargeStatistics();
+      } catch (error) {
+        console.error('Error getting discharge statistics:', error);
+        return { totalDischarges: 0, thisMonth: 0 };
+      }
+    } else {
+      // Fallback - return mock stats
+      return { totalDischarges: 2, thisMonth: 2 };
+    }
+  };
+
+  const processPatientDischarge = async (patientId, dischargeDetails) => {
+    if (useBackend) {
+      try {
+        await DischargeService.processDischarge(patientId, dischargeDetails);
+        // Also update room status
+        if (dischargeDetails.roomId) {
+          await dischargePatient(dischargeDetails.roomId);
+        }
+      } catch (error) {
+        console.error('Error processing patient discharge:', error);
+        throw error;
+      }
+    } else {
+      // Fallback - just discharge from room
+      if (dischargeDetails.roomId) {
+        await dischargePatient(dischargeDetails.roomId);
+      }
+    }
+  };
+
   // ==== PATIENT PAYMENT MANAGEMENT ====
   const addPatientPayment = (patientId, paymentData) => {
     setAppState(prev => ({
@@ -1050,70 +1416,120 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==== REPORTS MANAGEMENT ====
-  const addReport = (reportData) => {
-    // Generate icon and colors based on report type
-    const getReportDisplay = (type) => {
-      const firstLetter = type.charAt(0).toUpperCase();
-      const colors = [
-        { icon: firstLetter, iconColor: '#3B82F6', bgColor: '#EBF4FF' },
-        { icon: firstLetter, iconColor: '#8B5CF6', bgColor: '#F3F0FF' },
-        { icon: firstLetter, iconColor: '#10B981', bgColor: '#ECFDF5' },
-        { icon: firstLetter, iconColor: '#F59E0B', bgColor: '#FFFBEB' },
-        { icon: firstLetter, iconColor: '#EF4444', bgColor: '#FEF2F2' },
-      ];
-      return colors[Math.floor(Math.random() * colors.length)];
-    };
+  const addReport = async (reportData) => {
+    if (useBackend) {
+      try {
+        const newReport = await ReportService.createReport(reportData);
+        setAppState(prev => ({
+          ...prev,
+          reports: [...prev.reports, newReport]
+        }));
+        return newReport;
+      } catch (error) {
+        console.error('Error adding report:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state - Generate icon and colors based on report type
+      const getReportDisplay = (type) => {
+        const firstLetter = type.charAt(0).toUpperCase();
+        const colors = [
+          { icon: firstLetter, iconColor: '#3B82F6', bgColor: '#EBF4FF' },
+          { icon: firstLetter, iconColor: '#8B5CF6', bgColor: '#F3F0FF' },
+          { icon: firstLetter, iconColor: '#10B981', bgColor: '#ECFDF5' },
+          { icon: firstLetter, iconColor: '#F59E0B', bgColor: '#FFFBEB' },
+          { icon: firstLetter, iconColor: '#EF4444', bgColor: '#FEF2F2' },
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+      };
 
-    const display = getReportDisplay(reportData.type);
-    const newReport = {
-      id: `RPT${Date.now().toString().slice(-6)}`,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true 
-      }),
-      status: 'available',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      sentToPatient: false,
-      sentAt: null,
-      viewedByPatient: false,
-      priority: 'normal',
-      category: 'Laboratory',
-      files: [],
-      ...display,
-      ...reportData,
-    };
+      const display = getReportDisplay(reportData.type);
+      const newReport = {
+        id: `RPT${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: true 
+        }),
+        status: 'available',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        sentToPatient: false,
+        sentAt: null,
+        viewedByPatient: false,
+        priority: 'normal',
+        category: 'Laboratory',
+        files: [],
+        ...display,
+        ...reportData,
+      };
 
-    setAppState(prev => ({
-      ...prev,
-      reports: [...prev.reports, newReport]
-    }));
+      setAppState(prev => ({
+        ...prev,
+        reports: [...prev.reports, newReport]
+      }));
 
-    return newReport;
+      return newReport;
+    }
   };
 
-  const updateReport = (reportId, updatedData) => {
-    setAppState(prev => ({
-      ...prev,
-      reports: prev.reports.map(report =>
-        report.id === reportId
-          ? { 
-              ...report, 
-              ...updatedData, 
-              updatedAt: new Date().toISOString() 
-            }
-          : report
-      )
-    }));
+  const updateReport = async (reportId, updatedData) => {
+    if (useBackend) {
+      try {
+        await ReportService.updateReport(reportId, updatedData);
+        setAppState(prev => ({
+          ...prev,
+          reports: prev.reports.map(report =>
+            report.id === reportId
+              ? { 
+                  ...report, 
+                  ...updatedData, 
+                  updatedAt: new Date().toISOString() 
+                }
+              : report
+          )
+        }));
+      } catch (error) {
+        console.error('Error updating report:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        reports: prev.reports.map(report =>
+          report.id === reportId
+            ? { 
+                ...report, 
+                ...updatedData, 
+                updatedAt: new Date().toISOString() 
+              }
+            : report
+        )
+      }));
+    }
   };
 
-  const deleteReport = (reportId) => {
-    setAppState(prev => ({
-      ...prev,
-      reports: prev.reports.filter(report => report.id !== reportId)
-    }));
+  const deleteReport = async (reportId) => {
+    if (useBackend) {
+      try {
+        await ReportService.deleteReport(reportId);
+        setAppState(prev => ({
+          ...prev,
+          reports: prev.reports.filter(report => report.id !== reportId)
+        }));
+      } catch (error) {
+        console.error('Error deleting report:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        reports: prev.reports.filter(report => report.id !== reportId)
+      }));
+    }
   };
 
   const addFileToReport = (reportId, fileData) => {
@@ -1285,6 +1701,9 @@ export const AppProvider = ({ children }) => {
   const contextValue = {
     // State
     appState,
+    isLoading,
+    useBackend,
+    setUseBackend,
     
     // Admin Stats (real-time calculated)
     adminStats: appState.adminStats,
@@ -1322,6 +1741,8 @@ export const AppProvider = ({ children }) => {
     addPayment,
     updatePaymentStatus,
     deletePayment,
+    getPaymentsByPatient,
+    getPendingPayments,
 
     // Invoice Methods
     addInvoice,
@@ -1349,6 +1770,13 @@ export const AppProvider = ({ children }) => {
     // Service Methods
     addService,
 
+    // Discharge Methods
+    createDischargeSummary,
+    getDischargeSummary,
+    getDischargesByPatient,
+    getDischargeStatistics,
+    processPatientDischarge,
+
     // Reports Methods
     addReport,
     updateReport,
@@ -1364,6 +1792,7 @@ export const AppProvider = ({ children }) => {
 
     // Utility Methods
     calculateAdminStats,
+    initializeFirebaseData,
   };
 
   return (

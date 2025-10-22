@@ -654,54 +654,9 @@ const TestManagementScreen = ({ navigation }) => {
           useSimpleAdminHeader={true}
           navigation={navigation}
         />
-        
-        {/* Add Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add Test</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Stats Cards */}
-        {renderStatsCards()}
-
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, currentTab === 'tests' && styles.activeTab]}
-            onPress={() => setCurrentTab('tests')}
-          >
-            <Ionicons name="flask" size={20} color={currentTab === 'tests' ? Colors.kbrBlue : '#666'} />
-            <Text style={[styles.tabText, currentTab === 'tests' && styles.activeTabText]}>
-              Tests
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, currentTab === 'packages' && styles.activeTab]}
-            onPress={() => setCurrentTab('packages')}
-          >
-            <Ionicons name="albums" size={20} color={currentTab === 'packages' ? Colors.kbrBlue : '#666'} />
-            <Text style={[styles.tabText, currentTab === 'packages' && styles.activeTabText]}>
-              Packages
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, currentTab === 'results' && styles.activeTab]}
-            onPress={() => setCurrentTab('results')}
-          >
-            <Ionicons name="document-text" size={20} color={currentTab === 'results' ? Colors.kbrBlue : '#666'} />
-            <Text style={[styles.tabText, currentTab === 'results' && styles.activeTabText]}>
-              Results
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search and Filter */}
-        <View style={styles.searchContainer}>
+        {/* Sticky Search and Filter - Always visible below header */}
+        <View style={styles.stickySearchContainer}>
           <View style={styles.searchBox}>
             <Ionicons name="search" size={20} color="#666" />
             <TextInput
@@ -731,27 +686,76 @@ const TestManagementScreen = ({ navigation }) => {
             ))}
           </ScrollView>
         </View>
+        
+        {/* Main Scrollable Content - Everything else scrolls together */}
+        <ScrollView style={styles.mainScrollView} showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContentContainer}>
+          {/* Add Button */}
+          <View style={styles.addButtonContainer}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons name="add" size={24} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Add Test</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Content */}
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {currentTab === 'tests' && (
-            <View style={styles.testsContainer}>
-              {filteredTests.map(renderTestCard)}
-            </View>
-          )}
-          
-          {currentTab === 'packages' && (
-            <View style={styles.packagesContainer}>
-              {filteredPackages.map(renderPackageCard)}
-            </View>
-          )}
-          
-          {currentTab === 'results' && (
-            <View style={styles.resultsContainer}>
-              <Text style={styles.comingSoonText}>Test Results Management</Text>
-              <Text style={styles.comingSoonSubtext}>Coming Soon...</Text>
-            </View>
-          )}
+          {/* Stats Cards */}
+          {renderStatsCards()}
+
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, currentTab === 'tests' && styles.activeTab]}
+              onPress={() => setCurrentTab('tests')}
+            >
+              <Ionicons name="flask" size={20} color={currentTab === 'tests' ? Colors.kbrBlue : '#666'} />
+              <Text style={[styles.tabText, currentTab === 'tests' && styles.activeTabText]}>
+                Tests
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, currentTab === 'packages' && styles.activeTab]}
+              onPress={() => setCurrentTab('packages')}
+            >
+              <Ionicons name="albums" size={20} color={currentTab === 'packages' ? Colors.kbrBlue : '#666'} />
+              <Text style={[styles.tabText, currentTab === 'packages' && styles.activeTabText]}>
+                Packages
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, currentTab === 'results' && styles.activeTab]}
+              onPress={() => setCurrentTab('results')}
+            >
+              <Ionicons name="document-text" size={20} color={currentTab === 'results' ? Colors.kbrBlue : '#666'} />
+              <Text style={[styles.tabText, currentTab === 'results' && styles.activeTabText]}>
+                Results
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
+          <View style={styles.contentContainer}>
+            {currentTab === 'tests' && (
+              <View style={styles.testsContainer}>
+                {filteredTests.map(renderTestCard)}
+              </View>
+            )}
+            
+            {currentTab === 'packages' && (
+              <View style={styles.packagesContainer}>
+                {filteredPackages.map(renderPackageCard)}
+              </View>
+            )}
+            
+            {currentTab === 'results' && (
+              <View style={styles.resultsContainer}>
+                <Text style={styles.comingSoonText}>Test Results Management</Text>
+                <Text style={styles.comingSoonSubtext}>Coming Soon...</Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         {/* Add Test Modal */}
@@ -975,6 +979,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  mainScrollView: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  scrollContentContainer: {
+    paddingBottom: 20, // Bottom padding for content
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+  },
   statsContainer: {
     padding: 16,
     backgroundColor: '#FFFFFF',
@@ -1030,6 +1044,18 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: Colors.kbrBlue,
     fontWeight: '600',
+  },
+  stickySearchContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   searchContainer: {
     backgroundColor: '#FFFFFF',
