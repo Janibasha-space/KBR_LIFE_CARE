@@ -93,11 +93,15 @@ const ServicesScreen = ({ navigation, route }) => {
       try {
         setLoadingFirebaseServices(true);
         const result = await FirebaseServiceApiService.getServicesWithDoctors();
-        if (result.success) {
+        if (result.success && result.data) {
           setFirebaseServices(result.data);
+        } else {
+          console.warn('No services found in Firebase');
+          setFirebaseServices([]);
         }
       } catch (error) {
         console.error('Error loading services with doctors:', error);
+        setFirebaseServices([]);
       } finally {
         setLoadingFirebaseServices(false);
       }
@@ -223,41 +227,10 @@ const ServicesScreen = ({ navigation, route }) => {
       backgroundColor: '#34A853', // Green
       description: 'Specialized treatments and expert care',
     },
-  ];
+  ].filter(category => category.count > 0); // Only show categories that have actual services
 
-  // Test Categories - Added as requested below Medical/Surgical/Specialized Care
-  const testCategories = [
-    {
-      id: 'blood-tests',
-      title: 'Blood Tests',
-      subtitle: 'Laboratory Tests',
-      count: 12,
-      icon: 'water',
-      color: '#FFFFFF',
-      backgroundColor: '#DC2626', // Red
-      description: 'Complete blood analysis and screening',
-    },
-    {
-      id: 'imaging-tests',
-      title: 'Imaging',
-      subtitle: 'Radiology Tests',
-      count: 8,
-      icon: 'scan',
-      color: '#FFFFFF',
-      backgroundColor: '#7C3AED', // Purple
-      description: 'X-Ray, CT, MRI, and ultrasound services',
-    },
-    {
-      id: 'cardiac-tests',
-      title: 'Cardiac Tests',
-      subtitle: 'Heart Tests',
-      count: 5,
-      icon: 'heart',
-      color: '#FFFFFF',
-      backgroundColor: '#059669', // Green
-      description: 'ECG, Echo, and cardiac evaluations',
-    },
-  ];
+  // Test Categories - will be loaded from Firebase
+  const [testCategories, setTestCategories] = useState([]);
 
   const renderSpecialtyCard = (specialty) => {
     const isExpanded = expandedSpecialty === specialty.id;
@@ -272,23 +245,11 @@ const ServicesScreen = ({ navigation, route }) => {
         
         // Map the services to include icons and other UI properties
         return categoryServices.map(service => {
-          // Define default tags if none are present
-          let tags = service.tags || [];
-          if (!tags.length) {
-            if (id === 'medical') {
-              tags = ['Health Check-ups', 'Chronic Disease Management'];
-            } else if (id === 'surgical') {
-              tags = ['Surgery', 'Consultation'];
-            } else if (id === 'specialized') {
-              tags = ['Specialized Care', 'Expert Consultation'];
-            }
-          }
-          
           return {
             ...service,
             // Use service icon from the Firebase data or derive a default one
             icon: service.icon || getServiceIcon(service.name || ''),
-            tags: tags,
+            tags: service.tags || [], // Only show tags that exist in Firebase
             // Include doctor details from Firebase
             assignedDoctors: service.doctorDetails || []
           };
@@ -455,8 +416,8 @@ const ServicesScreen = ({ navigation, route }) => {
                   </View>
                 )}
 
-                {/* Tags */}
-                {renderTags(service.tags)}
+                {/* Tags - Only show if tags exist */}
+                {service.tags && service.tags.length > 0 && renderTags(service.tags)}
                 
                 {/* Book Appointment Button */}
                 <TouchableOpacity 
@@ -665,29 +626,31 @@ const ServicesScreen = ({ navigation, route }) => {
           {specialtyCategories.map(renderSpecialtyCard)}
         </View>
 
-        {/* Tests Section - Added as requested */}
-        <View 
-          onLayout={(event) => {
-            const layout = event.nativeEvent.layout;
-            setTestsPosition(layout.y);
-            
-            // If we need to scroll to tests section
-            if (scrollToSection === 'diagnosticTests' && focusOnTests && contentLoaded) {
-              scrollToTestsSection();
-            }
-          }}
-          style={styles.testsSection}>
-          <View style={styles.testsSectionHeader}>
-            <View style={styles.testsHeaderRow}>
-              <Ionicons name="flask" size={20} color="#FF6B35" />
-              <Text style={[styles.testsTitle, { color: theme.textPrimary }]}>Diagnostic Tests</Text>
+        {/* Tests Section - Only show if tests are available from Firebase */}
+        {testCategories && testCategories.length > 0 && (
+          <View 
+            onLayout={(event) => {
+              const layout = event.nativeEvent.layout;
+              setTestsPosition(layout.y);
+              
+              // If we need to scroll to tests section
+              if (scrollToSection === 'diagnosticTests' && focusOnTests && contentLoaded) {
+                scrollToTestsSection();
+              }
+            }}
+            style={styles.testsSection}>
+            <View style={styles.testsSectionHeader}>
+              <View style={styles.testsHeaderRow}>
+                <Ionicons name="flask" size={20} color="#FF6B35" />
+                <Text style={[styles.testsTitle, { color: theme.textPrimary }]}>Diagnostic Tests</Text>
+              </View>
+              <Text style={[styles.testsSubtitle, { color: theme.textSecondary }]}>Quick and accurate test results</Text>
             </View>
-            <Text style={[styles.testsSubtitle, { color: theme.textSecondary }]}>Quick and accurate test results</Text>
+            <View style={styles.testCardsContainer}>
+              {testCategories.map(renderTestCard)}
+            </View>
           </View>
-          <View style={styles.testCardsContainer}>
-            {testCategories.map(renderTestCard)}
-          </View>
-        </View>
+        )}
 
         {/* Expand All Categories Button */}
         <View style={styles.expandSection}>

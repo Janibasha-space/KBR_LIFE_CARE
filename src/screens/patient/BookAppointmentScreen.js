@@ -68,6 +68,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   // Load Firebase doctors and services
   const loadFirebaseData = async () => {
     try {
+      setLoading(true);
+      
       // Load doctors from Firebase
       const doctorsResponse = await firebaseHospitalServices.getDoctors();
       if (doctorsResponse.success && doctorsResponse.data) {
@@ -91,6 +93,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       console.error('Error loading Firebase data:', error);
       setFirebaseDoctors([]);
       setFirebaseServices([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,8 +188,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return () => backHandler.remove();
   }, [currentStep, navigation]);
 
-  // Get services from Firebase or fallback to context services
-  const allServices = firebaseServices.length > 0 ? firebaseServices : getAllServices();
+  // Only use Firebase services - no fallback to context dummy data
+  const allServices = firebaseServices;
   
   // Get doctors by service from Firebase data
   const getDoctorsByService = (serviceName) => {
@@ -566,7 +570,21 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         </Text>
         
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
-          {allServices.length > 0 ? (
+          {loading ? (
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
+              <LoadingOverlay visible={true} message="Loading services..." />
+            </View>
+          ) : !Array.isArray(allServices) || allServices.length === 0 ? (
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
+              <Ionicons name="medical-outline" size={64} color="#D1D5DB" />
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
+                No Services Available
+              </Text>
+              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
+                Services will appear here when added to the system.
+              </Text>
+            </View>
+          ) : (
             allServices.map((service) => (
               <TouchableOpacity
                 key={service.id}
@@ -621,16 +639,6 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </View>
               </TouchableOpacity>
             ))
-          ) : (
-            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
-              <Ionicons name="medical-outline" size={64} color="#D1D5DB" />
-              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
-                No Services Available
-              </Text>
-              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
-                Please contact the hospital to add services.
-              </Text>
-            </View>
           )}
         </ScrollView>
       </View>

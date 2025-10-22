@@ -1,45 +1,10 @@
 import React, { createContext, useContext, useState } from 'react';
 
-// Initial services data - matching UI screenshots exactly
+// Initial services - will be loaded from Firebase
 const initialServices = {
-  medical: [
-    {
-      id: 'general-medicine',
-      name: 'General Medicine',
-      description: 'Primary healthcare and comprehensive medical consultation for all age groups',
-      duration: '20 mins',
-      doctors: ['Dr. K. Ramesh', 'Dr. Rajender Katroth'],
-      tags: ['Health Check-ups', 'Chronic Disease Management', 'Preventive Care', 'Emergency Medicine'],
-    },
-  ],
-  specialized: [
-    {
-      id: 'diabetology',
-      name: 'Diabetology',
-      description: 'Specialized care for diabetes management and metabolic disorders',
-      duration: '30 mins',
-      doctors: ['Dr. Garcia', 'Dr. Martinez'],
-      tags: ['Blood Sugar Monitoring', 'Insulin Therapy', 'Diet Counseling', 'Complications Prevention'],
-    },
-    {
-      id: 'gynecology',
-      name: 'Obstetrics & Gynecology',
-      description: "Complete women's health services and reproductive care",
-      duration: '30 mins',
-      doctors: ['Dr. Thompson', 'Dr. White'],
-      tags: ['Prenatal Care', 'Normal & C-Section Delivery', 'Menstrual Disorders', 'Family Planning'],
-    },
-  ],
-  surgical: [
-    {
-      id: 'trauma-maxillofacial',
-      name: 'Trauma & Maxillofacial Surgery',
-      description: 'Emergency trauma care and facial reconstruction surgery',
-      duration: '45 mins',
-      doctors: ['Dr. Davis', 'Dr. Miller'],
-      tags: ['Trauma Care', 'Facial Surgery', 'Emergency Surgery', 'Reconstruction'],
-    },
-  ],
+  medical: [],
+  specialized: [],
+  surgical: [],
 };
 
 // Create the context
@@ -48,10 +13,7 @@ const ServicesContext = createContext();
 // Provider component
 export const ServicesProvider = ({ children }) => {
   const [services, setServices] = useState(initialServices);
-  const [doctors, setDoctors] = useState([
-    'Dr. K. Ramesh', 'Dr. Rajender Katroth', 'Dr. Garcia', 'Dr. Martinez',
-    'Dr. Thompson', 'Dr. White', 'Dr. Davis', 'Dr. Miller', 'Dr. Vijay Shankar'
-  ]);
+  const [doctors, setDoctors] = useState([]); // Will be loaded from Firebase
 
   // Add a new service
   const addService = (categoryId, serviceData) => {
