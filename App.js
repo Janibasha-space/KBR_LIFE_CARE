@@ -32,6 +32,7 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import PatientHomeScreen from './src/screens/patient/PatientHomeScreen';
 import AppointmentScreen from './src/screens/patient/AppointmentScreen';
 import ServicesScreen from './src/screens/patient/ServicesScreen';
+import DiagnosticTestsScreen from './src/screens/patient/DiagnosticTestsScreen';
 import MedicalReportsScreen from './src/screens/patient/MedicalReportsScreen';
 import ReportDetailScreen from './src/screens/patient/ReportDetailScreen';
 import DoctorsScreen from './src/screens/patient/DoctorsScreen';
@@ -439,6 +440,7 @@ export default function App() {
                     <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
                     <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
                     <Stack.Screen name="TreatmentDetails" component={TreatmentDetailsScreen} />
+                    <Stack.Screen name="DiagnosticTests" component={DiagnosticTestsScreen} />
                     <Stack.Screen name="FirebaseTest" component={ExampleApiUsageScreen} />
                   </Stack.Navigator>
                 </NavigationContainer>

@@ -16,7 +16,8 @@ import {
   Alert,
   StatusBar,
   Switch,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,15 +39,19 @@ const TestManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [currentTab, setCurrentTab] = useState('tests'); // 'tests', 'packages', 'results'
+  
+  // Custom dropdowns modal state
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
 
   // Test form state
   const [testForm, setTestForm] = useState({
     name: '',
     price: '',
-    category: 'Blood Test',
-    department: 'Lab',
+    category: '',
+    department: '',
     description: '',
-    sampleRequired: 'Blood',
+    sampleRequired: '',
     preparationInstructions: '',
     testDuration: '30 minutes',
     reportTime: '24 hours',
@@ -383,13 +388,18 @@ const TestManagementScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please fill in test name and price');
       return;
     }
+    
+    if (!testForm.category) {
+      Alert.alert('Error', 'Please select a test category');
+      return;
+    }
 
     setLoading(true);
     try {
       const testData = {
         name: testForm.name,
         price: parseFloat(testForm.price),
-        category: testForm.category || 'Blood Test',
+        category: testForm.category,
         department: testForm.department || 'Lab',
         description: testForm.description || '',
         sampleRequired: testForm.sampleRequired || 'Blood',
@@ -480,10 +490,10 @@ const TestManagementScreen = ({ navigation }) => {
     setTestForm({
       name: '',
       price: '',
-      category: 'Blood Test',
-      department: 'Lab',
+      category: '',
+      department: '',
       description: '',
-      sampleRequired: 'Blood',
+      sampleRequired: '',
       preparationInstructions: '',
       testDuration: '30 minutes',
       reportTime: '24 hours',
@@ -803,9 +813,26 @@ const TestManagementScreen = ({ navigation }) => {
                     />
                   </View>
                   <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                    <Text style={styles.formLabel}>Category</Text>
+                    <Text style={styles.formLabel}>Category *</Text>
                     <View style={styles.pickerContainer}>
-                      <Text style={styles.pickerText}>{testForm.category}</Text>
+                      <TouchableOpacity
+                        style={styles.dropdownField}
+                        onPress={() => setShowCategoryModal(true)}
+                      >
+                        <Text style={styles.pickerText}>
+                          {testForm.category || "Select category"}
+                        </Text>
+                        {testForm.category ? (
+                          <TouchableOpacity 
+                            onPress={() => setTestForm({ ...testForm, category: "" })}
+                            style={styles.clearButton}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#666" />
+                          </TouchableOpacity>
+                        ) : (
+                          <Ionicons name="chevron-down" size={20} color="#666" />
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -814,14 +841,34 @@ const TestManagementScreen = ({ navigation }) => {
                   <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                     <Text style={styles.formLabel}>Department</Text>
                     <View style={styles.pickerContainer}>
-                      <Text style={styles.pickerText}>{testForm.department}</Text>
+                      <TouchableOpacity
+                        style={styles.dropdownField}
+                        onPress={() => setShowDepartmentModal(true)}
+                      >
+                        <Text style={styles.pickerText}>
+                          {testForm.department || "Select department"}
+                        </Text>
+                        {testForm.department ? (
+                          <TouchableOpacity 
+                            onPress={() => setTestForm({ ...testForm, department: "" })}
+                            style={styles.clearButton}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#666" />
+                          </TouchableOpacity>
+                        ) : (
+                          <Ionicons name="chevron-down" size={20} color="#666" />
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
                   <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                     <Text style={styles.formLabel}>Sample Required</Text>
-                    <View style={styles.pickerContainer}>
-                      <Text style={styles.pickerText}>{testForm.sampleRequired}</Text>
-                    </View>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Enter sample type"
+                      value={testForm.sampleRequired}
+                      onChangeText={(text) => setTestForm({ ...testForm, sampleRequired: text })}
+                    />
                   </View>
                 </View>
 
@@ -914,6 +961,105 @@ const TestManagementScreen = ({ navigation }) => {
             </View>
           </View>
         </Modal>
+
+        {/* Custom Category Selection Modal */}
+        <Modal
+          visible={showCategoryModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowCategoryModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.customModalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowCategoryModal(false)}
+          >
+            <View style={styles.customModalContent}>
+              <View style={styles.customModalHeader}>
+                <Text style={styles.customModalTitle}>Select Category</Text>
+                <TouchableOpacity 
+                  style={styles.customCloseButton} 
+                  onPress={() => setShowCategoryModal(false)}
+                >
+                  <Ionicons name="close" size={28} color="#2196F3" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.customModalSubtitle}>Choose a test category</Text>
+              <View style={styles.customModalOptions}>
+                <TouchableOpacity 
+                  style={styles.categoryOption}
+                  onPress={() => {
+                    setTestForm({ ...testForm, category: "BLOOD TEST" });
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <Text style={styles.categoryOptionText}>BLOOD TEST</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.categoryOption}
+                  onPress={() => {
+                    setTestForm({ ...testForm, category: "IMAGING" });
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <Text style={styles.categoryOptionText}>IMAGING</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.categoryOption}
+                  onPress={() => {
+                    setTestForm({ ...testForm, category: "CARDIAC" });
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <Text style={styles.categoryOptionText}>CARDIAC</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Custom Department Selection Modal */}
+        <Modal
+          visible={showDepartmentModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDepartmentModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.customModalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowDepartmentModal(false)}
+          >
+            <View style={styles.customModalContent}>
+              <View style={styles.customModalHeader}>
+                <Text style={styles.customModalTitle}>Select Department</Text>
+                <TouchableOpacity 
+                  style={styles.customCloseButton} 
+                  onPress={() => setShowDepartmentModal(false)}
+                >
+                  <Ionicons name="close" size={28} color="#2196F3" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.customModalSubtitle}>Choose a department</Text>
+              <ScrollView style={styles.customModalScrollView}>
+                {departments.map((dept, index) => (
+                  <TouchableOpacity 
+                    key={index}
+                    style={styles.categoryOption}
+                    onPress={() => {
+                      setTestForm({ ...testForm, department: dept });
+                      setShowDepartmentModal(false);
+                    }}
+                  >
+                    <Text style={styles.categoryOptionText}>{dept}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Sample Required is now a manual text input field */}
       </SafeAreaView>
     </View>
   );
@@ -1373,11 +1519,76 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     borderRadius: 8,
     padding: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
+    height: 50,
+    justifyContent: 'center',
+  },
+  dropdownField: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
   },
   pickerText: {
     fontSize: 16,
     color: '#374151',
+    flex: 1,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  // Custom Modal Styles
+  customModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    width: '80%',
+    maxHeight: 400,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  customModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  customModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  customCloseButton: {
+    padding: 5,
+  },
+  customModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+  },
+  customModalOptions: {
+    width: '100%',
+  },
+  customModalScrollView: {
+    maxHeight: 300,
+  },
+  categoryOption: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  categoryOptionText: {
+    fontSize: 16,
+    color: '#333',
   },
   switchRow: {
     marginBottom: 16,
