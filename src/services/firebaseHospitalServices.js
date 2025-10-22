@@ -684,13 +684,23 @@ class FirebaseServiceApiService {
       // Get all services
       const servicesResult = await this.getServices();
       if (!servicesResult.success) {
-        throw new Error('Failed to fetch services');
+        console.error('Failed to fetch services');
+        return {
+          success: false,
+          data: [],
+          message: 'Failed to fetch services'
+        };
       }
       
       // Get all doctors
       const doctorsResult = await FirebaseDoctorService.getDoctors();
       if (!doctorsResult.success) {
-        throw new Error('Failed to fetch doctors');
+        console.error('Failed to fetch doctors');
+        return {
+          success: false,
+          data: [],
+          message: 'Failed to fetch doctors'
+        };
       }
       
       const doctors = doctorsResult.data;
@@ -704,7 +714,8 @@ class FirebaseServiceApiService {
         
         return {
           ...service,
-          doctorDetails: assignedDoctorDetails
+          assignedDoctors: assignedDoctorDetails, // Use assignedDoctors instead of doctorDetails for consistency
+          doctorDetails: assignedDoctorDetails    // Keep doctorDetails for backward compatibility
         };
       });
       
@@ -716,7 +727,11 @@ class FirebaseServiceApiService {
       };
     } catch (error) {
       console.error('❌ Error fetching services with doctors:', error);
-      throw new Error('Failed to fetch services with doctor details');
+      return {
+        success: false,
+        data: [],
+        message: error.message || 'Failed to fetch services with doctor details'
+      };
     }
   }
 }

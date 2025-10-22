@@ -49,9 +49,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     doctors,
     addAppointment,
     addInvoice,
-    addPayment,
-    tests,
-    bookTest
+    addPayment
   } = useApp();
 
   // Booking state management
@@ -82,11 +80,17 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
       // Load services with doctors from Firebase  
       const servicesData = await firebaseHospitalServices.getServicesWithDoctors();
-      setFirebaseServices(servicesData);
-      console.log('Loaded Firebase services with doctors:', servicesData);
+      if (servicesData.success && servicesData.data) {
+        setFirebaseServices(servicesData.data);
+        console.log('Loaded Firebase services with doctors:', servicesData.data);
+      } else {
+        console.error('Failed to load services:', servicesData.message || 'Unknown error');
+        setFirebaseServices([]);
+      }
     } catch (error) {
       console.error('Error loading Firebase data:', error);
       setFirebaseDoctors([]);
+      setFirebaseServices([]);
     }
   };
 
@@ -185,6 +189,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   
   // Get doctors by service from Firebase data
   const getDoctorsByService = (serviceName) => {
+    // Ensure firebaseServices is an array before using .find()
+    if (!Array.isArray(firebaseServices)) {
+      console.warn('firebaseServices is not an array:', firebaseServices);
+      return [];
+    }
+
     // First try to find service in Firebase services with assigned doctors
     const firebaseService = firebaseServices.find(service => service.name === serviceName);
     if (firebaseService && firebaseService.assignedDoctors && firebaseService.assignedDoctors.length > 0) {
@@ -193,7 +203,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         ...doctor,
         id: doctor.id,
         specialization: doctor.specialty,
-        fees: doctor.consultationFee || 500,
+        fees: doctor.consultationFee,
         avatar: doctor.name ? doctor.name.charAt(0) : 'D'
       }));
     }
@@ -205,7 +215,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         ...doctor,
         id: doctor.id,
         specialization: doctor.specialty,
-        fees: doctor.consultationFee || 500,
+        fees: doctor.consultationFee,
         avatar: doctor.name ? doctor.name.charAt(0) : 'D'
       }));
     }
@@ -215,12 +225,21 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return [];
   };
 
-  // Sample time slots
-  const timeSlots = [
-    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
-    '11:00 AM', '11:30 AM', '2:00 PM', '2:30 PM',
-    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
-  ];
+  // Generate time slots dynamically (can be made configurable per doctor/service later)
+  const generateTimeSlots = () => {
+    const slots = [];
+    // Morning slots (9 AM to 12 PM)
+    for (let hour = 9; hour < 12; hour++) {
+      slots.push(`${hour}:00 AM`, `${hour}:30 AM`);
+    }
+    // Afternoon/Evening slots (2 PM to 6 PM)
+    for (let hour = 2; hour < 6; hour++) {
+      slots.push(`${hour}:00 PM`, `${hour}:30 PM`);
+    }
+    return slots;
+  };
+  
+  const timeSlots = generateTimeSlots();
 
   // Generate date options (next 7 days)
   const generateDateOptions = () => {
@@ -238,7 +257,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         date: date.getDate(),
         month: months[date.getMonth()],
         fullDate: date.toISOString().split('T')[0],
-        available: true,
+        available: true, // TODO: Check actual availability against appointments and doctor schedules
       });
     }
     return dates;
@@ -691,23 +710,29 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                       </Text>
                     )}
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-                      <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
-                        <Ionicons name="star" size={16} color="#FFD700" />
-                        <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
-                          {doctor.rating || '4.8'}
+                      {doctor.rating && (
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
+                          <Ionicons name="star" size={16} color="#FFD700" />
+                          <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
+                            {doctor.rating}
+                          </Text>
+                        </View>
+                      )}
+                      {doctor.experience && (
+                        <Text style={{fontSize: 13, color: '#6B7280'}}>
+                          {doctor.experience}
                         </Text>
-                      </View>
-                      <Text style={{fontSize: 13, color: '#6B7280'}}>
-                        {doctor.experience || 'Experienced'}
-                      </Text>
+                      )}
                     </View>
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
                       <Text style={{fontSize: 16, color: Colors.kbrBlue, fontWeight: 'bold'}}>
-                        ₹{doctor.fees || doctor.consultationFee || 500}
+                        {doctor.fees || doctor.consultationFee ? `₹${doctor.fees || doctor.consultationFee}` : 'Fee not set'}
                       </Text>
-                      <Text style={{fontSize: 12, color: '#9CA3AF'}}>
-                        {doctor.availability || 'Available'}
-                      </Text>
+                      {doctor.availability && (
+                        <Text style={{fontSize: 12, color: '#9CA3AF'}}>
+                          {doctor.availability}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -818,10 +843,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
               </View>
               <Text style={{
                 fontSize: 14,
-                color: selectedDate?.id === date.id ? 'white' : '#10B981',
+                color: selectedDate?.id === date.id ? 'white' : (date.available ? '#10B981' : '#EF4444'),
                 fontWeight: '600'
               }}>
-                Available
+                {date.available ? 'Available' : 'Unavailable'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -866,17 +891,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 ))}
               </View>
               
-              <View style={{
-                backgroundColor: '#FEF3C7',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 20,
-                alignItems: 'center'
-              }}>
-                <Text style={{fontSize: 14, color: '#92400E', fontWeight: '600'}}>
-                  Tokens booked today: 7 / 30
-                </Text>
-              </View>
+              {/* Token information will be loaded dynamically from Firebase */}
             </>
           )}
           
@@ -1481,18 +1496,20 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 Appointment Details
               </Text>
               
-              <View style={{
-                backgroundColor: Colors.kbrBlue,
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                alignItems: 'center'
-              }}>
-                <Text style={{fontSize: 14, color: 'white', marginBottom: 4}}>Token Number</Text>
-                <Text style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>
-                  {bookingData.appointment?.tokenNumber || 'KBR08'}
-                </Text>
-              </View>
+              {bookingData.appointment?.tokenNumber && (
+                <View style={{
+                  backgroundColor: Colors.kbrBlue,
+                  borderRadius: 8,
+                  padding: 12,
+                  marginBottom: 16,
+                  alignItems: 'center'
+                }}>
+                  <Text style={{fontSize: 14, color: 'white', marginBottom: 4}}>Token Number</Text>
+                  <Text style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>
+                    {bookingData.appointment.tokenNumber}
+                  </Text>
+                </View>
+              )}
               
               <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
                 <Text style={{fontSize: 14, color: '#6B7280'}}>Service:</Text>
@@ -1522,12 +1539,14 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </Text>
               </View>
               
-              <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
-                <Text style={{fontSize: 14, color: '#6B7280'}}>Payment ID:</Text>
-                <Text style={{fontSize: 14, color: Colors.kbrBlue, fontWeight: '600', flex: 1, textAlign: 'right'}}>
-                  {bookingData.appointment?.paymentId || 'PAY79545253'}
-                </Text>
-              </View>
+              {bookingData.appointment?.paymentId && (
+                <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
+                  <Text style={{fontSize: 14, color: '#6B7280'}}>Payment ID:</Text>
+                  <Text style={{fontSize: 14, color: Colors.kbrBlue, fontWeight: '600', flex: 1, textAlign: 'right'}}>
+                    {bookingData.appointment.paymentId}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Important Notes */}
@@ -1551,7 +1570,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 • You can reschedule or cancel up to 2 hours before
               </Text>
               <Text style={{fontSize: 14, color: '#92400E', lineHeight: 20}}>
-                • For emergencies, call our helpline: 1800-419-1397
+                • For emergencies, call our helpline: Contact hospital
               </Text>
             </View>
 
