@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ const AppointmentManagementScreen = ({ navigation }) => {
   const [showAdmitModal, setShowAdmitModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
+  const [showAppointmentDetailModal, setShowAppointmentDetailModal] = useState(false);
 
   // Mock data for appointments - Convert to state for dynamic updates
   const [appointmentsList, setAppointmentsList] = useState([
@@ -194,7 +196,8 @@ const AppointmentManagementScreen = ({ navigation }) => {
 
   // Handler functions
   const handleViewAppointment = (appointment) => {
-    navigation.navigate('AppointmentDetails', { appointment });
+    setSelectedAppointment(appointment);
+    setShowAppointmentDetailModal(true);
   };
 
   const handleCall = (phoneNumber) => {
@@ -625,6 +628,178 @@ const AppointmentManagementScreen = ({ navigation }) => {
         onClose={() => setShowAddAppointmentModal(false)}
         onSuccess={handleAddAppointmentSuccess}
       />
+
+      {/* Appointment Detail Modal */}
+      {selectedAppointment && (
+        <Modal
+          visible={showAppointmentDetailModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowAppointmentDetailModal(false)}
+        >
+          <View style={styles.detailModalOverlay}>
+            <View style={styles.detailModalContent}>
+              <View style={styles.detailModalHeader}>
+                <Text style={styles.detailModalTitle}>Appointment Details</Text>
+                <TouchableOpacity 
+                  style={styles.detailCloseButton} 
+                  onPress={() => setShowAppointmentDetailModal(false)}
+                >
+                  <Ionicons name="close" size={28} color={Colors.kbrBlue} />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.detailModalBody}>
+                {/* Patient Overview */}
+                <View style={styles.detailPatientHeader}>
+                  <View style={[styles.avatar, { backgroundColor: Colors.kbrBlue }]}>
+                    <Text style={styles.avatarText}>{selectedAppointment.avatar}</Text>
+                  </View>
+                  <View style={styles.detailPatientInfo}>
+                    <Text style={styles.detailPatientName}>{selectedAppointment.patientName}</Text>
+                    <Text style={styles.detailPatientId}>{selectedAppointment.patientId}</Text>
+                    <Text style={styles.detailPatientMeta}>
+                      {selectedAppointment.patientAge}yrs • {selectedAppointment.patientGender}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: selectedAppointment.statusColor }]}>
+                    <Text style={styles.statusText}>{selectedAppointment.status}</Text>
+                  </View>
+                </View>
+                
+                {/* Appointment Information */}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Appointment Information</Text>
+                  <View style={styles.detailSectionContent}>
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Date</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.appointmentDate}</Text>
+                      </View>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Time</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.appointmentTime}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Doctor</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.doctorName}</Text>
+                      </View>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Department</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.department}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.detailFullRow}>
+                      <Text style={styles.detailLabel}>Service</Text>
+                      <Text style={styles.detailValue}>{selectedAppointment.service}</Text>
+                    </View>
+                    
+                    {selectedAppointment.symptoms && (
+                      <View style={styles.detailFullRow}>
+                        <Text style={styles.detailLabel}>Symptoms</Text>
+                        <View style={styles.detailSymptomsBox}>
+                          <Text style={styles.detailValue}>{selectedAppointment.symptoms}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                
+                {/* Payment Information */}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Payment Information</Text>
+                  <View style={styles.detailSectionContent}>
+                    <View style={styles.detailRow}>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Amount</Text>
+                        <Text style={styles.detailValue}>₹{selectedAppointment.fees}</Text>
+                      </View>
+                      <View style={styles.detailColumn}>
+                        <Text style={styles.detailLabel}>Status</Text>
+                        <Text style={[styles.detailValue, { 
+                          color: selectedAppointment.paymentStatus === 'Paid' ? Colors.kbrGreen : 
+                                selectedAppointment.paymentStatus === 'Pending' ? Colors.kbrPurple : Colors.kbrRed 
+                        }]}>
+                          {selectedAppointment.paymentStatus}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {selectedAppointment.paymentMode && (
+                      <View style={styles.detailFullRow}>
+                        <Text style={styles.detailLabel}>Payment Mode</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.paymentMode}</Text>
+                      </View>
+                    )}
+                    
+                    {selectedAppointment.transactionId && (
+                      <View style={styles.detailFullRow}>
+                        <Text style={styles.detailLabel}>Transaction ID</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.transactionId}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                
+                {/* Contact Information */}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Contact Information</Text>
+                  <View style={styles.detailSectionContent}>
+                    <View style={styles.detailFullRow}>
+                      <Text style={styles.detailLabel}>Phone Number</Text>
+                      <View style={styles.detailPhoneRow}>
+                        <Text style={styles.detailValue}>{selectedAppointment.patientPhone}</Text>
+                        <TouchableOpacity
+                          style={styles.detailCallButton}
+                          onPress={() => handleCall(selectedAppointment.patientPhone)}
+                        >
+                          <Ionicons name="call" size={16} color="#FFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    
+                    {selectedAppointment.patientAddress && (
+                      <View style={styles.detailFullRow}>
+                        <Text style={styles.detailLabel}>Address</Text>
+                        <Text style={styles.detailValue}>{selectedAppointment.patientAddress}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                
+                {/* Action Buttons */}
+                <View style={styles.detailActions}>
+                  <TouchableOpacity
+                    style={[styles.detailActionButton, { backgroundColor: Colors.kbrPurple }]}
+                    onPress={() => {
+                      setShowAppointmentDetailModal(false);
+                      handleQuickEditStatus(selectedAppointment);
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+                    <Text style={styles.detailActionButtonText}>Update Status</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.detailActionButton, { backgroundColor: Colors.kbrBlue }]}
+                    onPress={() => {
+                      setShowAppointmentDetailModal(false);
+                      handleAdmitPatient(selectedAppointment);
+                    }}
+                  >
+                    <Ionicons name="bed-outline" size={20} color="#FFFFFF" />
+                    <Text style={styles.detailActionButtonText}>Admit Patient</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
       </SafeAreaView>
     </View>
   );
@@ -973,6 +1148,159 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#10B981',
     fontWeight: '600',
+  },
+  // Modal Styles
+  detailModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailModalContent: {
+    width: '90%',
+    maxHeight: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  detailModalHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailModalTitle: {
+    fontSize: 18,
+    color: Colors.kbrDarkBlue,
+    fontWeight: 'bold',
+  },
+  detailCloseButton: {
+    padding: 4,
+  },
+  detailModalBody: {
+    padding: 16,
+    maxHeight: '80%',
+  },
+  detailPatientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  detailPatientInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  detailPatientName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.kbrDarkBlue,
+    marginBottom: 2,
+  },
+  detailPatientId: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  detailPatientMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  detailSection: {
+    marginBottom: 20,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    color: Colors.kbrDarkBlue,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  detailSectionContent: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  detailColumn: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  detailFullRow: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  detailSymptomsBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 6,
+    padding: 8,
+  },
+  detailPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailCallButton: {
+    backgroundColor: Colors.kbrGreen,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  detailActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  detailActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 0.48,
+  },
+  detailActionButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
