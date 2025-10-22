@@ -19,7 +19,7 @@ import {
   FirebaseAppointmentService,
   FirebasePatientService, 
   FirebaseDoctorService,
-  FirebaseServiceApiService 
+  firebaseHospitalServices 
 } from '../../services/firebaseHospitalServices';
 import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';

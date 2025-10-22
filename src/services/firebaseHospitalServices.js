@@ -684,23 +684,13 @@ class FirebaseServiceApiService {
       // Get all services
       const servicesResult = await this.getServices();
       if (!servicesResult.success) {
-        console.error('Failed to fetch services');
-        return {
-          success: false,
-          data: [],
-          message: 'Failed to fetch services'
-        };
+        throw new Error('Failed to fetch services');
       }
       
       // Get all doctors
       const doctorsResult = await FirebaseDoctorService.getDoctors();
       if (!doctorsResult.success) {
-        console.error('Failed to fetch doctors');
-        return {
-          success: false,
-          data: [],
-          message: 'Failed to fetch doctors'
-        };
+        throw new Error('Failed to fetch doctors');
       }
       
       const doctors = doctorsResult.data;
@@ -714,8 +704,7 @@ class FirebaseServiceApiService {
         
         return {
           ...service,
-          assignedDoctors: assignedDoctorDetails, // Use assignedDoctors instead of doctorDetails for consistency
-          doctorDetails: assignedDoctorDetails    // Keep doctorDetails for backward compatibility
+          doctorDetails: assignedDoctorDetails
         };
       });
       
@@ -727,11 +716,7 @@ class FirebaseServiceApiService {
       };
     } catch (error) {
       console.error('❌ Error fetching services with doctors:', error);
-      return {
-        success: false,
-        data: [],
-        message: error.message || 'Failed to fetch services with doctor details'
-      };
+      throw new Error('Failed to fetch services with doctor details');
     }
   }
 }
@@ -955,7 +940,12 @@ const firebaseHospitalServices = {
   deleteService: FirebaseServiceApiService.deleteService.bind(FirebaseServiceApiService),
   assignDoctorToService: FirebaseServiceApiService.assignDoctorToService.bind(FirebaseServiceApiService),
   unassignDoctorFromService: FirebaseServiceApiService.unassignDoctorFromService.bind(FirebaseServiceApiService),
-  getServicesWithDoctors: FirebaseServiceApiService.getServicesWithDoctors.bind(FirebaseServiceApiService)
+  getServicesWithDoctors: FirebaseServiceApiService.getServicesWithDoctors.bind(FirebaseServiceApiService),
+  
+  getTests: FirebaseTestService.getTests.bind(FirebaseTestService),
+  createTest: FirebaseTestService.createTest.bind(FirebaseTestService),
+  updateTest: FirebaseTestService.updateTest.bind(FirebaseTestService),
+  deleteTest: FirebaseTestService.deleteTest.bind(FirebaseTestService)
 };
 
 export {

@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
-import { FirebaseHospitalServiceManager, FirebaseServiceApiService, FirebaseDoctorService } from '../../services/firebaseHospitalServices';
+import { FirebaseHospitalServiceManager, FirebaseDoctorService, firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 import AddServiceModal from '../../components/AddServiceModal';
 import AssignDoctorModal from '../../components/AssignDoctorModal';
 import AppHeader from '../../components/AppHeader';
@@ -57,7 +57,7 @@ const ServiceManagementScreen = ({ navigation }) => {
   const loadServicesWithDoctors = async () => {
     try {
       setLoading(true);
-      const result = await FirebaseServiceApiService.getServicesWithDoctors();
+      const result = await firebaseHospitalServices.getServicesWithDoctors();
       if (result.success) {
         setServices(result.data);
       }
@@ -122,7 +122,7 @@ const ServiceManagementScreen = ({ navigation }) => {
   const handleAddService = async (serviceData) => {
     setLoading(true);
     try {
-      const result = await FirebaseServiceApiService.createService(serviceData);
+      const result = await firebaseHospitalServices.createService(serviceData);
       if (result.success) {
         Alert.alert('Success', 'Service added successfully!');
         setShowAddModal(false);

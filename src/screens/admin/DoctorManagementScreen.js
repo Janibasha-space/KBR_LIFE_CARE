@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Sizes } from '../../constants/theme';
 import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
-import { FirebaseDoctorService } from '../../services/firebaseHospitalServices';
+import { FirebaseDoctorService, firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
@@ -46,7 +46,7 @@ const DoctorManagementScreen = ({ navigation }) => {
         }
         
         // Fetch services to populate department options
-        const servicesResult = await FirebaseServiceApiService.getServices();
+        const servicesResult = await firebaseHospitalServices.getServices();
         if (servicesResult.success) {
           setAvailableServices(servicesResult.data);
         }

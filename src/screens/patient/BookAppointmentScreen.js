@@ -21,7 +21,7 @@ import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useApp } from '../../contexts/AppContext';
-import { LoadingOverlay } from '../../components/Loading';
+import { LoadingOverlay, LoadingInline } from '../../components/Loading';
 import { bookingStyles } from '../../styles/bookingStyles';
 import AppHeader from '../../components/AppHeader';
 import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
@@ -49,14 +49,49 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     doctors,
     addAppointment,
     addInvoice,
-    addPayment
+    addPayment,
+    tests,
+    bookTest
   } = useApp();
 
+  // Extract route params for doctor-centric flow and service-centric flow
+  const routeParams = route?.params || {};
+  const preSelectedDoctor = routeParams.selectedDoctor;
+  const isDoctorCentricFlow = routeParams.doctorCentricFlow || routeParams.preSelectedDoctor;
+  
+  // Extract route params for service-centric flow
+  const preSelectedService = routeParams.selectedService;
+  const isServiceCentricFlow = routeParams.serviceCentricFlow || routeParams.preSelectedService;
+  
+  // Extract route params for test-centric flow
+  const preSelectedTest = routeParams.selectedTest;
+  const testCategory = routeParams.testCategory;
+  const isTestCentricFlow = routeParams.testCentricFlow || routeParams.preSelectedTest;
+
   // Booking state management
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(1); // Always start at step 1
   const [bookingStarted, setBookingStarted] = useState(false);
   const [firebaseDoctors, setFirebaseDoctors] = useState([]);
   const [firebaseServices, setFirebaseServices] = useState([]);
+  const [firebaseTests, setFirebaseTests] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [selectedTests, setSelectedTests] = useState([]); // For test selection
+  
+  // Debug logging for flow detection
+  useEffect(() => {
+    if (isDoctorCentricFlow) {
+      console.log('🔄 Doctor-centric flow detected with doctor:', preSelectedDoctor?.name);
+    }
+    if (isServiceCentricFlow) {
+      console.log('🔄 Service-centric flow detected with service:', preSelectedService?.name);
+    }
+    if (isTestCentricFlow) {
+      console.log('🔄 Test-centric flow detected with test category:', testCategory);
+    }
+    if (!isDoctorCentricFlow && !isServiceCentricFlow && !isTestCentricFlow) {
+      console.log('🔄 Normal booking flow detected');
+    }
+  }, [isDoctorCentricFlow, isServiceCentricFlow, isTestCentricFlow, preSelectedDoctor, preSelectedService, testCategory]);
   
   // Reset to step 1 when component mounts and load Firebase data
   useEffect(() => {
@@ -68,7 +103,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   // Load Firebase doctors and services
   const loadFirebaseData = async () => {
     try {
-      setLoading(true);
+      setServicesLoading(true);
       
       // Load doctors from Firebase
       const doctorsResponse = await firebaseHospitalServices.getDoctors();
@@ -82,19 +117,30 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
       // Load services with doctors from Firebase  
       const servicesData = await firebaseHospitalServices.getServicesWithDoctors();
-      if (servicesData.success && servicesData.data) {
+      if (servicesData && servicesData.success && servicesData.data) {
         setFirebaseServices(servicesData.data);
         console.log('Loaded Firebase services with doctors:', servicesData.data);
       } else {
-        console.error('Failed to load services:', servicesData.message || 'Unknown error');
+        console.error('Failed to load services:', servicesData?.message || 'No services found');
         setFirebaseServices([]);
+      }
+      
+      // Load tests from Firebase
+      const testsResponse = await firebaseHospitalServices.getTests();
+      if (testsResponse.success && testsResponse.data) {
+        setFirebaseTests(testsResponse.data);
+        console.log('Loaded Firebase tests:', testsResponse.data);
+      } else {
+        console.error('Failed to load tests:', testsResponse.message);
+        setFirebaseTests([]);
       }
     } catch (error) {
       console.error('Error loading Firebase data:', error);
       setFirebaseDoctors([]);
       setFirebaseServices([]);
+      setFirebaseTests([]);
     } finally {
-      setLoading(false);
+      setServicesLoading(false);
     }
   };
 
@@ -141,7 +187,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   
   const [bookingData, setBookingData] = useState({
     service: null,
-    doctor: null,
+    doctor: preSelectedDoctor || null, // Pre-fill doctor if coming from doctor-centric flow
     date: null,
     time: null,
     patientDetails: {
@@ -189,38 +235,143 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   }, [currentStep, navigation]);
 
   // Only use Firebase services - no fallback to context dummy data
-  const allServices = firebaseServices;
+  // Filter services for doctor-centric flow
+  const allServices = (() => {
+    const services = Array.isArray(firebaseServices) ? firebaseServices : [];
+    
+    // If doctor-centric flow, filter services to show only ones assigned to the pre-selected doctor
+    if (isDoctorCentricFlow && preSelectedDoctor) {
+      console.log('Doctor-centric flow detected');
+      console.log('Pre-selected doctor:', preSelectedDoctor);
+      console.log('All services:', services);
+      
+      const filteredServices = services.filter(service => {
+        console.log('Checking service:', service.name);
+        console.log('assignedDoctors (IDs):', service.assignedDoctors);
+        console.log('doctorDetails (objects):', service.doctorDetails);
+        
+        // Try using doctorDetails first (array of doctor objects)
+        if (service.doctorDetails && Array.isArray(service.doctorDetails)) {
+          const hasDoctor = service.doctorDetails.some(doctor => {
+            console.log('Comparing doctor IDs:', doctor.id, 'vs', preSelectedDoctor.id);
+            return doctor.id === preSelectedDoctor.id;
+          });
+          if (hasDoctor) return true;
+        }
+        
+        // Fallback to assignedDoctors (array of doctor IDs)
+        if (service.assignedDoctors && Array.isArray(service.assignedDoctors)) {
+          console.log('Fallback: checking assignedDoctors array:', service.assignedDoctors, 'for:', preSelectedDoctor.id);
+          return service.assignedDoctors.includes(preSelectedDoctor.id);
+        }
+        
+        return false;
+      });
+      
+      console.log('Filtered services for doctor:', filteredServices);
+      
+      // If no services found for this doctor, show all services as fallback
+      if (filteredServices.length === 0) {
+        console.log('No assigned services found, showing all services as fallback');
+        return services;
+      }
+      
+      return filteredServices;
+    }
+    
+    // If service-centric flow, filter to show only the pre-selected service
+    if (isServiceCentricFlow && preSelectedService) {
+      console.log('Service-centric flow detected');
+      console.log('Pre-selected service:', preSelectedService);
+      
+      const filteredServices = services.filter(service => {
+        // Match by service ID or name
+        return service.id === preSelectedService.id || service.name === preSelectedService.name;
+      });
+      
+      console.log('Filtered services for service-centric flow:', filteredServices);
+      return filteredServices.length > 0 ? filteredServices : services;
+    }
+    
+    return services;
+  })();
   
   // Get doctors by service from Firebase data
   const getDoctorsByService = (serviceName) => {
-    // Ensure firebaseServices is an array before using .find()
+    // Ensure firebaseServices is an array before using find()
     if (!Array.isArray(firebaseServices)) {
-      console.warn('firebaseServices is not an array:', firebaseServices);
+      console.warn('Firebase services is not an array:', firebaseServices);
       return [];
     }
-
-    // First try to find service in Firebase services with assigned doctors
-    const firebaseService = firebaseServices.find(service => service.name === serviceName);
-    if (firebaseService && firebaseService.assignedDoctors && firebaseService.assignedDoctors.length > 0) {
-      console.log(`Found ${firebaseService.assignedDoctors.length} doctors for service ${serviceName}:`, firebaseService.assignedDoctors);
-      return firebaseService.assignedDoctors.map(doctor => ({
-        ...doctor,
-        id: doctor.id,
-        specialization: doctor.specialty,
-        fees: doctor.consultationFee,
-        avatar: doctor.name ? doctor.name.charAt(0) : 'D'
-      }));
+    
+    // For service-centric flow, use the pre-selected service data if available
+    let targetService = null;
+    if (isServiceCentricFlow && preSelectedService) {
+      // Use the pre-selected service directly
+      targetService = preSelectedService;
+      console.log('Service-centric flow - using pre-selected service:', targetService);
+    } else {
+      // Find service by name for normal flow
+      targetService = firebaseServices.find(service => service.name === serviceName);
     }
     
-    // Fallback to all Firebase doctors if no specific assignment
+    if (targetService) {
+      // Use doctorDetails if available (contains full doctor objects)
+      if (targetService.doctorDetails && targetService.doctorDetails.length > 0) {
+        console.log(`Found ${targetService.doctorDetails.length} doctors for service ${serviceName}:`, targetService.doctorDetails);
+        return targetService.doctorDetails.map(doctor => ({
+          ...doctor,
+          id: doctor.id,
+          specialization: doctor.specialty,
+          fees: doctor.consultationFee || 500,
+          avatar: doctor.avatar || (doctor.name ? doctor.name.charAt(0) : 'D')
+        }));
+      }
+      // Use assignedDoctors and fetch full doctor details
+      else if (targetService.assignedDoctors && targetService.assignedDoctors.length > 0) {
+        // If assignedDoctors contains objects, use them directly
+        if (typeof targetService.assignedDoctors[0] === 'object') {
+          console.log(`Using assignedDoctors objects for service ${serviceName}:`, targetService.assignedDoctors);
+          return targetService.assignedDoctors.map(doctor => ({
+            ...doctor,
+            id: doctor.id,
+            specialization: doctor.specialty,
+            fees: doctor.consultationFee || 500,
+            avatar: doctor.avatar || (doctor.name ? doctor.name.charAt(0) : 'D')
+          }));
+        }
+        // If assignedDoctors contains IDs, fetch full doctor details
+        else {
+          const assignedDoctorDetails = firebaseDoctors.filter(doctor => 
+            targetService.assignedDoctors.includes(doctor.id)
+          );
+          console.log(`Found ${assignedDoctorDetails.length} assigned doctors for service ${serviceName}:`, assignedDoctorDetails);
+          return assignedDoctorDetails.map(doctor => ({
+            ...doctor,
+            id: doctor.id,
+            specialization: doctor.specialty,
+            fees: doctor.consultationFee || 500,
+            avatar: doctor.avatar || (doctor.name ? doctor.name.charAt(0) : 'D')
+          }));
+        }
+      }
+    }
+    
+    // For service-centric flow, if no assigned doctors found, return empty array (don't show all doctors)
+    if (isServiceCentricFlow && preSelectedService) {
+      console.log(`No assigned doctors found for pre-selected service: ${serviceName}`);
+      return [];
+    }
+    
+    // Fallback to all Firebase doctors if no specific assignment (normal flow only)
     if (firebaseDoctors.length > 0) {
       console.log(`Using all Firebase doctors for service ${serviceName}:`, firebaseDoctors);
       return firebaseDoctors.map(doctor => ({
         ...doctor,
         id: doctor.id,
         specialization: doctor.specialty,
-        fees: doctor.consultationFee,
-        avatar: doctor.name ? doctor.name.charAt(0) : 'D'
+        fees: doctor.consultationFee || 500,
+        avatar: doctor.avatar || (doctor.name ? doctor.name.charAt(0) : 'D')
       }));
     }
     
@@ -229,21 +380,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return [];
   };
 
-  // Generate time slots dynamically (can be made configurable per doctor/service later)
-  const generateTimeSlots = () => {
-    const slots = [];
-    // Morning slots (9 AM to 12 PM)
-    for (let hour = 9; hour < 12; hour++) {
-      slots.push(`${hour}:00 AM`, `${hour}:30 AM`);
-    }
-    // Afternoon/Evening slots (2 PM to 6 PM)
-    for (let hour = 2; hour < 6; hour++) {
-      slots.push(`${hour}:00 PM`, `${hour}:30 PM`);
-    }
-    return slots;
-  };
-  
-  const timeSlots = generateTimeSlots();
+  // Sample time slots
+  const timeSlots = [
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
+    '11:00 AM', '11:30 AM', '2:00 PM', '2:30 PM',
+    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
+  ];
 
   // Generate date options (next 7 days)
   const generateDateOptions = () => {
@@ -261,7 +403,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         date: date.getDate(),
         month: months[date.getMonth()],
         fullDate: date.toISOString().split('T')[0],
-        available: true, // TODO: Check actual availability against appointments and doctor schedules
+        available: true,
       });
     }
     return dates;
@@ -308,6 +450,17 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   const handleServiceSelect = (service) => {
     setBookingData(prev => ({ ...prev, service }));
     setBookingStarted(true); // Hide tab bar when booking starts
+    
+    // In doctor-centric flow, proceed to doctor confirmation step
+    if (isDoctorCentricFlow && preSelectedDoctor) {
+      // Ensure the doctor is already set in booking data
+      setBookingData(prev => ({ 
+        ...prev, 
+        service,
+        doctor: preSelectedDoctor 
+      }));
+    }
+    
     goToNextStep();
   };
 
@@ -319,6 +472,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
   // Handle date and time selection (Step 3)
   const handleDateTimeSelect = (date, time) => {
+    console.log('📅 Date & Time selected:', date, time);
+    if (isTestCentricFlow) {
+      console.log('🧪 Test booking - Date & Time confirmed for:', testCategory);
+    }
     setBookingData(prev => ({ ...prev, date, time }));
     goToNextStep();
   };
@@ -540,8 +697,20 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
     switch (currentStep) {
       case 1:
+        // In test-centric flow, start directly from step 3 (DateTime selection)
+        if (isTestCentricFlow) {
+          return <Step1TestConfirmation />;
+        }
+        // In service-centric flow, skip service selection and go directly to doctor selection
+        if (isServiceCentricFlow && preSelectedService) {
+          return <Step1ServiceConfirmation />;
+        }
         return <Step1SelectService />;
       case 2:
+        // In doctor-centric flow, show doctor confirmation instead of selection
+        if (isDoctorCentricFlow && preSelectedDoctor && bookingData.doctor) {
+          return <Step2DoctorConfirmation />;
+        }
         return <Step2SelectDoctor />;
       case 3:
         return <Step3SelectDateTime />;
@@ -563,28 +732,38 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return (
       <View style={{flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 20, paddingTop: 20}}>
         <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
-          Select Service
+          {isDoctorCentricFlow ? 'Select Service' : isServiceCentricFlow ? 'Service Selected' : 'Select Service'}
         </Text>
-        <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
-          Choose the medical service you need
+        <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 10}}>
+          {isDoctorCentricFlow 
+            ? `Available services with Dr. ${preSelectedDoctor?.name}` 
+            : isServiceCentricFlow
+            ? `You have selected ${preSelectedService?.name}`
+            : 'Choose the medical service you need'
+          }
         </Text>
         
+        {isDoctorCentricFlow && preSelectedDoctor && (
+          <View style={{
+            backgroundColor: Colors.kbrBlue,
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            alignSelf: 'center',
+            marginBottom: 20
+          }}>
+            <Text style={{color: 'white', fontSize: 14, fontWeight: '600'}}>
+              👨‍⚕️ Dr. {preSelectedDoctor.name}
+            </Text>
+          </View>
+        )}
+        
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
-          {loading ? (
+          {servicesLoading ? (
             <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
-              <LoadingOverlay visible={true} message="Loading services..." />
+              <LoadingOverlay visible={true} message="Loading services from database..." />
             </View>
-          ) : !Array.isArray(allServices) || allServices.length === 0 ? (
-            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
-              <Ionicons name="medical-outline" size={64} color="#D1D5DB" />
-              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
-                No Services Available
-              </Text>
-              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
-                Services will appear here when added to the system.
-              </Text>
-            </View>
-          ) : (
+          ) : allServices.length > 0 ? (
             allServices.map((service) => (
               <TouchableOpacity
                 key={service.id}
@@ -639,6 +818,19 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </View>
               </TouchableOpacity>
             ))
+          ) : (
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
+              <Ionicons name="medical-outline" size={64} color="#D1D5DB" />
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#9CA3AF', marginTop: 16, textAlign: 'center'}}>
+                {isDoctorCentricFlow ? 'No Services Assigned' : 'No Services Available'}
+              </Text>
+              <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center'}}>
+                {isDoctorCentricFlow 
+                  ? `Dr. ${preSelectedDoctor?.name} is not currently assigned to any services. Please contact the hospital or try booking through Services.`
+                  : 'No services have been added to the database yet. Please contact the hospital to add services.'
+                }
+              </Text>
+            </View>
           )}
         </ScrollView>
       </View>
@@ -699,11 +891,24 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                     backgroundColor: Colors.kbrBlue,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    marginRight: 16
+                    marginRight: 16,
+                    overflow: 'hidden'
                   }}>
-                    <Text style={{color: 'white', fontSize: 28, fontWeight: 'bold'}}>
-                      {doctor.avatar || doctor.name?.charAt(0) || 'D'}
-                    </Text>
+                    {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+                      <Image 
+                        source={{ uri: doctor.avatar }} 
+                        style={{
+                          width: 70,
+                          height: 70,
+                          borderRadius: 35
+                        }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={{color: 'white', fontSize: 28, fontWeight: 'bold'}}>
+                        {doctor.name?.charAt(0) || 'D'}
+                      </Text>
+                    )}
                   </View>
                   <View style={{flex: 1}}>
                     <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 6}}>
@@ -718,29 +923,23 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                       </Text>
                     )}
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-                      {doctor.rating && (
-                        <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
-                          <Ionicons name="star" size={16} color="#FFD700" />
-                          <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
-                            {doctor.rating}
-                          </Text>
-                        </View>
-                      )}
-                      {doctor.experience && (
-                        <Text style={{fontSize: 13, color: '#6B7280'}}>
-                          {doctor.experience}
+                      <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 16}}>
+                        <Ionicons name="star" size={16} color="#FFD700" />
+                        <Text style={{fontSize: 13, color: '#374151', marginLeft: 4, fontWeight: '600'}}>
+                          {doctor.rating || '4.8'}
                         </Text>
-                      )}
+                      </View>
+                      <Text style={{fontSize: 13, color: '#6B7280'}}>
+                        {doctor.experience || 'Experienced'}
+                      </Text>
                     </View>
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
                       <Text style={{fontSize: 16, color: Colors.kbrBlue, fontWeight: 'bold'}}>
-                        {doctor.fees || doctor.consultationFee ? `₹${doctor.fees || doctor.consultationFee}` : 'Fee not set'}
+                        ₹{doctor.fees || doctor.consultationFee || 500}
                       </Text>
-                      {doctor.availability && (
-                        <Text style={{fontSize: 12, color: '#9CA3AF'}}>
-                          {doctor.availability}
-                        </Text>
-                      )}
+                      <Text style={{fontSize: 12, color: '#9CA3AF'}}>
+                        {doctor.availability || 'Available'}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -778,6 +977,632 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     );
   };
 
+  // Step 1 Alternative: Test Confirmation for test-centric flow
+  const Step1TestConfirmation = () => {
+    // Show loading state while Firebase tests are being loaded
+    if (servicesLoading || firebaseTests.length === 0) {
+      return (
+        <View style={{flex: 1, backgroundColor: '#f5f5f5', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20}}>
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
+            padding: 32,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+          }}>
+            <LoadingInline size="large" color={Colors.kbrBlue} />
+            <Text style={{fontSize: 18, fontWeight: '600', color: '#1F2937', marginTop: 16, textAlign: 'center'}}>
+              Loading Available Tests
+            </Text>
+            <Text style={{fontSize: 14, color: '#6B7280', marginTop: 8, textAlign: 'center'}}>
+              Please wait while we fetch the test information...
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const handleContinueToDateTime = () => {
+      if (selectedTests.length === 0) {
+        Alert.alert('No Tests Selected', 'Please select at least one test to continue.');
+        return;
+      }
+      
+      console.log('🧪 Selected tests confirmed, moving to datetime selection:', selectedTests);
+      console.log('🧪 Test category:', testCategory);
+      console.log('🧪 Selected test details:', selectedTests.map(test => ({ name: test.name, price: test.price, id: test.id })));
+      
+      // Set the test data in booking data
+      const updatedBookingData = {
+        ...bookingData,
+        testCategory: testCategory,
+        selectedTests: selectedTests,
+        isTestBooking: true,
+        service: { 
+          name: selectedTests.length === 1 ? selectedTests[0].name : `${selectedTests.length} Tests Selected`,
+          category: 'diagnostic',
+          tests: selectedTests
+        }
+      };
+      
+      console.log('🧪 Setting booking data:', updatedBookingData);
+      setBookingData(updatedBookingData);
+      setBookingStarted(true); // Mark booking as started
+      console.log('🧪 Moving to step 3 (DateTime Selection)');
+      setCurrentStep(3); // Skip to step 3 (DateTime) for tests
+    };
+
+    const handleTestSelection = (test) => {
+      setSelectedTests(prevSelected => {
+        const isAlreadySelected = prevSelected.find(t => t.id === test.id);
+        if (isAlreadySelected) {
+          // Remove test from selection
+          return prevSelected.filter(t => t.id !== test.id);
+        } else {
+          // Add test to selection
+          return [...prevSelected, test];
+        }
+      });
+    };
+
+    const isTestSelected = (testId) => {
+      return selectedTests.some(t => t.id === testId);
+    };
+
+    // Get tests for the selected category - improved filtering logic
+    const categoryTests = firebaseTests.filter(test => {
+      if (!test.category) return false;
+      
+      const testCat = test.category.toLowerCase().trim();
+      const selectedCat = testCategory?.toLowerCase();
+      
+      // Match blood tests
+      if (selectedCat === 'blood-tests') {
+        return testCat.includes('blood') || testCat === 'blood test' || testCat === 'blood';
+      }
+      // Match cardiac tests  
+      else if (selectedCat === 'cardiac-tests') {
+        return testCat.includes('cardiac') || testCat.includes('heart') || testCat === 'cardiac';
+      }
+      // Match imaging tests
+      else if (selectedCat === 'imaging-tests') {
+        return testCat.includes('imaging') || testCat.includes('x-ray') || testCat.includes('scan') || testCat === 'imaging';
+      }
+      
+      return false;
+    });
+
+    // Debug logging for test filtering
+    console.log('🧪 Step1TestConfirmation - testCategory:', testCategory);
+    console.log('🧪 Step1TestConfirmation - firebaseTests count:', firebaseTests.length);
+    console.log('🧪 Step1TestConfirmation - filtered categoryTests:', categoryTests.length, categoryTests.map(t => ({name: t.name, category: t.category})));
+
+    const getCategoryTitle = (category) => {
+      switch(category?.toLowerCase()) {
+        case 'blood-tests': return 'Blood Tests';
+        case 'imaging-tests': return 'Imaging Tests';
+        case 'cardiac-tests': return 'Cardiac Tests';
+        default: return `${category} Tests`;
+      }
+    };
+
+    const getCategoryIcon = (category) => {
+      switch(category?.toLowerCase()) {
+        case 'blood-tests': return 'water';
+        case 'imaging-tests': return 'scan';
+        case 'cardiac-tests': return 'heart';
+        default: return 'flask';
+      }
+    };
+
+    const getCategoryColor = (category) => {
+      switch(category?.toLowerCase()) {
+        case 'blood-tests': return '#DC2626';
+        case 'imaging-tests': return '#7C3AED';
+        case 'cardiac-tests': return '#059669';
+        default: return '#4285F4';
+      }
+    };
+
+    return (
+      <View style={{flex: 1, backgroundColor: '#f5f5f5'}}>
+        <ScrollView 
+          style={{flex: 1}} 
+          contentContainerStyle={{paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120}}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
+            Test Category Selected
+          </Text>
+          <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
+            Confirm your test category and proceed to schedule
+          </Text>
+
+        {/* Selected Test Category Display */}
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 30,
+          borderWidth: 2,
+          borderColor: getCategoryColor(testCategory),
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 4,
+        }}>
+          <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+            <View style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: getCategoryColor(testCategory),
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 16,
+            }}>
+              <Ionicons 
+                name={getCategoryIcon(testCategory)} 
+                size={28} 
+                color="white" 
+              />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 4}}>
+                {getCategoryTitle(testCategory)}
+              </Text>
+              <Text style={{fontSize: 14, color: '#6B7280', marginBottom: 8}}>
+                Laboratory diagnostic tests and screenings
+              </Text>
+              <Text style={{fontSize: 14, color: getCategoryColor(testCategory), fontWeight: '600'}}>
+                {categoryTests.length} test(s) available
+                {selectedTests.length > 0 && (
+                  <Text style={{color: '#059669'}}> • {selectedTests.length} selected</Text>
+                )}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Available Tests List */}
+        {categoryTests.length > 0 && (
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            maxHeight: 300,
+          }}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+              <Text style={{fontSize: 16, fontWeight: '600', color: '#1F2937'}}>
+                Available Tests ({categoryTests.length}):
+              </Text>
+              <TouchableOpacity 
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 6,
+                  backgroundColor: selectedTests.length === categoryTests.length ? '#EF4444' : getCategoryColor(testCategory),
+                }}
+                onPress={() => {
+                  if (selectedTests.length === categoryTests.length) {
+                    setSelectedTests([]); // Clear all
+                  } else {
+                    setSelectedTests([...categoryTests]); // Select all
+                  }
+                }}
+              >
+                <Text style={{fontSize: 12, fontWeight: '600', color: 'white'}}>
+                  {selectedTests.length === categoryTests.length ? 'Clear All' : 'Select All'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{maxHeight: 220}} showsVerticalScrollIndicator={false}>
+              {categoryTests.map((test, index) => {
+                const selected = isTestSelected(test.id);
+                return (
+                  <TouchableOpacity 
+                    key={test.id || index} 
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      marginBottom: 8,
+                      backgroundColor: selected ? getCategoryColor(testCategory) + '15' : '#F9FAFB',
+                      borderRadius: 8,
+                      borderLeftWidth: 3,
+                      borderLeftColor: getCategoryColor(testCategory),
+                      borderWidth: selected ? 1 : 0,
+                      borderColor: selected ? getCategoryColor(testCategory) : 'transparent',
+                    }}
+                    onPress={() => handleTestSelection(test)}
+                  >
+                    {/* Checkbox */}
+                    <View style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 4,
+                      borderWidth: 2,
+                      borderColor: selected ? getCategoryColor(testCategory) : '#D1D5DB',
+                      backgroundColor: selected ? getCategoryColor(testCategory) : 'transparent',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                    }}>
+                      {selected && (
+                        <Ionicons name="checkmark" size={12} color="white" />
+                      )}
+                    </View>
+
+                    <View style={{flex: 1}}>
+                      <Text style={{fontSize: 14, fontWeight: '500', color: selected ? getCategoryColor(testCategory) : '#374151', marginBottom: 2}}>
+                        {test.name}
+                      </Text>
+                      <Text style={{fontSize: 12, color: '#6B7280'}}>
+                        {test.department} • {test.sampleRequired || 'Sample'} • {test.testDuration || '30 min'}
+                      </Text>
+                    </View>
+                    <View style={{alignItems: 'flex-end'}}>
+                      <Text style={{fontSize: 14, fontWeight: '600', color: getCategoryColor(testCategory)}}>
+                        ₹{test.price || 'N/A'}
+                      </Text>
+                      <Text style={{fontSize: 10, color: '#9CA3AF'}}>
+                        {test.reportTime || '24 hrs'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* No Tests Available Message */}
+        {categoryTests.length === 0 && (
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 20,
+            alignItems: 'center',
+          }}>
+            <Ionicons name="flask-outline" size={48} color="#9CA3AF" />
+            <Text style={{fontSize: 16, fontWeight: '500', color: '#6B7280', marginTop: 12, textAlign: 'center'}}>
+              No tests available in this category
+            </Text>
+            <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 4, textAlign: 'center'}}>
+              Please select a different category or contact support
+            </Text>
+          </View>
+        )}
+
+        {/* Selection Summary */}
+        {selectedTests.length > 0 && (
+          <View style={{
+            backgroundColor: getCategoryColor(testCategory) + '15',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            borderWidth: 1,
+            borderColor: getCategoryColor(testCategory) + '30',
+          }}>
+            <Text style={{fontSize: 14, fontWeight: '600', color: getCategoryColor(testCategory), marginBottom: 4}}>
+              {selectedTests.length} Test{selectedTests.length > 1 ? 's' : ''} Selected
+            </Text>
+            <Text style={{fontSize: 12, color: '#6B7280'}}>
+              {selectedTests.map(t => t.name).join(', ')}
+            </Text>
+          </View>
+        )}
+
+        </ScrollView>
+
+        {/* Fixed buttons at bottom */}
+        <View style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#f5f5f5',
+          paddingHorizontal: 20,
+          paddingVertical: 16,
+          paddingBottom: 20,
+          borderTopWidth: 1,
+          borderTopColor: '#E5E7EB',
+        }}>
+          {/* Book Test Button */}
+          <TouchableOpacity 
+            style={{
+              backgroundColor: selectedTests.length > 0 ? getCategoryColor(testCategory) : '#9CA3AF',
+              paddingVertical: 16,
+              borderRadius: 12,
+              alignItems: 'center',
+              marginBottom: 12,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: selectedTests.length > 0 ? 0.1 : 0.05,
+              shadowRadius: 4,
+              elevation: selectedTests.length > 0 ? 3 : 1,
+            }}
+            onPress={selectedTests.length > 0 ? handleContinueToDateTime : null}
+            disabled={selectedTests.length === 0}
+          >
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Text style={{
+                fontSize: 16, 
+                fontWeight: 'bold', 
+                color: selectedTests.length > 0 ? 'white' : '#6B7280', 
+                marginRight: 8
+              }}>
+                {selectedTests.length > 0 
+                  ? `Book Test Appointment (${selectedTests.length} Test${selectedTests.length > 1 ? 's' : ''})` 
+                  : 'Select Tests to Book Appointment'
+                }
+              </Text>
+              <Ionicons 
+                name={selectedTests.length > 0 ? "calendar" : "checkmark-circle-outline"} 
+                size={18} 
+                color={selectedTests.length > 0 ? "white" : "#6B7280"} 
+              />
+            </View>
+          </TouchableOpacity>
+
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={{
+              backgroundColor: '#6B7280',
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+            }}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={{fontSize: 14, fontWeight: '600', color: 'white'}}>
+              Back to Services
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  // Step 1 Alternative: Service Confirmation for service-centric flow
+  const Step1ServiceConfirmation = () => {
+    const handleContinueToDoctorSelection = () => {
+      console.log('📋 Service confirmed, moving to doctor selection:', preSelectedService?.name);
+      // Set the pre-selected service in booking data
+      setBookingData(prevData => ({
+        ...prevData,
+        service: preSelectedService
+      }));
+      setCurrentStep(2);
+    };
+
+    return (
+      <View style={{flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 20, paddingTop: 20}}>
+        <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
+          Selected Service
+        </Text>
+        <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
+          Confirm your service selection and proceed to doctor selection
+        </Text>
+
+        {/* Selected Service Display */}
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 30,
+          borderWidth: 2,
+          borderColor: Colors.kbrBlue,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 4,
+        }}>
+          <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+            <View style={{
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              backgroundColor: Colors.kbrBlue,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 16,
+            }}>
+              <Ionicons 
+                name="medical-outline" 
+                size={24} 
+                color="white" 
+              />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 4}}>
+                {preSelectedService?.name}
+              </Text>
+              <Text style={{fontSize: 14, color: '#6B7280', marginBottom: 8}}>
+                {preSelectedService?.description}
+              </Text>
+              <Text style={{fontSize: 14, color: Colors.kbrBlue, fontWeight: '600'}}>
+                Duration: {preSelectedService?.duration || '30 mins'}
+              </Text>
+              {preSelectedService?.doctorDetails && preSelectedService.doctorDetails.length > 0 && (
+                <Text style={{fontSize: 14, color: '#6B7280', marginTop: 4}}>
+                  {preSelectedService.doctorDetails.length} doctor(s) available
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Continue Button */}
+        <TouchableOpacity 
+          style={{
+            backgroundColor: Colors.kbrBlue,
+            paddingVertical: 16,
+            borderRadius: 12,
+            alignItems: 'center',
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+          onPress={handleContinueToDoctorSelection}
+        >
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <Text style={{fontSize: 16, fontWeight: 'bold', color: 'white', marginRight: 8}}>
+              Continue to Doctor Selection
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color="white" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Back Button */}
+        <TouchableOpacity 
+          style={{
+            backgroundColor: '#6B7280',
+            paddingVertical: 12,
+            borderRadius: 12,
+            alignItems: 'center',
+          }}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{fontSize: 14, fontWeight: '600', color: 'white'}}>
+            Back to Services
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Step 2 Alternative: Doctor Confirmation for doctor-centric flow
+  const Step2DoctorConfirmation = () => {
+    const handleContinueToDateTime = () => {
+      setCurrentStep(3);
+    };
+
+    return (
+      <View style={{flex: 1, backgroundColor: '#f5f5f5', paddingHorizontal: 20, paddingTop: 20}}>
+        <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
+          Selected Doctor
+        </Text>
+        <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
+          Appointment with your chosen specialist
+        </Text>
+        
+        <View style={{
+          backgroundColor: Colors.kbrBlue,
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          borderRadius: 20,
+          alignSelf: 'center',
+          marginBottom: 30
+        }}>
+          <Text style={{color: 'white', fontSize: 14, fontWeight: '600'}}>
+            {bookingData.service?.name}
+          </Text>
+        </View>
+
+        {/* Selected Doctor Display */}
+        <View style={{
+          backgroundColor: 'white',
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 30,
+          borderWidth: 2,
+          borderColor: Colors.kbrBlue,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 4,
+        }}>
+          <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+            <View style={{
+              width: 70,
+              height: 70,
+              borderRadius: 35,
+              backgroundColor: Colors.kbrBlue,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 16,
+              overflow: 'hidden'
+            }}>
+              {bookingData.doctor?.avatar && (bookingData.doctor.avatar.startsWith('http') || bookingData.doctor.avatar.startsWith('file://')) ? (
+                <Image 
+                  source={{ uri: bookingData.doctor.avatar }} 
+                  style={{
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{color: 'white', fontSize: 28, fontWeight: 'bold'}}>
+                  {bookingData.doctor?.name?.charAt(0) || 'D'}
+                </Text>
+              )}
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 4}}>
+                Dr. {bookingData.doctor?.name}
+              </Text>
+              <Text style={{fontSize: 14, color: Colors.kbrBlue, marginBottom: 4}}>
+                {bookingData.doctor?.specialty || bookingData.doctor?.qualifications}
+              </Text>
+              <Text style={{fontSize: 13, color: '#6B7280', marginBottom: 8}}>
+                {bookingData.doctor?.qualifications}
+              </Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+                <Text style={{fontSize: 16, fontWeight: 'bold', color: Colors.kbrGreen}}>
+                  ₹{bookingData.doctor?.consultationFee || 500}
+                </Text>
+                <Text style={{fontSize: 14, color: '#6B7280', marginLeft: 4}}>
+                  consultation fee
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={{
+            backgroundColor: '#E6F4FB',
+            padding: 12,
+            borderRadius: 8,
+            marginTop: 16
+          }}>
+            <Text style={{fontSize: 14, color: Colors.kbrBlue, textAlign: 'center', fontWeight: '500'}}>
+              ✓ Doctor pre-selected for your convenience
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={{
+            backgroundColor: Colors.kbrBlue,
+            paddingVertical: 16,
+            borderRadius: 12,
+            alignItems: 'center',
+          }}
+          onPress={handleContinueToDateTime}
+        >
+          <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold'}}>
+            Continue to Select Time
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   // Step 3: Select Date & Time (Image 3)
   const Step3SelectDateTime = () => {
     const [selectedDate, setSelectedDate] = useState(null);
@@ -790,7 +1615,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           Select Date & Time
         </Text>
         <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 10}}>
-          Choose your preferred appointment slot
+          {isTestCentricFlow ? 'Choose your preferred test appointment slot' : 'Choose your preferred appointment slot'}
         </Text>
         <View style={{
           backgroundColor: Colors.kbrBlue,
@@ -801,7 +1626,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           marginBottom: 30
         }}>
           <Text style={{color: 'white', fontSize: 14, fontWeight: '600'}}>
-            {bookingData.doctor?.name}
+            {isTestCentricFlow 
+              ? `${testCategory?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Tests`
+              : bookingData.doctor?.name
+            }
           </Text>
         </View>
         
@@ -851,10 +1679,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
               </View>
               <Text style={{
                 fontSize: 14,
-                color: selectedDate?.id === date.id ? 'white' : (date.available ? '#10B981' : '#EF4444'),
+                color: selectedDate?.id === date.id ? 'white' : '#10B981',
                 fontWeight: '600'
               }}>
-                {date.available ? 'Available' : 'Unavailable'}
+                Available
               </Text>
             </TouchableOpacity>
           ))}
@@ -899,7 +1727,17 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 ))}
               </View>
               
-              {/* Token information will be loaded dynamically from Firebase */}
+              <View style={{
+                backgroundColor: '#FEF3C7',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 20,
+                alignItems: 'center'
+              }}>
+                <Text style={{fontSize: 14, color: '#92400E', fontWeight: '600'}}>
+                  Tokens booked today: 7 / 30
+                </Text>
+              </View>
             </>
           )}
           
@@ -1306,12 +2144,14 @@ const BookAppointmentScreen = ({ navigation, route }) => {
               </Text>
             </View>
             
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
-              <Text style={{fontSize: 14, color: '#6B7280'}}>Doctor:</Text>
-              <Text style={{fontSize: 14, color: '#374151', fontWeight: '600', flex: 1, textAlign: 'right'}}>
-                {bookingData.doctor?.name}
-              </Text>
-            </View>
+            {!isTestCentricFlow && (
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
+                <Text style={{fontSize: 14, color: '#6B7280'}}>Doctor:</Text>
+                <Text style={{fontSize: 14, color: '#374151', fontWeight: '600', flex: 1, textAlign: 'right'}}>
+                  {bookingData.doctor?.name}
+                </Text>
+              </View>
+            )}
             
             <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
               <Text style={{fontSize: 14, color: '#6B7280'}}>Date:</Text>
@@ -1343,7 +2183,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
             <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
               <Text style={{fontSize: 16, fontWeight: 'bold', color: '#1F2937'}}>Total Amount:</Text>
               <Text style={{fontSize: 18, fontWeight: 'bold', color: Colors.kbrBlue}}>
-                ₹{bookingData.doctor?.fees}
+                ₹{isTestCentricFlow ? '500' : bookingData.doctor?.fees}
               </Text>
             </View>
           </View>
@@ -1482,10 +2322,13 @@ const BookAppointmentScreen = ({ navigation, route }) => {
             </View>
             
             <Text style={{fontSize: 28, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
-              Booking Confirmed!
+              {isTestCentricFlow ? 'Test Booking Confirmed!' : 'Booking Confirmed!'}
             </Text>
             <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30, lineHeight: 24}}>
-              Your appointment has been successfully booked
+              {isTestCentricFlow 
+                ? 'Your test appointment has been successfully booked' 
+                : 'Your appointment has been successfully booked'
+              }
             </Text>
             
             <View style={{
@@ -1504,20 +2347,18 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 Appointment Details
               </Text>
               
-              {bookingData.appointment?.tokenNumber && (
-                <View style={{
-                  backgroundColor: Colors.kbrBlue,
-                  borderRadius: 8,
-                  padding: 12,
-                  marginBottom: 16,
-                  alignItems: 'center'
-                }}>
-                  <Text style={{fontSize: 14, color: 'white', marginBottom: 4}}>Token Number</Text>
-                  <Text style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>
-                    {bookingData.appointment.tokenNumber}
-                  </Text>
-                </View>
-              )}
+              <View style={{
+                backgroundColor: Colors.kbrBlue,
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                alignItems: 'center'
+              }}>
+                <Text style={{fontSize: 14, color: 'white', marginBottom: 4}}>Token Number</Text>
+                <Text style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>
+                  {bookingData.appointment?.tokenNumber || 'KBR08'}
+                </Text>
+              </View>
               
               <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
                 <Text style={{fontSize: 14, color: '#6B7280'}}>Service:</Text>
@@ -1526,12 +2367,14 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </Text>
               </View>
               
-              <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
-                <Text style={{fontSize: 14, color: '#6B7280'}}>Doctor:</Text>
-                <Text style={{fontSize: 14, color: '#374151', fontWeight: '600', flex: 1, textAlign: 'right'}}>
-                  {bookingData.doctor?.name}
-                </Text>
-              </View>
+              {!isTestCentricFlow && (
+                <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
+                  <Text style={{fontSize: 14, color: '#6B7280'}}>Doctor:</Text>
+                  <Text style={{fontSize: 14, color: '#374151', fontWeight: '600', flex: 1, textAlign: 'right'}}>
+                    {bookingData.doctor?.name}
+                  </Text>
+                </View>
+              )}
               
               <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
                 <Text style={{fontSize: 14, color: '#6B7280'}}>Date & Time:</Text>
@@ -1547,14 +2390,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </Text>
               </View>
               
-              {bookingData.appointment?.paymentId && (
-                <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
-                  <Text style={{fontSize: 14, color: '#6B7280'}}>Payment ID:</Text>
-                  <Text style={{fontSize: 14, color: Colors.kbrBlue, fontWeight: '600', flex: 1, textAlign: 'right'}}>
-                    {bookingData.appointment.paymentId}
-                  </Text>
-                </View>
-              )}
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8}}>
+                <Text style={{fontSize: 14, color: '#6B7280'}}>Payment ID:</Text>
+                <Text style={{fontSize: 14, color: Colors.kbrBlue, fontWeight: '600', flex: 1, textAlign: 'right'}}>
+                  {bookingData.appointment?.paymentId || 'PAY79545253'}
+                </Text>
+              </View>
             </View>
 
             {/* Important Notes */}
@@ -1578,7 +2419,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 • You can reschedule or cancel up to 2 hours before
               </Text>
               <Text style={{fontSize: 14, color: '#92400E', lineHeight: 20}}>
-                • For emergencies, call our helpline: Contact hospital
+                • For emergencies, call our helpline: 1800-419-1397
               </Text>
             </View>
 

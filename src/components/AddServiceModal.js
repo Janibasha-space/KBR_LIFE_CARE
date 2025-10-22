@@ -8,6 +8,7 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../constants/theme';
@@ -167,9 +168,17 @@ const AddServiceModal = ({ visible, onClose, onAddService, doctors }) => {
                 >
                   <View style={styles.doctorInfo}>
                     <View style={styles.doctorAvatar}>
-                      <Text style={styles.doctorInitials}>
-                        {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
-                      </Text>
+                      {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+                        <Image 
+                          source={{ uri: doctor.avatar }} 
+                          style={styles.doctorAvatar}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={styles.doctorInitials}>
+                          {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
+                        </Text>
+                      )}
                     </View>
                     <View style={styles.doctorDetails}>
                       <Text style={[
@@ -339,6 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Sizes.sm,
+    overflow: 'hidden',
   },
   doctorInitials: {
     color: Colors.white,

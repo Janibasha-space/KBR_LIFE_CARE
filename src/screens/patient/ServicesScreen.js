@@ -17,7 +17,7 @@ import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { FirebaseServiceApiService } from '../../services/firebaseHospitalServices';
+import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
 
 const ServicesScreen = ({ navigation, route }) => {
@@ -44,6 +44,10 @@ const ServicesScreen = ({ navigation, route }) => {
   // State for Firebase services with doctors
   const [firebaseServices, setFirebaseServices] = useState([]);
   const [loadingFirebaseServices, setLoadingFirebaseServices] = useState(true);
+  
+  // State for Firebase tests
+  const [firebaseTests, setFirebaseTests] = useState([]);
+  const [loadingFirebaseTests, setLoadingFirebaseTests] = useState(true);
   
   // State for expanded service details
   const [expandedService, setExpandedService] = useState(null);
@@ -92,22 +96,58 @@ const ServicesScreen = ({ navigation, route }) => {
     const loadServicesWithDoctors = async () => {
       try {
         setLoadingFirebaseServices(true);
-        const result = await FirebaseServiceApiService.getServicesWithDoctors();
-        if (result.success && result.data) {
+        const result = await firebaseHospitalServices.getServicesWithDoctors();
+        if (result.success) {
           setFirebaseServices(result.data);
-        } else {
-          console.warn('No services found in Firebase');
-          setFirebaseServices([]);
         }
       } catch (error) {
         console.error('Error loading services with doctors:', error);
-        setFirebaseServices([]);
       } finally {
         setLoadingFirebaseServices(false);
       }
     };
 
     loadServicesWithDoctors();
+  }, []);
+  
+  // Load tests from Firebase
+  useEffect(() => {
+    const loadFirebaseTests = async () => {
+      try {
+        console.log('🧪 Starting to load tests from Firebase...');
+        console.log('🧪 Firebase services available:', Object.keys(firebaseHospitalServices));
+        setLoadingFirebaseTests(true);
+        
+        // Check if getTests method exists
+        if (typeof firebaseHospitalServices.getTests !== 'function') {
+          console.error('🧪 getTests method not found in firebaseHospitalServices');
+          setFirebaseTests([]);
+          return;
+        }
+        
+        const result = await firebaseHospitalServices.getTests();
+        console.log('🧪 Firebase tests response:', result);
+        
+        if (result && result.success) {
+          setFirebaseTests(result.data || []);
+          console.log('🧪 Successfully loaded Firebase tests:', (result.data || []).length, 'tests found');
+          if (result.data && result.data.length > 0) {
+            console.log('🧪 Test data sample:', result.data.slice(0, 2));
+          }
+        } else {
+          console.error('🧪 Failed to load tests:', result?.message || 'Unknown error');
+          setFirebaseTests([]);
+        }
+      } catch (error) {
+        console.error('🧪 Error loading tests:', error);
+        console.error('🧪 Error details:', error.message);
+        setFirebaseTests([]);
+      } finally {
+        setLoadingFirebaseTests(false);
+      }
+    };
+
+    loadFirebaseTests();
   }, []);
   
   // Function to scroll to tests section smoothly
@@ -227,10 +267,88 @@ const ServicesScreen = ({ navigation, route }) => {
       backgroundColor: '#34A853', // Green
       description: 'Specialized treatments and expert care',
     },
-  ].filter(category => category.count > 0); // Only show categories that have actual services
+  ];
 
-  // Test Categories - will be loaded from Firebase
-  const [testCategories, setTestCategories] = useState([]);
+  // Calculate test counts from Firebase data - UPDATED LOGIC
+  const getTestCounts = () => {
+    console.log('🧪 Calculating test counts from Firebase data...');
+    console.log('🧪 Total firebaseTests available:', firebaseTests.length);
+    
+    const counts = { 'blood-tests': 0, 'imaging-tests': 0, 'cardiac-tests': 0 };
+    
+    firebaseTests.forEach((test, index) => {
+      console.log(`🧪 Processing test ${index + 1}:`, {
+        name: test.name,
+        category: test.category,
+        type: test.type,
+        id: test.id
+      });
+      
+      if (test.category && typeof test.category === 'string') {
+        const category = test.category.toLowerCase().trim();
+        
+        // Match blood tests - flexible matching
+        if (category.includes('blood') || category === 'blood test' || category === 'blood') {
+          counts['blood-tests']++;
+          console.log(`✅ Matched "${test.name}" as blood test (category: "${test.category}")`);
+        }
+        // Match cardiac tests
+        else if (category.includes('cardiac') || category.includes('heart') || category === 'cardiac') {
+          counts['cardiac-tests']++;
+          console.log(`✅ Matched "${test.name}" as cardiac test (category: "${test.category}")`);
+        }
+        // Match imaging tests
+        else if (category.includes('imaging') || category.includes('x-ray') || category.includes('scan') || category === 'imaging') {
+          counts['imaging-tests']++;
+          console.log(`✅ Matched "${test.name}" as imaging test (category: "${test.category}")`);
+        }
+        else {
+          console.log(`🧪 No match for test "${test.name}" - category: "${test.category}"`);
+        }
+      } else {
+        console.log(`🧪 Invalid category for test "${test.name}" - category: "${test.category}"`);
+      }
+    });
+    
+    console.log('🧪 Final test counts:', counts);
+    return counts;
+  };
+
+  const testCounts = getTestCounts();
+
+  // Test Categories - Added as requested below Medical/Surgical/Specialized Care
+  const testCategories = [
+    {
+      id: 'blood-tests',
+      title: 'Blood Tests',
+      subtitle: 'Laboratory Tests',
+      count: testCounts['blood-tests'] || 0,
+      icon: 'water',
+      color: '#FFFFFF',
+      backgroundColor: '#DC2626', // Red
+      description: 'Complete blood analysis and screening',
+    },
+    {
+      id: 'imaging-tests',
+      title: 'Imaging',
+      subtitle: 'Radiology Tests',
+      count: testCounts['imaging-tests'] || 0,
+      icon: 'scan',
+      color: '#FFFFFF',
+      backgroundColor: '#7C3AED', // Purple
+      description: 'X-Ray, CT, MRI, and ultrasound services',
+    },
+    {
+      id: 'cardiac-tests',
+      title: 'Cardiac Tests',
+      subtitle: 'Heart Tests',
+      count: testCounts['cardiac-tests'] || 0,
+      icon: 'heart',
+      color: '#FFFFFF',
+      backgroundColor: '#059669', // Green
+      description: 'ECG, Echo, and cardiac evaluations',
+    },
+  ];
 
   const renderSpecialtyCard = (specialty) => {
     const isExpanded = expandedSpecialty === specialty.id;
@@ -245,11 +363,23 @@ const ServicesScreen = ({ navigation, route }) => {
         
         // Map the services to include icons and other UI properties
         return categoryServices.map(service => {
+          // Define default tags if none are present
+          let tags = service.tags || [];
+          if (!tags.length) {
+            if (id === 'medical') {
+              tags = ['Health Check-ups', 'Chronic Disease Management'];
+            } else if (id === 'surgical') {
+              tags = ['Surgery', 'Consultation'];
+            } else if (id === 'specialized') {
+              tags = ['Specialized Care', 'Expert Consultation'];
+            }
+          }
+          
           return {
             ...service,
             // Use service icon from the Firebase data or derive a default one
             icon: service.icon || getServiceIcon(service.name || ''),
-            tags: service.tags || [], // Only show tags that exist in Firebase
+            tags: tags,
             // Include doctor details from Firebase
             assignedDoctors: service.doctorDetails || []
           };
@@ -394,9 +524,17 @@ const ServicesScreen = ({ navigation, route }) => {
                       {service.assignedDoctors.map((doctor, doctorIndex) => (
                         <View key={doctorIndex} style={styles.assignedDoctorChip}>
                           <View style={styles.doctorAvatarSmall}>
-                            <Text style={styles.doctorInitialsSmall}>
-                              {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
-                            </Text>
+                            {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+                              <Image 
+                                source={{ uri: doctor.avatar }} 
+                                style={styles.doctorAvatarSmall}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <Text style={styles.doctorInitialsSmall}>
+                                {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
+                              </Text>
+                            )}
                           </View>
                           <View style={styles.doctorInfoSmall}>
                             <Text style={styles.doctorNameSmall}>Dr. {doctor.name}</Text>
@@ -416,8 +554,8 @@ const ServicesScreen = ({ navigation, route }) => {
                   </View>
                 )}
 
-                {/* Tags - Only show if tags exist */}
-                {service.tags && service.tags.length > 0 && renderTags(service.tags)}
+                {/* Tags */}
+                {renderTags(service.tags)}
                 
                 {/* Book Appointment Button */}
                 <TouchableOpacity 
@@ -426,6 +564,9 @@ const ServicesScreen = ({ navigation, route }) => {
                     { backgroundColor: specialty.backgroundColor } // Match the specialty color
                   ]}
                   onPress={() => navigation.navigate('BookAppointment', { 
+                    selectedService: service,
+                    serviceCentricFlow: true,
+                    preSelectedService: service,
                     category: specialty.id,
                     service: service.name,
                     serviceId: service.id,
@@ -450,7 +591,12 @@ const ServicesScreen = ({ navigation, route }) => {
       key={test.id}
       style={[styles.testCard, { backgroundColor: test.backgroundColor }]}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('BookAppointment', { category: test.id, type: 'test' })}
+      onPress={() => navigation.navigate('BookAppointment', { 
+        testCategory: test.id,
+        testCentricFlow: true,
+        type: 'test',
+        category: test.id
+      })}
     >
       <View style={styles.testContent}>
         <View style={styles.testLeft}>
@@ -626,31 +772,69 @@ const ServicesScreen = ({ navigation, route }) => {
           {specialtyCategories.map(renderSpecialtyCard)}
         </View>
 
-        {/* Tests Section - Only show if tests are available from Firebase */}
-        {testCategories && testCategories.length > 0 && (
-          <View 
-            onLayout={(event) => {
-              const layout = event.nativeEvent.layout;
-              setTestsPosition(layout.y);
-              
-              // If we need to scroll to tests section
-              if (scrollToSection === 'diagnosticTests' && focusOnTests && contentLoaded) {
-                scrollToTestsSection();
+        {/* Tests Section - Added as requested */}
+        <View 
+          onLayout={(event) => {
+            const layout = event.nativeEvent.layout;
+            setTestsPosition(layout.y);
+            
+            // If we need to scroll to tests section
+            if (scrollToSection === 'diagnosticTests' && focusOnTests && contentLoaded) {
+              scrollToTestsSection();
+            }
+          }}
+          style={styles.testsSection}>
+          <View style={styles.testsSectionHeader}>
+            <View style={styles.testsHeaderRow}>
+              <Ionicons name="flask" size={20} color="#FF6B35" />
+              <Text style={[styles.testsTitle, { color: theme.textPrimary }]}>Diagnostic Tests</Text>
+            </View>
+            <Text style={[styles.testsSubtitle, { color: theme.textSecondary }]}>
+              {loadingFirebaseTests 
+                ? 'Loading tests from database...' 
+                : `Quick and accurate test results (${firebaseTests.length} tests loaded)`
               }
-            }}
-            style={styles.testsSection}>
-            <View style={styles.testsSectionHeader}>
-              <View style={styles.testsHeaderRow}>
-                <Ionicons name="flask" size={20} color="#FF6B35" />
-                <Text style={[styles.testsTitle, { color: theme.textPrimary }]}>Diagnostic Tests</Text>
+            </Text>
+            {!loadingFirebaseTests && firebaseTests.length === 0 && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.testsSubtitle, { color: '#DC2626', fontSize: 12 }]}>
+                  ⚠️ No tests found in database. Please add tests from admin dashboard.
+                </Text>
+                <TouchableOpacity 
+                  style={{ 
+                    backgroundColor: '#f0f0f0', 
+                    padding: 8, 
+                    borderRadius: 4, 
+                    marginTop: 8,
+                    alignSelf: 'flex-start'
+                  }}
+                  onPress={() => {
+                    Alert.alert(
+                      'Debug Info - Firebase Tests',
+                      `Firebase Tests Loaded: ${firebaseTests.length}\n` +
+                      `Loading State: ${loadingFirebaseTests}\n` +
+                      `Available Methods: ${Object.keys(firebaseHospitalServices).join(', ')}\n` +
+                      `Data Sample: ${JSON.stringify(firebaseTests.slice(0, 1), null, 2)}`,
+                      [{ text: 'OK' }]
+                    );
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: '#666' }}>🔍 Show Debug Info</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={[styles.testsSubtitle, { color: theme.textSecondary }]}>Quick and accurate test results</Text>
-            </View>
-            <View style={styles.testCardsContainer}>
-              {testCategories.map(renderTestCard)}
-            </View>
+            )}
           </View>
-        )}
+          <View style={styles.testCardsContainer}>
+            {loadingFirebaseTests ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#4285F4" />
+                <Text style={{ color: theme.textSecondary, marginTop: 10 }}>Loading tests...</Text>
+              </View>
+            ) : (
+              testCategories.map(renderTestCard)
+            )}
+          </View>
+        </View>
 
         {/* Expand All Categories Button */}
         <View style={styles.expandSection}>
@@ -1053,6 +1237,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4285F4',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
     marginRight: Sizes.sm,
   },
   doctorInitialsSmall: {

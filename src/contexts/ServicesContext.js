@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 
-// Initial services - will be loaded from Firebase
+// Initial services - will be populated from Firebase database only
 const initialServices = {
   medical: [],
   specialized: [],
@@ -13,7 +13,7 @@ const ServicesContext = createContext();
 // Provider component
 export const ServicesProvider = ({ children }) => {
   const [services, setServices] = useState(initialServices);
-  const [doctors, setDoctors] = useState([]); // Will be loaded from Firebase
+  const [doctors, setDoctors] = useState([]); // Will be populated from Firebase only
 
   // Add a new service
   const addService = (categoryId, serviceData) => {

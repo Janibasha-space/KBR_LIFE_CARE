@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
@@ -93,9 +94,17 @@ const AssignDoctorModal = ({ visible, onClose, service, onAssignmentChange }) =>
       >
         <View style={styles.doctorInfo}>
           <View style={styles.doctorAvatar}>
-            <Text style={styles.doctorInitials}>
-              {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
-            </Text>
+            {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+              <Image 
+                source={{ uri: doctor.avatar }} 
+                style={styles.doctorAvatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={styles.doctorInitials}>
+                {doctor.name?.charAt(0)?.toUpperCase() || 'D'}
+              </Text>
+            )}
           </View>
           <View style={styles.doctorDetails}>
             <Text style={[styles.doctorName, isAssigned && styles.assignedText]}>
@@ -303,6 +312,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
   doctorInitials: {
     color: Colors.white,

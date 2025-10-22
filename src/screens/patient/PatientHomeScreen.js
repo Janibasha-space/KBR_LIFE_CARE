@@ -32,6 +32,7 @@ import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
+import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -162,6 +163,7 @@ const PatientHomeScreen = ({ navigation }) => {
   const [showUpcomingTreatments, setShowUpcomingTreatments] = useState(false); // State for showing upcoming treatments
   const [showTests, setShowTests] = useState(false); // State for showing diagnostic tests
   const animatedRotation = useRef(new Animated.Value(1)).current; // For chevron rotation (1 = expanded initially)
+  const [firebaseDoctors, setFirebaseDoctors] = useState([]);
   const animatedHeight = useRef(new Animated.Value(1)).current; // For content height (1 = expanded initially)
   const autoPlayRef = useRef(null);
   
@@ -451,6 +453,15 @@ const PatientHomeScreen = ({ navigation }) => {
         } catch (err) {
           console.log('Error prefetching services data:', err);
         }
+
+        // Load Firebase doctors
+        try {
+          const doctors = await firebaseHospitalServices.getDoctors();
+          console.log('Loaded Firebase doctors:', doctors?.length || 0);
+          setFirebaseDoctors(doctors || []);
+        } catch (err) {
+          console.log('Error loading Firebase doctors:', err);
+        }
         
         setIsLoading(false);
       } catch (error) {
@@ -465,9 +476,9 @@ const PatientHomeScreen = ({ navigation }) => {
 
   // Doctor carousel auto-play
   useEffect(() => {
-    if (isPlaying && !isLoading) {
+    if (isPlaying && !isLoading && firebaseDoctors.length > 0) {
       autoPlayRef.current = setInterval(() => {
-        setCurrentDoctorIndex((prev) => (prev + 1) % (doctors?.length || 1));
+        setCurrentDoctorIndex((prev) => (prev + 1) % firebaseDoctors.length);
       }, 3000);
     }
     return () => {
@@ -475,7 +486,7 @@ const PatientHomeScreen = ({ navigation }) => {
         clearInterval(autoPlayRef.current);
       }
     };
-  }, [isPlaying, isLoading]);
+  }, [isPlaying, isLoading, firebaseDoctors]);
   
   // Auto-scroll for doctors horizontal scroll view
   const doctorsScrollViewRef = useRef(null);
@@ -483,8 +494,8 @@ const PatientHomeScreen = ({ navigation }) => {
   const [isDoctorScrollPaused, setIsDoctorScrollPaused] = useState(false);
   
   useEffect(() => {
-    // Only auto-scroll if not paused by user touch
-    if (!isDoctorScrollPaused) {
+    // Only auto-scroll if not paused by user touch and we have doctors
+    if (!isDoctorScrollPaused && firebaseDoctors && firebaseDoctors.length > 0) {
       const scrollInterval = setInterval(() => {
         if (doctorsScrollViewRef.current) {
           // Calculate the next scroll position based on card width + margins
@@ -493,7 +504,7 @@ const PatientHomeScreen = ({ navigation }) => {
           
           // Calculate next position with snap points
           const nextPosition = Math.floor(doctorScrollPosition / fullCardWidth + 1) * fullCardWidth;
-          const maxScroll = (doctors.length - 1) * fullCardWidth;
+          const maxScroll = (firebaseDoctors && firebaseDoctors.length > 0 ? firebaseDoctors.length - 1 : 0) * fullCardWidth;
           
           // If at the end, scroll back to start, otherwise advance
           if (doctorScrollPosition >= maxScroll) {
@@ -508,7 +519,7 @@ const PatientHomeScreen = ({ navigation }) => {
       
       return () => clearInterval(scrollInterval);
     }
-  }, [doctorScrollPosition, doctors.length, isDoctorScrollPaused, screenWidth]);
+  }, [doctorScrollPosition, firebaseDoctors.length, isDoctorScrollPaused, screenWidth]);
 
   const handleLogin = () => {
     if (loginTab === 'signin') {
@@ -900,22 +911,30 @@ const PatientHomeScreen = ({ navigation }) => {
                   setTimeout(() => setIsDoctorScrollPaused(false), 1500);
                 }}
               >
-              {doctors.map((doctor, index) => (
+              {firebaseDoctors.length > 0 ? firebaseDoctors.map((doctor, index) => (
                 <View key={doctor.id} style={styles.doctorSlideItem}>
                   <View style={styles.doctorImageWrapper}>
-                    <Image 
-                      source={doctor.image}
-                      style={styles.doctorCarouselImage}
-                      resizeMode="cover"
-                    />
+                    {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+                      <Image 
+                        source={{ uri: doctor.avatar }}
+                        style={styles.doctorCarouselImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.doctorCarouselImage, { backgroundColor: Colors.kbrBlue, justifyContent: 'center', alignItems: 'center' }]}>
+                        <Text style={{ fontSize: 48, fontWeight: 'bold', color: 'white' }}>
+                          {doctor.name?.charAt(0) || 'D'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   
                   <View style={styles.doctorInfo}>
-                    <Text style={styles.doctorName} numberOfLines={1} ellipsizeMode="tail">{doctor.name}</Text>
-                    <Text style={styles.doctorCredentials} numberOfLines={1} ellipsizeMode="tail">{doctor.credentials}</Text>
-                    <Text style={styles.doctorRole} numberOfLines={2} ellipsizeMode="tail">{doctor.role}</Text>
-                    {doctor.fellowship && (
-                      <Text style={styles.doctorFellowship} numberOfLines={1} ellipsizeMode="tail">{doctor.fellowship}</Text>
+                    <Text style={styles.doctorName} numberOfLines={1} ellipsizeMode="tail">{doctor.name || 'Doctor Name'}</Text>
+                    <Text style={styles.doctorCredentials} numberOfLines={1} ellipsizeMode="tail">{doctor.qualifications || doctor.credentials || 'Medical Qualifications'}</Text>
+                    <Text style={styles.doctorRole} numberOfLines={2} ellipsizeMode="tail">{doctor.specialty || doctor.role || 'Specialist'}</Text>
+                    {doctor.department && (
+                      <Text style={styles.doctorFellowship} numberOfLines={1} ellipsizeMode="tail">{doctor.department}</Text>
                     )}
                     
                     <View style={styles.expertiseSection}>
@@ -936,12 +955,16 @@ const PatientHomeScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))}
+              )) : (
+                <View style={styles.noDoctorsContainer}>
+                  <Text style={styles.noDoctorsText}>Loading doctors...</Text>
+                </View>
+              )}
               </ScrollView>
               
               {/* Pagination indicators */}
               <View style={styles.paginationDots}>
-                {doctors.map((_, index) => {
+                {firebaseDoctors && firebaseDoctors.length > 0 && firebaseDoctors.map((_, index) => {
                   // Calculate the current visible doctor based on scroll position
                   const currentIndex = Math.round(doctorScrollPosition / screenWidth);
                   return (
@@ -953,7 +976,7 @@ const PatientHomeScreen = ({ navigation }) => {
                       ]}
                     />
                   );
-                })}
+                }) || []}
               </View>
             </View>
           </View>

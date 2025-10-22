@@ -64,9 +64,13 @@ const DoctorsScreen = ({ navigation }) => {
   };
 
   const handleBookAppointment = (doctor) => {
-    setBookingDoctor(doctor);
-    setShowBookingModal(true);
-    setShowDetailModal(false);
+    // Navigate directly to BookAppointmentScreen with pre-selected doctor
+    navigation.navigate('BookAppointment', { 
+      selectedDoctor: doctor,
+      preSelectedDoctor: true, // Flag to indicate doctor was pre-selected
+      doctorCentricFlow: true  // Flag for doctor-centric booking flow
+    });
+    setShowDetailModal(false); // Close detail modal if open
   };
 
   const confirmBooking = () => {
@@ -86,11 +90,19 @@ const DoctorsScreen = ({ navigation }) => {
       onPress={() => handleDoctorPress(doctor)}
     >
       <View style={styles.doctorImageContainer}>
-        <View style={styles.doctorAvatarContainer}>
-          <Text style={styles.doctorAvatarText}>
-            {doctor.name ? doctor.name.charAt(0) : 'D'}
-          </Text>
-        </View>
+        {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+          <Image 
+            source={{ uri: doctor.avatar }} 
+            style={styles.doctorFullImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.doctorAvatarContainer}>
+            <Text style={styles.doctorAvatarText}>
+              {doctor.name ? doctor.name.charAt(0) : 'D'}
+            </Text>
+          </View>
+        )}
         <View style={styles.statusBadge}>
           <Text style={styles.statusText}>Available</Text>
         </View>
@@ -241,9 +253,17 @@ const DoctorsScreen = ({ navigation }) => {
                   <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.modalDoctorHeader}>
                       <View style={styles.modalDoctorAvatarContainer}>
-                        <Text style={styles.modalDoctorAvatarText}>
-                          {selectedDoctor.name ? selectedDoctor.name.charAt(0) : 'D'}
-                        </Text>
+                        {selectedDoctor.avatar && (selectedDoctor.avatar.startsWith('http') || selectedDoctor.avatar.startsWith('file://')) ? (
+                          <Image 
+                            source={{ uri: selectedDoctor.avatar }} 
+                            style={styles.modalDoctorAvatarContainer}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Text style={styles.modalDoctorAvatarText}>
+                            {selectedDoctor.name ? selectedDoctor.name.charAt(0) : 'D'}
+                          </Text>
+                        )}
                       </View>
                       <View style={styles.modalDoctorInfo}>
                         <Text style={styles.modalDoctorName}>{selectedDoctor.name}</Text>
@@ -346,9 +366,17 @@ const DoctorsScreen = ({ navigation }) => {
                   <View style={styles.bookingModalBody}>
                     <View style={styles.bookingDoctorInfo}>
                       <View style={styles.bookingDoctorAvatarContainer}>
-                        <Text style={styles.bookingDoctorAvatarText}>
-                          {bookingDoctor.name ? bookingDoctor.name.charAt(0) : 'D'}
-                        </Text>
+                        {bookingDoctor.avatar && (bookingDoctor.avatar.startsWith('http') || bookingDoctor.avatar.startsWith('file://')) ? (
+                          <Image 
+                            source={{ uri: bookingDoctor.avatar }} 
+                            style={styles.bookingDoctorAvatarContainer}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Text style={styles.bookingDoctorAvatarText}>
+                            {bookingDoctor.name ? bookingDoctor.name.charAt(0) : 'D'}
+                          </Text>
+                        )}
                       </View>
                       <View>
                         <Text style={styles.bookingDoctorName}>{bookingDoctor.name}</Text>
@@ -466,6 +494,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
+    overflow: 'hidden',
+  },
+  doctorFullImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   doctorAvatarContainer: {
     width: 120,
@@ -474,6 +510,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.kbrBlue,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   doctorAvatarText: {
     fontSize: 48,
@@ -488,6 +525,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
   },
   statusText: {
     color: Colors.white,
@@ -688,6 +730,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.kbrBlue,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
     marginRight: Sizes.lg,
   },
   modalDoctorAvatarText: {
@@ -846,6 +889,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Sizes.md,
+    overflow: 'hidden',
   },
   bookingDoctorAvatarText: {
     fontSize: 24,
