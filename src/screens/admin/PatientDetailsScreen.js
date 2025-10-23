@@ -180,9 +180,6 @@ const PatientDetailsScreen = ({ route, navigation }) => {
           <Text style={styles.headerTitle}>Patient Details</Text>
           <Text style={styles.headerSubtitle}>{patient.id}</Text>
         </View>
-        <TouchableOpacity style={styles.headerAction} onPress={handleCall}>
-          <Ionicons name="call" size={26} color="#FFF" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -581,12 +578,9 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     paddingHorizontal: 16,
+    overflow: 'hidden', // This should hide any decorative elements that extend beyond the header bounds
   },
   backButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -605,10 +599,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerAction: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 16,
