@@ -258,7 +258,7 @@ const ExampleApiUsageScreen = () => {
           {appointments.length > 0 && (
             <View style={styles.listContainer}>
               {appointments.map((appointment, index) => (
-                <Text key={index} style={styles.listItem}>
+                <Text key={`appointment-${appointment.id || appointment.dateTime}-${index}`} style={styles.listItem}>
                   {appointment.dateTime} - {appointment.type}
                 </Text>
               ))}
@@ -281,7 +281,7 @@ const ExampleApiUsageScreen = () => {
         {doctors.length > 0 && (
           <View style={styles.listContainer}>
             {doctors.map((doctor, index) => (
-              <Text key={index} style={styles.listItem}>
+              <Text key={`doctor-${doctor.id || doctor.name}-${index}`} style={styles.listItem}>
                 Dr. {doctor.name} - {doctor.specialty}
               </Text>
             ))}
