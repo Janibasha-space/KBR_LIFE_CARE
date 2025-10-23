@@ -200,58 +200,10 @@ export class FirebaseAuthService {
         return { success: true, user: auth.currentUser };
       }
 
-      console.log('🔐 No user authenticated, trying authentication...');
+      console.log('🔐 No user authenticated - waiting for manual login');
       
-      // Try anonymous authentication first
-      try {
-        const result = await this.retryOnNetworkError(() => this.signInAnonymously());
-        return { success: true, user: auth.currentUser };
-      } catch (anonError) {
-        console.log('❌ Anonymous auth failed, trying test user login...');
-        
-        // Fallback: Try to login with test user
-        try {
-          const testCredentials = {
-            email: 'test@kbrlifecare.com',
-            password: 'test123456'
-          };
-          
-          console.log('🧪 Attempting test user login...');
-          await this.retryOnNetworkError(() => this.login(testCredentials));
-          console.log('✅ Test user login successful!');
-          return { success: true, user: auth.currentUser };
-        } catch (loginError) {
-          // If login fails, try to register the test user
-          console.log('👤 Test user not found, creating test user...');
-          try {
-            const testUserData = {
-              email: 'test@kbrlifecare.com',
-              password: 'test123456',
-              name: 'Test User',
-              phone: '+1234567890',
-              role: 'admin'
-            };
-            
-            await this.retryOnNetworkError(() => this.register(testUserData));
-            console.log('✅ Test user created and logged in!');
-            return { success: true, user: auth.currentUser };
-          } catch (registerError) {
-            console.error('❌ All authentication methods failed');
-            
-            // Provide better error information for network issues
-            if (registerError.code === 'auth/network-request-failed') {
-              console.log('🔌 Network error detected. Please check your internet connection.');
-              return { 
-                success: false, 
-                error: 'Network connection failed. Please check your internet connection and try again.',
-                isNetworkError: true
-              };
-            }
-            
-            return { success: false, error: 'All authentication methods failed' };
-          }
-        }
-      }
+      // Return no user - authentication will happen manually through AuthModal
+      return { success: false, user: null, requiresLogin: true };
     } catch (error) {
       console.error('❌ Failed to ensure authentication:', error);
       return { success: false, error: error.message };
@@ -280,6 +232,42 @@ export class FirebaseAuthService {
       console.error('Profile update error:', error);
       throw new Error('Failed to update profile');
     }
+  }
+
+  // Get user profile from Firestore
+  static async getUserProfile(userId) {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        return {
+          success: true,
+          data: userDoc.data()
+        };
+      }
+      return {
+        success: false,
+        message: 'User profile not found'
+      };
+    } catch (error) {
+      console.error('Get user profile error:', error);
+      throw new Error('Failed to get user profile');
+    }
+  }
+
+  // Check if email is a demo account
+  static isDemoAccount(email) {
+    const demoEmails = ['admin@kbrhospitals.com', 'patient@kbr.com', 'doctor@kbr.com'];
+    return demoEmails.includes(email);
+  }
+
+  // Get auth method for user
+  static getAuthMethod() {
+    const user = auth.currentUser;
+    if (!user) return null;
+    
+    if (user.isAnonymous) return 'anonymous';
+    if (this.isDemoAccount(user.email)) return 'demo';
+    return 'firebase';
   }
 
   // Helper method to get user-friendly error messages

@@ -14,11 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 
 const AppointmentScreen = ({ navigation }) => {
   const { getAllServices } = useServices();
-  const { isLoggedIn, userData, getUpcomingAppointments, getPastAppointments, cancelAppointment, logout } = useUser();
+  const { isLoggedIn, userData, getUpcomingAppointments, getPastAppointments, cancelAppointment, logout } = useUnifiedAuth();
   const [selectedService, setSelectedService] = useState(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);

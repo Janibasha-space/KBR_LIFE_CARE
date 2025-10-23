@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
 import AppHeader from '../../components/AppHeader';
 import { 
@@ -180,50 +180,6 @@ const AdminDashboardScreen = ({ navigation }) => {
   // Recent appointments from Firebase data
   const recentAppointments = dashboardData.recentAppointments;
 
-  const renderStatsCard = (card) => (
-    <View key={card.id} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
-      <View style={styles.statsCardContent}>
-        <View style={styles.statsLeft}>
-          <Text style={styles.statsTitle}>{card.title}</Text>
-          <Text style={styles.statsValue}>{card.value}</Text>
-          <View style={styles.statsChange}>
-            <Ionicons name="trending-up" size={12} color={Colors.kbrGreen} />
-            <Text style={styles.statsChangeText}>{card.change}</Text>
-          </View>
-        </View>
-        <View style={[styles.statsIconContainer, { backgroundColor: getTransparentColor(card.iconColor, '20') }]}>
-          <Ionicons name={card.icon} size={24} color={card.iconColor} />
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderAppointmentItem = (appointment) => (
-    <View key={appointment.id} style={styles.appointmentItem}>
-      <View style={styles.appointmentLeft}>
-        <View style={[styles.avatar, { backgroundColor: Colors.kbrRed }]}>
-          <Text style={styles.avatarText}>{appointment.avatar}</Text>
-        </View>
-        <View style={styles.appointmentInfo}>
-          <View style={styles.appointmentHeader}>
-            <Text style={styles.patientName}>{appointment.patientName}</Text>
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(appointment.status) }
-            ]}>
-              <Text style={styles.statusText}>{appointment.status}</Text>
-            </View>
-          </View>
-          <Text style={styles.doctorInfo}>{appointment.doctor}</Text>
-          <Text style={styles.appointmentTime}>{appointment.time}</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.moreButton}>
-        <Ionicons name="ellipsis-vertical" size={16} color={Colors.textSecondary} />
-      </TouchableOpacity>
-    </View>
-  );
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed': return getTransparentColor(Colors.confirmed, '20');
@@ -255,12 +211,42 @@ const AdminDashboardScreen = ({ navigation }) => {
         <View style={styles.statsSection}>
           <View style={styles.statsGrid}>
             <View style={styles.statsRow}>
-              {renderStatsCard(statsCards[0])}
-              {renderStatsCard(statsCards[1])}
+              {statsCards.slice(0, 2).map((card, index) => (
+                <View key={`stats-${card.id}-${index}`} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
+                  <View style={styles.statsCardContent}>
+                    <View style={styles.statsLeft}>
+                      <Text style={styles.statsTitle}>{card.title}</Text>
+                      <Text style={styles.statsValue}>{card.value}</Text>
+                      <View style={styles.statsChange}>
+                        <Ionicons name="trending-up" size={12} color={Colors.kbrGreen} />
+                        <Text style={styles.statsChangeText}>{card.change}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statsIconContainer, { backgroundColor: getTransparentColor(card.iconColor, '20') }]}>
+                      <Ionicons name={card.icon} size={24} color={card.iconColor} />
+                    </View>
+                  </View>
+                </View>
+              ))}
             </View>
             <View style={styles.statsRow}>
-              {renderStatsCard(statsCards[2])}
-              {renderStatsCard(statsCards[3])}
+              {statsCards.slice(2, 4).map((card, index) => (
+                <View key={`stats-${card.id}-${index + 2}`} style={[styles.statsCard, { backgroundColor: card.backgroundColor }]}>
+                  <View style={styles.statsCardContent}>
+                    <View style={styles.statsLeft}>
+                      <Text style={styles.statsTitle}>{card.title}</Text>
+                      <Text style={styles.statsValue}>{card.value}</Text>
+                      <View style={styles.statsChange}>
+                        <Ionicons name="trending-up" size={12} color={Colors.kbrGreen} />
+                        <Text style={styles.statsChangeText}>{card.change}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statsIconContainer, { backgroundColor: getTransparentColor(card.iconColor, '20') }]}>
+                      <Ionicons name={card.icon} size={24} color={card.iconColor} />
+                    </View>
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
         </View>
@@ -381,7 +367,37 @@ const AdminDashboardScreen = ({ navigation }) => {
           
           <View style={styles.appointmentsList}>
             {recentAppointments.length > 0 ? (
-              recentAppointments.map(renderAppointmentItem)
+              recentAppointments.map((appointment, index) => (
+                <View key={`appointment-${appointment.id || 'temp'}-${index}`} style={styles.appointmentItem}>
+                  <View style={styles.appointmentLeft}>
+                    <View style={[styles.avatar, { backgroundColor: Colors.kbrRed }]}>
+                      <Text style={styles.avatarText}>{appointment.avatar}</Text>
+                    </View>
+                    <View style={styles.appointmentInfo}>
+                      <View style={styles.appointmentHeader}>
+                        <Text style={styles.patientName}>{appointment.patientName}</Text>
+                        <View style={[
+                          styles.statusBadge,
+                          { backgroundColor: getStatusColor(appointment.status) }
+                        ]}>
+                          <Text style={styles.statusText}>{appointment.status}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.doctorInfo}>{appointment.doctor}</Text>
+                      <Text style={styles.appointmentTime}>{appointment.time}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.appointmentAction}
+                    onPress={() => {
+                      // TODO: Implement appointment details view
+                      console.log('View appointment details:', appointment);
+                    }}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ))
             ) : (
               <View style={styles.emptyState}>
                 <Ionicons name="calendar-outline" size={48} color={Colors.textSecondary} />

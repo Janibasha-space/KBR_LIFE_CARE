@@ -469,7 +469,7 @@ KBR Life Care Hospital
       {/* Invoices List */}
       <FlatList
         data={filteredInvoices}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `invoice-${item.id || item.invoiceNumber || 'no-id'}-${index}`}
         renderItem={({ item }) => <InvoiceCard invoice={item} />}
         contentContainerStyle={styles.invoicesList}
         showsVerticalScrollIndicator={false}

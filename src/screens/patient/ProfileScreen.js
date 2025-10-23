@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Colors, Sizes } from '../../constants/theme';
 
 const ProfileScreen = ({ navigation }) => {
-  const { user, logoutUser } = useUser();
+  const { user, logoutUser } = useUnifiedAuth();
   const { theme } = useTheme();
 
   const handleLogout = () => {

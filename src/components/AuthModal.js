@@ -11,16 +11,19 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../constants/theme';
-import { useUser } from '../contexts/UserContext';
+import { useUnifiedAuth } from '../contexts/UnifiedAuthContext';
+import { useApp } from '../contexts/AppContext';
 
 const AuthModal = ({ visible, onClose, navigation }) => {
   const [authMode, setAuthMode] = useState('signin'); // 'signin' or 'signup'
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   
   // Form data
   const [formData, setFormData] = useState({
@@ -28,9 +31,11 @@ const AuthModal = ({ visible, onClose, navigation }) => {
     password: '',
     confirmPassword: '',
     fullName: '',
+    phone: '',
   });
 
-  const { loginUser } = useUser();
+  const { login, register, isLoading } = useUnifiedAuth();
+  const { initializeFirebaseData } = useApp();
 
   // Reset form when modal closes
   const handleClose = () => {
@@ -39,6 +44,7 @@ const AuthModal = ({ visible, onClose, navigation }) => {
       password: '',
       confirmPassword: '',
       fullName: '',
+      phone: '',
     });
     setAuthMode('signin');
     setShowPassword(false);
@@ -57,29 +63,38 @@ const AuthModal = ({ visible, onClose, navigation }) => {
 
       setLoading(true);
       try {
-        // Mock authentication - in real app, you would validate with backend
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const user = {
-          id: Date.now().toString(),
+        const response = await login({
           email: formData.email,
-          username: formData.email.split('@')[0],
-          name: formData.email.split('@')[0],
-          authMethod: 'email',
-        };
+          password: formData.password
+        });
         
-        await loginUser(user);
-        Alert.alert('Success', 'Signed in successfully!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              handleClose();
-              navigation?.navigate('PatientMain', { screen: 'Home' });
+        if (response.success) {
+          Alert.alert('Success', response.message || 'Signed in successfully!', [
+            {
+              text: 'OK',
+              onPress: () => {
+                handleClose();
+                // Navigate based on user role - fix the data structure path
+                const userRole = response.data?.user?.role || response.user?.role;
+                console.log('🔄 User role detected:', userRole);
+                
+                // Trigger data loading after successful authentication
+                console.log('📊 Loading Firebase data after successful login...');
+                initializeFirebaseData();
+                
+                if (userRole === 'admin') {
+                  console.log('🚀 Navigating to Admin Dashboard');
+                  navigation?.navigate('AdminMain');
+                } else {
+                  console.log('🏥 Navigating to Patient Dashboard');
+                  navigation?.navigate('PatientMain', { screen: 'Home' });
+                }
+              },
             },
-          },
-        ]);
+          ]);
+        }
       } catch (error) {
-        Alert.alert('Error', 'Sign in failed. Please check your credentials.');
+        Alert.alert('Sign In Failed', error.message || 'Please check your credentials and try again.');
       } finally {
         setLoading(false);
       }
@@ -102,35 +117,35 @@ const AuthModal = ({ visible, onClose, navigation }) => {
 
       setLoading(true);
       try {
-        // Mock registration - in real app, you would create account with backend
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        const newUser = {
-          id: Date.now().toString(),
+        const response = await register({
           email: formData.email,
-          username: formData.fullName,
+          password: formData.password,
           name: formData.fullName,
-          authMethod: 'email',
-          createdAt: new Date().toISOString(),
-        };
-
-        await loginUser(newUser);
-        Alert.alert('Success', 'Account created successfully!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              handleClose();
-              navigation?.navigate('PatientMain', { screen: 'Home' });
+          phone: formData.phone,
+          role: 'patient'
+        });
+        
+        if (response.success) {
+          Alert.alert('Success', 'Account created successfully!', [
+            {
+              text: 'OK',
+              onPress: () => {
+                handleClose();
+                navigation?.navigate('PatientMain', { screen: 'Home' });
+              },
             },
-          },
-        ]);
+          ]);
+        }
       } catch (error) {
-        Alert.alert('Error', 'Registration failed. Please try again.');
+        Alert.alert('Registration Failed', error.message || 'Please try again.');
       } finally {
         setLoading(false);
       }
     }
   };
+
+  // Handle demo account selection
+  // Firebase-only authentication - removed demo account functions
 
   return (
     <Modal
@@ -192,6 +207,9 @@ const AuthModal = ({ visible, onClose, navigation }) => {
                 </TouchableOpacity>
               </View>
 
+              {/* Demo Accounts Section */}
+              {/* Firebase-only Authentication Form */}
+
               {/* Form Content */}
               <View style={styles.formContainer}>
                 {authMode === 'signup' && (
@@ -238,6 +256,16 @@ const AuthModal = ({ visible, onClose, navigation }) => {
 
                 {authMode === 'signup' && (
                   <>
+                    <Text style={styles.inputLabel}>Phone Number</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor="#999"
+                      value={formData.phone}
+                      onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+                      keyboardType="phone-pad"
+                    />
+
                     <Text style={styles.inputLabel}>Confirm Password</Text>
                     <View style={styles.passwordContainer}>
                       <TextInput
@@ -439,6 +467,118 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.kbrBlue,
     fontWeight: '600',
+  },
+  // Demo accounts styles
+  demoAccountsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  demoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  demoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  hideDemo: {
+    fontSize: 14,
+    color: Colors.kbrBlue,
+    fontWeight: '500',
+  },
+  demoSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 12,
+  },
+  demoAccountCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  demoAccountInfo: {
+    flex: 1,
+  },
+  demoAccountRole: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.kbrBlue,
+    marginBottom: 2,
+  },
+  demoAccountName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 1,
+  },
+  demoAccountEmail: {
+    fontSize: 11,
+    color: '#666',
+  },
+  demoAccountActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  demoQuickLogin: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  demoQuickLoginText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  demoFillButton: {
+    padding: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.kbrBlue,
+  },
+  showDemoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.kbrBlue,
+    borderRadius: 8,
+    borderStyle: 'dashed',
+    gap: 6,
+  },
+  showDemoText: {
+    color: Colors.kbrBlue,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e9ecef',
+  },
+  dividerText: {
+    marginHorizontal: 15,
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
   },
 });
 

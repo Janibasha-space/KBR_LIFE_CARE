@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../constants/theme';
-import { useUser } from '../contexts/UserContext';
+import { useUnifiedAuth } from '../contexts/UnifiedAuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AuthModal from './AuthModal';
 
@@ -25,9 +25,13 @@ const AppHeader = ({
   customBackAction = null,
   showMenuButton = false,
   hideProfileButton = false,
-  useSimpleAdminHeader = false
+  useSimpleAdminHeader = false,
+  // Notification props
+  showNotificationButton = false,
+  notificationCount = 0,
+  onNotificationPress = null
 }) => {
-  const { isLoggedIn, userData, logoutUser } = useUser();
+  const { isAuthenticated, user, logout } = useUnifiedAuth();
   const { theme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -49,11 +53,11 @@ const AppHeader = ({
   };
 
   const handleAuthPress = () => {
-    if (isLoggedIn) {
+    if (isAuthenticated) {
       // Show user options menu
       Alert.alert(
         'Account Options',
-        `Welcome back, ${userData?.name || 'User'}!`,
+        `Welcome back, ${user?.name || 'User'}!`,
         [
           {
             text: 'View Profile',
@@ -74,9 +78,13 @@ const AppHeader = ({
                   { 
                     text: 'Logout', 
                     style: 'destructive',
-                    onPress: () => {
-                      logoutUser();
-                      Alert.alert('Success', 'You have been logged out successfully.');
+                    onPress: async () => {
+                      try {
+                        await logout();
+                        Alert.alert('Success', 'You have been logged out successfully.');
+                      } catch (error) {
+                        Alert.alert('Error', 'Failed to logout. Please try again.');
+                      }
                     }
                   }
                 ]
@@ -163,13 +171,29 @@ const AppHeader = ({
           </View>
           
           <View style={styles.rightSection}>
+            {showNotificationButton && (
+              <TouchableOpacity 
+                style={styles.notificationButton}
+                onPress={onNotificationPress}
+              >
+                <Ionicons name="notifications" size={20} color={Colors.white} />
+                {notificationCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {notificationCount > 9 ? '9+' : notificationCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
             {!hideProfileButton && (
               <TouchableOpacity 
                 style={styles.profileIconButton}
                 onPress={handleAuthPress}
               >
-                {isLoggedIn ? (
-                  userData?.userData?.profileImage ? (
+                {isAuthenticated ? (
+                  user?.profileImage ? (
                     <Image 
                       source={{ uri: userData.userData.profileImage }} 
                       style={styles.profileIconImage}
@@ -427,6 +451,37 @@ const styles = StyleSheet.create({
     // Ensure subtitle truncates if too long
     ellipsizeMode: 'tail',
     numberOfLines: 1,
+  },
+  // Notification Styles
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.kbrBlue,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    lineHeight: 12,
   },
 });
 

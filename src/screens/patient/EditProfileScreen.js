@@ -17,12 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { Colors } from '../../constants/theme';
 
 const EditProfileScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { user, updateUser } = useUser();
+  const { user, updateUser } = useUnifiedAuth();
   const userProfile = user?.userData || {};
   
   const [loading, setLoading] = useState(false);

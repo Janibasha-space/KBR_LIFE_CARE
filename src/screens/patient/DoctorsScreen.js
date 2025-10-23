@@ -20,11 +20,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import AppHeader from '../../components/AppHeader';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 
 const { width } = Dimensions.get('window');
 
 const DoctorsScreen = ({ navigation }) => {
+  const { isLoggedIn } = useUnifiedAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
@@ -34,8 +36,13 @@ const DoctorsScreen = ({ navigation }) => {
 
   // Load doctors from Firebase
   useEffect(() => {
-    loadDoctors();
-  }, []);
+    if (isLoggedIn) {
+      loadDoctors();
+    } else {
+      console.log('🔒 Skipping doctors loading - user not authenticated');
+      setIsLoading(false);
+    }
+  }, [isLoggedIn]);
 
   const loadDoctors = async () => {
     try {
