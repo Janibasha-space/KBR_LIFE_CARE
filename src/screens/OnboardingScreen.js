@@ -14,24 +14,25 @@ import { Colors, Sizes } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
 
+// Ensure each item has a completely unique ID
 const onboardingData = [
   {
-    id: '1',
+    id: 'onboarding_bookAppointments_1',
     title: 'Book Appointments',
     subtitle: 'Schedule your medical appointments with ease',
-    image: require('../../assets/Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png'),
+    image: require('../../assets/book appointment.jpeg'),
   },
   {
-    id: '2',
+    id: 'onboarding_expertCare_2',
     title: 'Expert Care',
     subtitle: 'Get treated by experienced medical professionals',
-    image: require('../../assets/hospital-logo.jpeg'),
+    image: require('../../assets/expert care.jpeg'),
   },
   {
-    id: '3',
+    id: 'onboarding_support_3',
     title: '24/7 Support',
     subtitle: 'Round-the-clock medical assistance and care',
-    image: require('../../assets/Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png'),
+    image: require('../../assets/support.jpeg'),
   },
 ];
 
@@ -54,30 +55,28 @@ const OnboardingScreen = ({ navigation }) => {
     navigation.replace('PatientMain');
   };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.slide}>
-      <Image source={item.image} style={styles.image} resizeMode="contain" />
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.subtitle}>{item.subtitle}</Text>
-    </View>
-  );
+  // Render function now inline in FlatList
 
   const renderDots = () => {
     return (
       <View style={styles.dotsContainer}>
-        {onboardingData.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              { 
-                backgroundColor: index === currentIndex ? '#4AA3DF' : '#E0E0E0',
-                opacity: index === currentIndex ? 1 : 0.4,
-                transform: [{ scale: index === currentIndex ? 1.2 : 1 }]
-              }
-            ]}
-          />
-        ))}
+        {onboardingData.map((item, index) => {
+          const dotKey = `onboarding-dot-${item.id}-${index}`;
+          return (
+            <View
+              key={dotKey}
+              style={[
+                styles.dot,
+                { 
+                  backgroundColor: index === currentIndex ? '#4AA3DF' : '#E0E0E0',
+                  opacity: index === currentIndex ? 1 : 0.4,
+                  width: index === currentIndex ? 18 : 8, // Make active dot wider instead of larger
+                  transform: [{ scale: index === currentIndex ? 1.05 : 1 }]
+                }
+              ]}
+            />
+          );
+        })}
       </View>
     );
   };
@@ -85,12 +84,6 @@ const OnboardingScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('FirebaseTest')} 
-          style={[styles.skipButton, { backgroundColor: '#FF9800', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }]}
-        >
-          <Text style={[styles.skipText, { color: Colors.white, fontSize: 12 }]}>Test Firebase</Text>
-        </TouchableOpacity>
         <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
@@ -99,11 +92,28 @@ const OnboardingScreen = ({ navigation }) => {
       <FlatList
         ref={flatListRef}
         data={onboardingData}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <View key={`slide-${item.id}-${index}`} style={styles.slide}>
+            <View style={styles.imageContainer}>
+              <Image 
+                source={item.image} 
+                style={styles.image} 
+                resizeMode="cover" 
+              />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.subtitle}>{item.subtitle}</Text>
+            </View>
+          </View>
+        )}
+        keyExtractor={(item, index) => `onboarding-item-${item.id}-${index}`}
         horizontal
         pagingEnabled
+        bounces={false}
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false }
@@ -141,7 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Sizes.screenPadding,
     paddingTop: Sizes.lg,
     paddingBottom: Sizes.md,
-    minHeight: 60,
+    minHeight: 50,
   },
   skipButton: {
     paddingHorizontal: Sizes.md,
@@ -150,9 +160,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 163, 223, 0.1)',
   },
   skipText: {
-    fontSize: Sizes.regular,
+    fontSize: 15,
     color: '#4AA3DF',
-    fontWeight: '600',
+    fontWeight: '500', // Medium weight for better legibility
+    letterSpacing: 0.2,
   },
   slide: {
     width,
@@ -162,27 +173,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: Sizes.screenPadding * 1.5,
     paddingBottom: 80, // Space for footer
   },
-  image: {
-    width: width * 0.65, // Responsive image size
-    height: width * 0.65,
-    marginBottom: Sizes.xl * 1.5,
+  imageContainer: {
+    width: width * 0.85,
+    height: width * 0.7,
     borderRadius: Sizes.radiusLarge,
+    overflow: 'hidden',
+    marginBottom: Sizes.xl * 1.5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    backgroundColor: '#fff',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    borderRadius: Sizes.radiusLarge,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   title: {
-    fontSize: Sizes.xxlarge,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
+    fontSize: 26,
+    fontWeight: '700', // Slightly lighter than bold for a more modern look
+    color: '#2D3748', // Darker, richer color for better contrast
     textAlign: 'center',
-    marginBottom: Sizes.lg,
-    letterSpacing: 0.5,
+    marginBottom: Sizes.md,
+    letterSpacing: 0.3, // Slightly tighter letter spacing
+    includeFontPadding: false, // Removes extra padding
+    fontFamily: 'System', // Using system font for clean look
   },
   subtitle: {
-    fontSize: Sizes.large,
-    color: Colors.textSecondary,
+    fontSize: 16,
+    fontWeight: '400', // Regular weight for subtitle
+    color: '#718096', // Softer gray that looks more professional
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 22, // Tighter line height for cleaner appearance
     paddingHorizontal: Sizes.md,
-    maxWidth: width * 0.8,
+    maxWidth: width * 0.75, // Slightly narrower for better readability
+    letterSpacing: 0.2, // Subtle letter spacing
+  },
+  textContainer: {
+    paddingHorizontal: Sizes.md,
+    paddingVertical: Sizes.sm,
+    alignItems: 'center',
+    width: '100%',
   },
   footer: {
     position: 'absolute',
@@ -212,35 +250,36 @@ const styles = StyleSheet.create({
     paddingVertical: Sizes.sm,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginHorizontal: 6,
-    opacity: 0.3,
+    width: 8, // Smaller dots look more modern and elegant
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 5,
+    opacity: 0.35,
   },
   nextButton: {
     backgroundColor: '#4AA3DF',
-    borderRadius: Sizes.radiusMedium,
-    paddingVertical: Sizes.md,
+    borderRadius: 12, // More modern, slightly rounder corners
+    paddingVertical: 14,
     paddingHorizontal: Sizes.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
-    shadowColor: '#4AA3DF',
+    minHeight: 50, // Slightly taller button for better touch target
+    shadowColor: '#3182CE', // Darker shadow color for depth
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 4,
     marginBottom: 5, // Prevent cut-off
   },
   nextButtonText: {
-    fontSize: Sizes.regular,
+    fontSize: 16,
     fontWeight: '600',
     color: Colors.white,
-    letterSpacing: 0.3,
+    letterSpacing: 0.5, // Slightly increased for emphasis
+    textTransform: 'capitalize', // Makes the text look more professional
   },
 });
 

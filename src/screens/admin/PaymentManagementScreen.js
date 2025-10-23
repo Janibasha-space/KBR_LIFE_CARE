@@ -95,9 +95,15 @@ const PaymentManagementScreen = ({ navigation }) => {
     // Enhanced deduplication: use Map for better performance and handle edge cases
     const uniquePaymentsMap = new Map();
     (payments || []).forEach((payment) => {
-      const key = payment.id || `${payment.patientId}-${payment.amount}-${payment.date}`;
+      // Generate a more reliable key that includes all potential uniqueness factors
+      const key = payment.id ? 
+        `${payment.id}` : 
+        `${payment.patientId || ''}-${payment.amount || 0}-${payment.date || ''}-${payment.description || ''}`;
+      
       if (!uniquePaymentsMap.has(key)) {
         uniquePaymentsMap.set(key, payment);
+      } else {
+        console.log(`⚠️ Duplicate payment detected with key: ${key}`);
       }
     });
     const uniquePayments = Array.from(uniquePaymentsMap.values());
@@ -129,6 +135,8 @@ const PaymentManagementScreen = ({ navigation }) => {
         registrationDate: patient?.registrationDate,
         method: payment.method,
         description: payment.description,
+        // Add index as another uniqueness factor
+        index: index
       };
     })
     .sort((a, b) => new Date(b.lastPaymentDate || b.registrationDate) - new Date(a.lastPaymentDate || a.registrationDate));
@@ -197,6 +205,19 @@ const PaymentManagementScreen = ({ navigation }) => {
 
   const handleUpdatePaymentStatus = async (paymentId, newStatus) => {
     try {
+      // Check if paymentId is a generated id or an original id
+      if (paymentId && paymentId.startsWith('payment-')) {
+        // This is a generated ID, find the original ID from the payment list
+        const payment = paymentList.find(p => p.id === paymentId);
+        if (payment && payment.originalId) {
+          paymentId = payment.originalId;
+        } else {
+          console.error('❌ Could not find original payment ID for:', paymentId);
+          Alert.alert('Error', 'Could not find original payment ID. Please try again.');
+          return;
+        }
+      }
+      
       await updatePaymentStatus(paymentId, newStatus);
       
       // If payment is marked as paid, automatically generate an invoice
@@ -214,10 +235,22 @@ const PaymentManagementScreen = ({ navigation }) => {
   // Function to automatically generate invoice when payment is completed
   const generateInvoiceForPayment = async (paymentId) => {
     try {
-      // Find the payment that was just completed
-      const completedPayment = payments.find(p => p.id === paymentId);
+      // Find the payment that was just completed - check both original and generated IDs
+      let completedPayment = payments.find(p => p.id === paymentId);
+      
+      // If not found by direct ID, try to find via the transformed payment list
       if (!completedPayment) {
-        console.error('Payment not found for invoice generation');
+        const transformedPayment = paymentList.find(p => 
+          p.id === paymentId || p.originalId === paymentId
+        );
+        
+        if (transformedPayment && transformedPayment.originalId) {
+          completedPayment = payments.find(p => p.id === transformedPayment.originalId);
+        }
+      }
+      
+      if (!completedPayment) {
+        console.error('Payment not found for invoice generation, ID:', paymentId);
         return;
       }
 
@@ -279,6 +312,8 @@ const PaymentManagementScreen = ({ navigation }) => {
   };
 
   const handleDeletePayment = (payment) => {
+    const paymentId = payment.originalId || payment.id;
+    
     Alert.alert(
       'Delete Payment',
       `Are you sure you want to delete payment for ${payment.patientName}?\n\nAmount: ₹${payment.amount}\n\nThis action cannot be undone.`,
@@ -289,7 +324,8 @@ const PaymentManagementScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deletePayment(payment.id);
+              // Make sure we're using the original ID for the API call
+              await deletePayment(paymentId);
               Alert.alert('Success', 'Payment deleted successfully!');
             } catch (error) {
               console.error('Error deleting payment:', error);
@@ -649,7 +685,7 @@ const PaymentManagementScreen = ({ navigation }) => {
             )}
             renderItem={({ item, index }) => {
               return (
-                <View style={[styles.paymentCard, { backgroundColor: '#FFFFFF', margin: 10, borderRadius: 12, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
+                <View key={`payment-view-${index}`} style={[styles.paymentCard, { backgroundColor: '#FFFFFF', margin: 10, borderRadius: 12, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
                   <View style={styles.paymentHeader}>
                   <View style={styles.patientInfo}>
                     <View style={styles.patientAvatar}>
@@ -709,6 +745,7 @@ const PaymentManagementScreen = ({ navigation }) => {
 
                 <View style={styles.cardActions}>
                   <TouchableOpacity 
+                    key={`view-btn-${item.id}-${index}`}
                     style={styles.actionButton}
                     onPress={() => handleViewDetails(item)}
                   >
@@ -718,8 +755,9 @@ const PaymentManagementScreen = ({ navigation }) => {
                   
                   {(item.paymentStatus !== 'paid' && item.status !== 'Fully Paid') && (
                     <TouchableOpacity 
+                      key={`mark-paid-btn-${item.id}-${index}`}
                       style={styles.actionButton}
-                      onPress={() => handleUpdatePaymentStatus(item.id, 'paid')}
+                      onPress={() => handleUpdatePaymentStatus(item.originalId, 'paid')}
                     >
                       <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
                       <Text style={[styles.actionText, { color: "#22C55E" }]}>Mark Paid</Text>
@@ -727,6 +765,7 @@ const PaymentManagementScreen = ({ navigation }) => {
                   )}
                   
                   <TouchableOpacity 
+                    key={`invoice-btn-${item.id}-${index}`}
                     style={styles.actionButton}
                     onPress={() => Alert.alert('Invoice', 'Generate/Download invoice feature coming soon!')}
                   >
