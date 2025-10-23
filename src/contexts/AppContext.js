@@ -7,6 +7,8 @@ import {
   DischargeService, 
   ReportService 
 } from '../services/hospitalServices';
+import { FirebaseHospitalService } from '../services/firebaseHospitalServices';
+import { SimpleBookingService } from '../services/simpleBookingService';
 
 // Central App Context for Admin-Patient Integration
 // This context manages all shared data between admin and patient dashboards
@@ -34,8 +36,14 @@ const initialAppState = {
     specialized: [],
   },
 
-  // Shared Appointments (both admin and patient view same data)
+  // Shared Appointments (loaded from Firebase/real bookings only)
   appointments: [],
+
+  // Hospital Admissions (patient admission records)
+  admissions: [],
+
+  // Test Appointments (lab tests, diagnostics)
+  testAppointments: [],
 
   // Doctor Management (shared between admin and patient)
   doctors: [
@@ -611,11 +619,12 @@ export const AppProvider = ({ children }) => {
     
     try {
       // Load all data from Firebase
-      const [rooms, invoices, payments, reports] = await Promise.all([
+      const [rooms, invoices, payments, reports, appointments] = await Promise.all([
         RoomService.getAllRooms(),
         InvoiceService.getAllInvoices(),
         PaymentService.getAllPayments(),
-        ReportService.getAllReports()
+        ReportService.getAllReports(),
+        SimpleBookingService.getAllAppointments() // Load appointments from database
       ]);
 
       setAppState(prev => ({
@@ -623,10 +632,12 @@ export const AppProvider = ({ children }) => {
         rooms: rooms || prev.rooms,
         invoices: invoices || prev.invoices,
         payments: payments || prev.payments,
-        reports: reports || prev.reports
+        reports: reports || prev.reports,
+        appointments: appointments || prev.appointments // Add appointments to state
       }));
       
       console.log('✅ Firebase data loaded successfully');
+      console.log(`📋 Loaded ${appointments?.length || 0} appointments from database`);
     } catch (error) {
       if (error.message.includes('Authentication required')) {
         console.log('🔐 Firebase data loading skipped - authentication required');
@@ -678,38 +689,53 @@ export const AppProvider = ({ children }) => {
   ]);
 
   // ==== APPOINTMENT MANAGEMENT ====
-  const addAppointment = (appointmentData) => {
-    const newAppointment = {
-      id: `apt-${Date.now()}`,
-      tokenNumber: `KBR${String(appState.appointments.length + 1).padStart(2, '0')}`,
-      status: 'confirmed',
-      paymentStatus: appointmentData.paymentType === 'hospital' ? 'pending' : 'paid',
-      paymentId: appointmentData.paymentType === 'online' ? `PAY${Date.now()}` : null,
-      bookedAt: new Date().toISOString(),
-      ...appointmentData,
-    };
+  const addAppointment = async (appointmentData) => {
+    try {
+      console.log('📱 AppContext: Booking appointment via Firebase service...');
+      console.log('📋 AppContext: Appointment data received:', appointmentData);
+      
+      // Use Simple Booking service for testing (switch back to FirebaseHospitalService when auth is fixed)
+      const result = await SimpleBookingService.bookAppointment(appointmentData);
+      console.log('🔥 Booking service result:', result);
+      
+      if (result.success) {
+        // Update local state with the new appointment
+        const newAppointment = result.data;
+        
+        setAppState(prev => ({
+          ...prev,
+          appointments: [...prev.appointments, newAppointment]
+        }));
 
-    setAppState(prev => ({
-      ...prev,
-      appointments: [...prev.appointments, newAppointment]
-    }));
+        // Create payment record if online payment
+        if (appointmentData.paymentType === 'online') {
+          try {
+            addPayment({
+              appointmentId: newAppointment.id,
+              patientId: newAppointment.patientId,
+              amount: appointmentData.totalAmount || appointmentData.amount || 0,
+              method: 'online',
+              status: 'paid',
+              date: new Date().toISOString(),
+              description: `Payment for appointment ${newAppointment.tokenNumber}`
+            });
+          } catch (paymentError) {
+            console.warn('⚠️ Payment record creation failed:', paymentError);
+            // Don't fail the whole booking if payment record fails
+          }
+        }
 
-    // Create payment record
-    if (appointmentData.paymentType === 'online') {
-      addPayment({
-        appointmentId: newAppointment.id,
-        patientName: appointmentData.patientName,
-        amount: appointmentData.amount,
-        paymentMethod: 'Online',
-        paymentStatus: 'Paid',
-        type: 'appointment'
-      });
+        console.log(`✅ AppContext: Appointment booked successfully with token: ${newAppointment.tokenNumber}`);
+        return newAppointment;
+      } else {
+        console.error('❌ Booking failed:', result);
+        throw new Error(result.message || 'Failed to book appointment');
+      }
+
+    } catch (error) {
+      console.error('❌ AppContext: Error booking appointment:', error);
+      throw error;
     }
-
-    // Update doctor's today appointments
-    updateDoctorAppointmentCount(appointmentData.doctorName);
-
-    return newAppointment;
   };
 
   const updateAppointmentStatus = (appointmentId, status) => {
@@ -723,6 +749,30 @@ export const AppProvider = ({ children }) => {
 
   const cancelAppointment = (appointmentId) => {
     updateAppointmentStatus(appointmentId, 'cancelled');
+  };
+
+  // Load appointments from database
+  const loadAppointments = async () => {
+    try {
+      console.log('📋 Loading appointments from database...');
+      const appointments = await SimpleBookingService.getAllAppointments();
+      
+      setAppState(prev => ({
+        ...prev,
+        appointments: appointments || []
+      }));
+      
+      console.log(`✅ Loaded ${appointments?.length || 0} appointments from database`);
+      return appointments;
+    } catch (error) {
+      console.error('❌ Error loading appointments:', error);
+      return [];
+    }
+  };
+
+  const refreshAppointmentData = async () => {
+    console.log('🔄 Refreshing appointment data...');
+    await loadAppointments();
   };
 
   // ==== DOCTOR MANAGEMENT ====
@@ -1811,6 +1861,8 @@ export const AppProvider = ({ children }) => {
     // Utility Methods
     calculateAdminStats,
     initializeFirebaseData,
+    loadAppointments,
+    refreshAppointmentData,
   };
 
   return (

@@ -92,42 +92,37 @@ const ServicesScreen = ({ navigation, route }) => {
   // Loading state for content
   const [contentLoaded, setContentLoaded] = useState(preloaded);
 
-  // Load services with doctor details from Firebase
+  // Load services with doctor details from Firebase - Now works for everyone
   useEffect(() => {
     const loadServicesWithDoctors = async () => {
       try {
-        if (!isLoggedIn) {
-          console.log('🔒 Skipping Firebase services loading - user not authenticated');
-          setLoadingFirebaseServices(false);
-          return;
-        }
-
+        console.log('� Loading Firebase services for all users...');
         setLoadingFirebaseServices(true);
+        
         const result = await firebaseHospitalServices.getServicesWithDoctors();
         if (result.success) {
           setFirebaseServices(result.data);
+          console.log('✅ Successfully loaded services:', result.data.length);
+        } else {
+          console.error('❌ Failed to load services:', result.message);
+          setFirebaseServices([]);
         }
       } catch (error) {
-        console.error('Error loading services with doctors:', error);
+        console.error('❌ Error loading services with doctors:', error);
+        setFirebaseServices([]);
       } finally {
         setLoadingFirebaseServices(false);
       }
     };
 
     loadServicesWithDoctors();
-  }, [isLoggedIn]);
+  }, []); // Removed dependency on isLoggedIn
   
-  // Load tests from Firebase
+  // Load tests from Firebase - Now works for everyone
   useEffect(() => {
     const loadFirebaseTests = async () => {
       try {
-        if (!isLoggedIn) {
-          console.log('🔒 Skipping Firebase tests loading - user not authenticated');
-          setLoadingFirebaseTests(false);
-          return;
-        }
-
-        console.log('🧪 Starting to load tests from Firebase...');
+        console.log('🧪 Starting to load tests from Firebase for all users...');
         console.log('🧪 Firebase services available:', Object.keys(firebaseHospitalServices));
         setLoadingFirebaseTests(true);
         
@@ -161,7 +156,7 @@ const ServicesScreen = ({ navigation, route }) => {
     };
 
     loadFirebaseTests();
-  }, [isLoggedIn]);
+  }, []); // Removed dependency on isLoggedIn
   
   // Function to scroll to tests section smoothly
   const scrollToTestsSection = () => {
@@ -576,16 +571,38 @@ const ServicesScreen = ({ navigation, route }) => {
                     styles.bookAppointmentButton,
                     { backgroundColor: specialty.backgroundColor } // Match the specialty color
                   ]}
-                  onPress={() => navigation.navigate('BookAppointment', { 
-                    selectedService: service,
-                    serviceCentricFlow: true,
-                    preSelectedService: service,
-                    category: specialty.id,
-                    service: service.name,
-                    serviceId: service.id,
-                    serviceDetails: service,
-                    assignedDoctors: service.assignedDoctors
-                  })}
+                  onPress={() => {
+                    if (isLoggedIn) {
+                      navigation.navigate('BookAppointment', { 
+                        selectedService: service,
+                        serviceCentricFlow: true,
+                        preSelectedService: service,
+                        category: specialty.id,
+                        service: service.name,
+                        serviceId: service.id,
+                        serviceDetails: service,
+                        assignedDoctors: service.assignedDoctors
+                      });
+                    } else {
+                      Alert.alert(
+                        'Login Required',
+                        'Please login to book an appointment',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { 
+                            text: 'Login', 
+                            onPress: () => {
+                              // Store the service details to return to after login
+                              navigation.navigate('PatientMain', { 
+                                screen: 'Home',
+                                params: { showAuthModal: true }
+                              });
+                            }
+                          }
+                        ]
+                      );
+                    }
+                  }}
                 >
                   <Ionicons name="calendar-outline" size={16} color={Colors.white} style={styles.bookBtnIcon} />
                   <Text style={styles.bookAppointmentText}>Book Appointment</Text>
@@ -604,12 +621,33 @@ const ServicesScreen = ({ navigation, route }) => {
       key={test.id}
       style={[styles.testCard, { backgroundColor: test.backgroundColor }]}
       activeOpacity={0.8}
-      onPress={() => navigation.navigate('BookAppointment', { 
-        testCategory: test.id,
-        testCentricFlow: true,
-        type: 'test',
-        category: test.id
-      })}
+      onPress={() => {
+        if (isLoggedIn) {
+          navigation.navigate('BookAppointment', { 
+            testCategory: test.id,
+            testCentricFlow: true,
+            type: 'test',
+            category: test.id
+          });
+        } else {
+          Alert.alert(
+            'Login Required',
+            'Please login to book a test appointment',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Login', 
+                onPress: () => {
+                  navigation.navigate('PatientMain', { 
+                    screen: 'Home',
+                    params: { showAuthModal: true }
+                  });
+                }
+              }
+            ]
+          );
+        }
+      }}
     >
       <View style={styles.testContent}>
         <View style={styles.testLeft}>

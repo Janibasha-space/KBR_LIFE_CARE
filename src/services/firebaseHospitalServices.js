@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
 import { FirebaseAuthService } from './firebaseAuthService';
+import TokenService from './tokenService';
 
 // Utility function to safely update or create documents
 const safeUpdateDoc = async (docRef, data, options = {}) => {
@@ -86,35 +87,109 @@ export class FirebaseAppointmentService {
     }
   }
 
-  // Book new appointment
+  // Book new appointment with token generation
   static async bookAppointment(appointmentData) {
     try {
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      console.log('🔐 Firebase auth currentUser:', user ? 'Authenticated' : 'Not authenticated');
+      
+      // For now, allow booking even if Firebase auth is not set up properly
+      // In production, you should ensure proper authentication
+      const patientId = user?.uid || `temp-user-${Date.now()}`;
+      console.log('👤 Using patient ID:', patientId);
+
+      console.log('📱 Starting appointment booking with token generation...');
+
+      // Generate unique token number
+      const tokenNumber = await TokenService.generateAppointmentToken();
+      console.log(`🎫 Generated token: ${tokenNumber}`);
 
       const appointment = {
         ...appointmentData,
-        patientId: appointmentData.patientId || user.uid,
+        patientId: appointmentData.patientId || patientId,
+        tokenNumber: tokenNumber,
         status: 'scheduled',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
+      // Save appointment to appointments collection
       const docRef = await addDoc(collection(db, this.collectionName), appointment);
-      
-      return {
+      console.log(`✅ Appointment saved with ID: ${docRef.id}`);
+
+      // Save token with appointment details to token collection
+      const tokenData = {
+        tokenNumber: tokenNumber,
+        appointmentId: docRef.id,
+        patientId: appointment.patientId,
+        doctorId: appointment.doctorId,
+        serviceId: appointment.serviceId,
+        appointmentDate: appointment.appointmentDate,
+        patientName: appointment.patientName,
+        contactNumber: appointment.contactNumber,
+        status: 'scheduled'
+      };
+
+      await TokenService.saveAppointmentToken(tokenData);
+      console.log(`💾 Token data saved: ${tokenNumber}`);
+
+      const result = {
         success: true,
         data: {
           id: docRef.id,
           ...appointment
         },
-        message: 'Appointment booked successfully'
+        message: `Appointment booked successfully! Your token number is: ${tokenNumber}`
       };
+
+      console.log('🎉 Appointment booking completed successfully');
+      return result;
+
     } catch (error) {
-      console.error('Error booking appointment:', error);
-      throw new Error('Failed to book appointment');
+      console.error('❌ Error booking appointment:', error);
+      throw new Error(`Failed to book appointment: ${error.message}`);
+    }
+  }
+
+  // Get appointment by token number
+  static async getAppointmentByToken(tokenNumber) {
+    try {
+      console.log(`🔍 Looking up appointment with token: ${tokenNumber}`);
+      
+      const tokenResult = await TokenService.getAppointmentByToken(tokenNumber);
+      
+      if (!tokenResult.success) {
+        return {
+          success: false,
+          message: 'Token not found'
+        };
+      }
+
+      // Get full appointment details
+      const appointmentRef = doc(db, this.collectionName, tokenResult.data.appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+
+      if (!appointmentDoc.exists()) {
+        return {
+          success: false,
+          message: 'Appointment not found'
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          token: tokenResult.data,
+          appointment: {
+            id: appointmentDoc.id,
+            ...appointmentDoc.data()
+          }
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ Error fetching appointment by token:', error);
+      throw new Error('Failed to fetch appointment by token');
     }
   }
 
@@ -183,6 +258,31 @@ export class FirebaseAppointmentService {
 // Firebase Patient Service
 export class FirebasePatientService {
   static collectionName = 'users';
+
+  // Get all users (for admin dashboard)
+  static async getAllUsers() {
+    try {
+      const usersRef = collection(db, this.collectionName);
+      const querySnapshot = await getDocs(usersRef);
+      
+      const users = [];
+      querySnapshot.forEach((doc) => {
+        users.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log(`✅ Successfully fetched ${users.length} users`);
+      return {
+        success: true,
+        data: users
+      };
+    } catch (error) {
+      console.error('❌ Error fetching users:', error);
+      throw new Error(`Failed to fetch users: ${error.message}`);
+    }
+  }
 
   // Get patient profile
   static async getProfile(patientId) {
@@ -315,9 +415,8 @@ class FirebaseDoctorService {
   // Get all doctors
   static async getDoctors() {
     try {
-      // Ensure user is authenticated before accessing Firestore
-      await this.ensureAuth();
-      console.log('🔍 Fetching doctors with authenticated user...');
+      // Allow public access to doctors data - no authentication required
+      console.log('🔍 Fetching doctors for all users...');
       
       const doctorsRef = collection(db, this.collectionName);
       const querySnapshot = await getDocs(doctorsRef);
@@ -489,8 +588,8 @@ class FirebaseServiceApiService {
   // Get all services with assigned doctors
   static async getServices() {
     try {
-      // Ensure user is authenticated before accessing Firestore
-      await this.ensureAuth();
+      // Allow public access to services data - no authentication required
+      console.log('🔍 Fetching services for all users...');
       
       const servicesRef = collection(db, this.collectionName);
       const querySnapshot = await getDocs(servicesRef);
@@ -711,7 +810,8 @@ class FirebaseServiceApiService {
   // Get services with detailed doctor information
   static async getServicesWithDoctors() {
     try {
-      await FirebaseDoctorService.ensureAuth();
+      // Allow public access - no authentication required
+      console.log('🔍 Fetching services with doctor details for all users...');
       
       // Get all services
       const servicesResult = await this.getServices();

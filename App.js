@@ -40,6 +40,7 @@ import TreatmentDetailsScreen from './src/screens/patient/TreatmentDetailsScreen
 import ProfileScreen from './src/screens/patient/ProfileScreen';
 import BookAppointmentScreen from './src/screens/patient/BookAppointmentScreen';
 import EditProfileScreen from './src/screens/patient/EditProfileScreen';
+import AppointmentDetailScreen from './src/screens/patient/AppointmentDetailScreen';
 
 // Admin screens
 import AdminDashboardScreen from './src/screens/admin/AdminDashboardScreen';
@@ -469,7 +470,9 @@ export default function App() {
                     <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
                     <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
                     <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
+                    <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />
                     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                    <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />
                     <Stack.Screen name="PatientDetails" component={PatientDetailsScreen} />
                     <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
                     <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
