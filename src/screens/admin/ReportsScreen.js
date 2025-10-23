@@ -386,87 +386,144 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
     };
 
     const getStatusColor = (status, sentToPatient, viewedByPatient) => {
-      if (viewedByPatient) return { bg: '#DCFCE7', text: '#16A34A', label: 'viewed' };
-      if (sentToPatient) return { bg: '#DBEAFE', text: '#2563EB', label: 'sent' };
-      return { bg: '#FEF3C7', text: '#D97706', label: 'pending' };
+      if (viewedByPatient) return { bg: '#DCFCE7', text: '#16A34A', label: 'viewed', color: '#15803D' };
+      if (sentToPatient) return { bg: '#DBEAFE', text: '#2563EB', label: 'sent', color: '#1D4ED8' };
+      return { bg: '#FEF3C7', text: '#D97706', label: 'pending', color: '#B45309' };
+    };
+
+    const getReportBgColor = (category) => {
+      switch(category?.toLowerCase()) {
+        case 'laboratory': return '#4285F4';
+        case 'radiology': return '#EA4335';
+        case 'cardiology': return '#34A853';
+        case 'pathology': return '#FBBC05';
+        default: return '#8B5CF6';
+      }
+    };
+
+    const getReportIcon = (type) => {
+      const typeLower = (type || '').toLowerCase();
+      
+      if (typeLower.includes('blood') || typeLower.includes('lab')) return 'flask-outline';
+      if (typeLower.includes('x-ray') || typeLower.includes('scan') || typeLower.includes('mri')) return 'scan-outline';
+      if (typeLower.includes('heart') || typeLower.includes('card')) return 'heart-outline';
+      if (typeLower.includes('path')) return 'pulse-outline';
+      return 'document-text-outline';
     };
 
     const statusColor = getStatusColor(report.status, report.sentToPatient, report.viewedByPatient);
+    const bgColor = report.bgColor || getReportBgColor(report.category);
+    const iconName = getReportIcon(report.type);
 
     return (
-      <View style={styles.reportCard}>
-        <View style={styles.reportLeft}>
-          <View style={[styles.reportIcon, { backgroundColor: report.bgColor }]}>
-            <Text style={[styles.reportIconText, { color: report.iconColor }]}>
-              {report.icon}
-            </Text>
-          </View>
-          <View style={styles.reportInfo}>
-            <View style={styles.reportHeader}>
-              <Text style={styles.reportType}>{report.type}</Text>
-              {report.priority === 'high' && (
-                <View style={styles.priorityBadge}>
-                  <Ionicons name="alert-circle" size={12} color="#EF4444" />
+      <View style={styles.reportCardContainer}>
+        <View style={styles.reportCard}>
+          <View style={styles.reportCardHeader}>
+            {/* Report Icon */}
+            <View style={[styles.reportIconContainer, { backgroundColor: bgColor }]}>
+              <Ionicons name={iconName} size={24} color="#FFFFFF" />
+            </View>
+            
+            {/* Report Header Info */}
+            <View style={styles.reportHeaderInfo}>
+              <View style={styles.reportHeaderTop}>
+                <Text style={styles.reportType}>{report.type}</Text>
+                {report.priority === 'high' && (
+                  <View style={styles.priorityBadge}>
+                    <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                    <Text style={styles.priorityText}>High Priority</Text>
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.reportCardMeta}>
+                <View style={styles.reportMetaItem}>
+                  <Ionicons name="person" size={14} color="#6B7280" />
+                  <Text style={styles.reportMetaText}>Patient: {report.patientName}</Text>
                 </View>
-              )}
+                <View style={styles.reportMetaItem}>
+                  <Ionicons name="medkit" size={14} color="#6B7280" />
+                  <Text style={styles.reportMetaText}>Doctor: {report.doctorName}</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.reportPatient}>Patient: {report.patientName}</Text>
-            <Text style={styles.reportDoctor}>Doctor: {report.doctorName}</Text>
-            <View style={styles.reportMeta}>
-              <Text style={styles.reportDate}>Date: {report.date}</Text>
-              <Text style={styles.reportSize}>
-                Files: {report.files?.length || 0} ({getTotalSize(report.files)})
-              </Text>
+          </View>
+          
+          {/* Report Details */}
+          <View style={styles.reportDetailsSection}>
+            <View style={styles.reportDetailsRow}>
+              <View style={styles.reportDetail}>
+                <Text style={styles.reportDetailLabel}>Date</Text>
+                <Text style={styles.reportDetailValue}>{report.date}</Text>
+              </View>
+              <View style={styles.reportDetail}>
+                <Text style={styles.reportDetailLabel}>Category</Text>
+                <Text style={styles.reportDetailValue}>{report.category || 'General'}</Text>
+              </View>
+              <View style={styles.reportDetail}>
+                <Text style={styles.reportDetailLabel}>Files</Text>
+                <Text style={styles.reportDetailValue}>
+                  {report.files?.length || 0} ({getTotalSize(report.files)})
+                </Text>
+              </View>
             </View>
-            <View style={styles.reportStatus}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
-                <Text style={[styles.statusText, { color: statusColor.text }]}>
-                  {statusColor.label}
+            
+            <View style={styles.reportStatusRow}>
+              <View style={[styles.reportStatusBadge, { backgroundColor: statusColor.bg }]}>
+                <View style={styles.statusDot} />
+                <Text style={[styles.reportStatusText, { color: statusColor.color }]}>
+                  {statusColor.label.toUpperCase()}
                 </Text>
               </View>
               <Text style={styles.reportId}>ID: {report.id}</Text>
             </View>
           </View>
-        </View>
-        <View style={styles.reportActions}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleViewReport(report)}
-          >
-            <Ionicons name="eye" size={16} color="#6B7280" />
-          </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.actionButton, !report.sentToPatient && styles.actionButtonHighlight]}
-            onPress={() => handleSendReport(report)}
-          >
-            <Ionicons 
-              name={report.sentToPatient ? "checkmark-circle" : "send"} 
-              size={16} 
-              color={report.sentToPatient ? "#16A34A" : "#2563EB"} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleShareReport(report)}
-          >
-            <Ionicons name="share" size={16} color="#8B5CF6" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleDownloadReport(report)}
-          >
-            <Ionicons name="download" size={16} color="#6B7280" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleDeleteReport(report.id)}
-          >
-            <Ionicons name="trash" size={16} color="#EF4444" />
-          </TouchableOpacity>
+          {/* Report Actions */}
+          <View style={styles.reportActionsRow}>
+            <TouchableOpacity 
+              style={styles.reportActionButton}
+              onPress={() => handleViewReport(report)}
+            >
+              <Ionicons name="eye" size={16} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>View</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.reportActionButton, styles.sendActionButton, report.sentToPatient && styles.sentActionButton]}
+              onPress={() => handleSendReport(report)}
+            >
+              <Ionicons 
+                name={report.sentToPatient ? "checkmark-circle" : "send"} 
+                size={16} 
+                color="#FFFFFF" 
+              />
+              <Text style={styles.actionButtonText}>{report.sentToPatient ? 'Sent' : 'Send'}</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.actionButtonsGroup}>
+              <TouchableOpacity 
+                style={styles.smallActionButton}
+                onPress={() => handleShareReport(report)}
+              >
+                <Ionicons name="share" size={18} color="#8B5CF6" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.smallActionButton}
+                onPress={() => handleDownloadReport(report)}
+              >
+                <Ionicons name="download" size={18} color="#6B7280" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.smallActionButton}
+                onPress={() => handleDeleteReport(report.id)}
+              >
+                <Ionicons name="trash" size={18} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -538,8 +595,18 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
 
               {/* Patient Reports Section */}
               <View style={styles.reportsSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Patient Reports</Text>
+                <View style={styles.sectionHeaderContainer}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <View style={styles.sectionIconContainer}>
+                      <Ionicons name="document-text" size={20} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={styles.sectionTitle}>Patient Reports</Text>
+                      <Text style={styles.sectionSubtitle}>
+                        {(reports || []).length} total patient medical reports
+                      </Text>
+                    </View>
+                  </View>
                   <TouchableOpacity 
                     style={styles.addButton}
                     onPress={() => setShowAddModal(true)}
@@ -1358,16 +1425,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: Sizes.screenPadding,
     paddingBottom: Sizes.xl,
   },
-  sectionHeader: {
+  sectionHeaderContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Sizes.md,
+    marginBottom: Sizes.lg,
+    paddingBottom: Sizes.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
   },
   sectionTitle: {
-    fontSize: Sizes.large,
+    fontSize: 18,
     fontWeight: 'bold',
     color: Colors.textPrimary,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   addButton: {
     backgroundColor: Colors.kbrRed,
@@ -1403,106 +1491,178 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: Sizes.lg,
   },
+  // Report Card Styles - Enhanced
+  reportCardContainer: {
+    marginBottom: Sizes.md,
+  },
   reportCard: {
     backgroundColor: Colors.white,
-    borderRadius: Sizes.radiusMedium,
-    padding: Sizes.md,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  reportCardHeader: {
+    flexDirection: 'row',
+    marginBottom: Sizes.md,
+  },
+  reportIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
-  reportLeft: {
-    flexDirection: 'row',
+  reportHeaderInfo: {
     flex: 1,
   },
-  reportIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Sizes.md,
-  },
-  reportIconText: {
-    fontSize: Sizes.large,
-    fontWeight: 'bold',
-  },
-  reportInfo: {
-    flex: 1,
-  },
-  reportHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  priorityBadge: {
-    marginLeft: Sizes.xs,
-  },
-  reportType: {
-    fontSize: Sizes.regular,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 2,
-  },
-  reportPatient: {
-    fontSize: Sizes.small,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  reportDoctor: {
-    fontSize: Sizes.small,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  reportMeta: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  reportDate: {
-    fontSize: Sizes.small,
-    color: Colors.textSecondary,
-    marginRight: Sizes.md,
-  },
-  reportSize: {
-    fontSize: Sizes.small,
-    color: Colors.textSecondary,
-  },
-  reportStatus: {
+  reportHeaderTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 6,
   },
-  statusBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  reportType: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    flex: 1,
   },
-  statusText: {
-    fontSize: Sizes.small,
-    fontWeight: '500',
+  priorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  priorityText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  reportCardMeta: {
+    marginTop: 4,
+  },
+  reportMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  reportMetaText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginLeft: 6,
+  },
+  reportDetailsSection: {
+    backgroundColor: '#F9FAFB',
+    marginHorizontal: -Sizes.lg,
+    marginBottom: -Sizes.md,
+    paddingHorizontal: Sizes.lg,
+    paddingVertical: Sizes.md,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  reportDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.sm,
+  },
+  reportDetail: {
+    alignItems: 'center',
+  },
+  reportDetailLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  reportDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  reportStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    paddingTop: Sizes.sm,
+    marginTop: Sizes.sm,
+  },
+  reportStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'currentColor',
+    marginRight: 4,
+  },
+  reportStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   reportId: {
-    fontSize: Sizes.small,
-    color: Colors.textSecondary,
+    fontSize: 12,
+    color: '#6B7280',
   },
-  reportActions: {
+  reportActionsRow: {
     flexDirection: 'row',
-    gap: Sizes.sm,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Sizes.lg,
+    marginHorizontal: -8,
   },
-  actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.background,
+  reportActionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#4B5563',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: Sizes.radiusMedium,
+    marginHorizontal: 4,
   },
-  actionButtonHighlight: {
-    backgroundColor: '#DBEAFE',
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  sendActionButton: {
+    backgroundColor: '#2563EB',
+  },
+  sentActionButton: {
+    backgroundColor: '#10B981',
+  },
+  actionButtonsGroup: {
+    flexDirection: 'row',
+  },
+  smallActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
   },
 
   // Modal Styles
