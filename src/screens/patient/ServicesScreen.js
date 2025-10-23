@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
@@ -24,6 +24,7 @@ const ServicesScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const { getServiceCounts, getAllServices } = useServices();
   const { theme } = useTheme();
+  const { isLoggedIn } = useUnifiedAuth();
   
   // Get the selected service from navigation params
   const selectedService = route?.params?.selectedService;
@@ -95,6 +96,12 @@ const ServicesScreen = ({ navigation, route }) => {
   useEffect(() => {
     const loadServicesWithDoctors = async () => {
       try {
+        if (!isLoggedIn) {
+          console.log('🔒 Skipping Firebase services loading - user not authenticated');
+          setLoadingFirebaseServices(false);
+          return;
+        }
+
         setLoadingFirebaseServices(true);
         const result = await firebaseHospitalServices.getServicesWithDoctors();
         if (result.success) {
@@ -108,12 +115,18 @@ const ServicesScreen = ({ navigation, route }) => {
     };
 
     loadServicesWithDoctors();
-  }, []);
+  }, [isLoggedIn]);
   
   // Load tests from Firebase
   useEffect(() => {
     const loadFirebaseTests = async () => {
       try {
+        if (!isLoggedIn) {
+          console.log('🔒 Skipping Firebase tests loading - user not authenticated');
+          setLoadingFirebaseTests(false);
+          return;
+        }
+
         console.log('🧪 Starting to load tests from Firebase...');
         console.log('🧪 Firebase services available:', Object.keys(firebaseHospitalServices));
         setLoadingFirebaseTests(true);
@@ -148,7 +161,7 @@ const ServicesScreen = ({ navigation, route }) => {
     };
 
     loadFirebaseTests();
-  }, []);
+  }, [isLoggedIn]);
   
   // Function to scroll to tests section smoothly
   const scrollToTestsSection = () => {

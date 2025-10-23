@@ -28,7 +28,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
+import AuthModal from '../../components/AuthModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
@@ -144,12 +145,7 @@ const popularTests = [
 ];
 
 const PatientHomeScreen = ({ navigation }) => {
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginTab, setLoginTab] = useState('signin');
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentDoctorIndex, setCurrentDoctorIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -349,8 +345,8 @@ const PatientHomeScreen = ({ navigation }) => {
   const allServices = getAllServices();
   const services = allServices && allServices.length > 0 ? allServices.slice(0, 4) : []; // Show only first 4 services for home screen
   
-  // Get user context
-  const { isLoggedIn, userData, loginUser } = useUser();
+  // Get unified auth context
+  const { isAuthenticated, user, authMode } = useUnifiedAuth();
   
   // Get theme context
   const { theme } = useTheme();
@@ -359,7 +355,7 @@ const PatientHomeScreen = ({ navigation }) => {
   // Only show this data when user is logged in
   const [patientStatus, setPatientStatus] = useState(() => {
     // Only return admission data if user is logged in and is a patient
-    if (!isLoggedIn || !userData) {
+    if (!isAuthenticated || !user) {
       return { isAdmitted: false };
     }
     
@@ -399,7 +395,7 @@ const PatientHomeScreen = ({ navigation }) => {
 
   // Update patient status when login state changes
   useEffect(() => {
-    if (!isLoggedIn || !userData) {
+    if (!isAuthenticated || !user) {
       setPatientStatus({ isAdmitted: false });
     } else {
       // In real app, fetch patient admission status from API
@@ -435,7 +431,7 @@ const PatientHomeScreen = ({ navigation }) => {
         emergencyContact: '+91 98765 43210'
       });
     }
-  }, [isLoggedIn, userData]);
+  }, [isAuthenticated, user]);
 
   // Initialize loading state with network error handling
   useEffect(() => {
@@ -454,11 +450,15 @@ const PatientHomeScreen = ({ navigation }) => {
           console.log('Error prefetching services data:', err);
         }
 
-        // Load Firebase doctors
+        // Load Firebase doctors only if user is authenticated
         try {
-          const doctors = await firebaseHospitalServices.getDoctors();
-          console.log('Loaded Firebase doctors:', doctors?.length || 0);
-          setFirebaseDoctors(doctors || []);
+          if (user) {
+            const doctors = await firebaseHospitalServices.getDoctors();
+            console.log('Loaded Firebase doctors:', doctors?.length || 0);
+            setFirebaseDoctors(doctors || []);
+          } else {
+            console.log('🔒 Skipping Firebase doctors loading - user not authenticated');
+          }
         } catch (err) {
           console.log('Error loading Firebase doctors:', err);
         }
@@ -521,62 +521,7 @@ const PatientHomeScreen = ({ navigation }) => {
     }
   }, [doctorScrollPosition, firebaseDoctors.length, isDoctorScrollPaused, screenWidth]);
 
-  const handleLogin = () => {
-    if (loginTab === 'signin') {
-      // Admin credentials
-      if (email === "admin@kbrhospitals.com" && password === "admin123") {
-        setShowLoginModal(false);
-        setShowAdminModal(false);
-        Alert.alert(
-          'Admin Login Successful! 🎉',
-          'Welcome to Admin Dashboard',
-          [{ text: 'Continue', onPress: () => navigation.navigate('AdminMain') }]
-        );
-      }
-      // Patient credentials
-      else if (email === "patient@kbr.com" && password === "patient123") {
-        // Login the patient using UserContext
-        const patientData = {
-          id: 'patient_001',
-          name: 'John Doe',
-          email: email,
-          mobileNumber: '+919876543210',
-          age: 30,
-          gender: 'Male',
-          isPatient: true
-        };
-        loginUser(patientData);
-        
-        setShowLoginModal(false);
-        Alert.alert(
-          'Patient Login Successful! 🎉',
-          'Welcome to Patient Portal',
-          [{ text: 'Continue' }]
-        );
-      }
-      else {
-        Alert.alert(
-          '❌ Invalid Credentials',
-          'Demo Accounts:\n👨‍⚕️ Admin: admin@kbrhospitals.com / admin123\n🏥 Patient: patient@kbr.com / patient123'
-        );
-      }
-    } else {
-      // For signup, create a new patient account
-      const newPatientData = {
-        id: Date.now().toString(),
-        name: 'New Patient',
-        email: email,
-        mobileNumber: '+919876543211',
-        age: 25,
-        gender: 'Male',
-        isPatient: true
-      };
-      loginUser(newPatientData);
-      
-      Alert.alert('✅ Account Created Successfully!', 'Welcome to KBR Life Care Hospitals!');
-      setShowLoginModal(false);
-    }
-  };
+
 
   const handleServicePress = (serviceName) => {
     switch (serviceName) {
@@ -715,7 +660,7 @@ const PatientHomeScreen = ({ navigation }) => {
   // Render Patient Treatment Status for admitted patients
   const renderPatientTreatmentStatus = () => {
     // Only show treatment status if user is logged in AND patient is admitted
-    if (!isLoggedIn || !userData || !patientStatus.isAdmitted) return null;
+    if (!isAuthenticated || !user || !patientStatus.isAdmitted) return null;
 
     // Handler to navigate to treatment details screen
     const navigateToTreatmentDetails = () => {
@@ -784,32 +729,12 @@ const PatientHomeScreen = ({ navigation }) => {
         <AppHeader 
           subtitle="Excellence in Healthcare"
           navigation={navigation}
+          showNotificationButton={true}
+          notificationCount={getUnreadCount()}
+          onNotificationPress={() => setShowNotifications(!showNotifications)}
         />
         
-        {/* Admin Portal & Notifications */}
-        <View style={styles.secondaryHeader}>
-          <TouchableOpacity
-            style={styles.adminPortalButton}
-            onPress={() => setShowAdminModal(true)}
-          >
-            <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
-            <Text style={styles.adminPortalText}>Admin Portal</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => setShowNotifications(!showNotifications)}
-          >
-            <Ionicons name="notifications" size={20} color="#FFFFFF" />
-            {getUnreadCount() > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>
-                  {getUnreadCount() > 9 ? '9+' : getUnreadCount()}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+
 
         {/* Patient Treatment Status - Show if patient is admitted */}
         {renderPatientTreatmentStatus()}
@@ -1196,179 +1121,12 @@ const PatientHomeScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* Login Modal */}
-        <Modal
-          visible={showLoginModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowLoginModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalLogoSection}>
-                  <Image 
-                    source={require('../../../assets/hospital-logo.jpeg')}
-                    style={styles.modalLogoImage}
-                    resizeMode="contain"
-                  />
-                  <View>
-                    <Text style={styles.modalTitle}>Sign In to Continue</Text>
-                    <Text style={styles.modalSubtitle}>Access your KBR healthcare account</Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={() => setShowLoginModal(false)}>
-                  <Ionicons name="close" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.tabsContainer}>
-                <TouchableOpacity
-                  style={[styles.tab, loginTab === 'signin' && styles.activeTab]}
-                  onPress={() => setLoginTab('signin')}
-                >
-                  <Text style={[styles.tabText, loginTab === 'signin' && styles.activeTabText]}>
-                    Sign In
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, loginTab === 'signup' && styles.activeTab]}
-                  onPress={() => setLoginTab('signup')}
-                >
-                  <Text style={[styles.tabText, loginTab === 'signup' && styles.activeTabText]}>
-                    Sign Up
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {loginTab === 'signin' && (
-                <View style={styles.credentialsInfo}>
-                  <View style={styles.credentialCard}>
-                    <Text style={styles.credentialTitle}>🔑 Admin Portal Access:</Text>
-                    <Text style={styles.credentialText}>admin@kbrhospitals.com</Text>
-                    <Text style={styles.credentialText}>admin123</Text>
-                  </View>
-                  <View style={styles.credentialCard}>
-                    <Text style={styles.credentialTitle}>🏥 Patient Portal Access:</Text>
-                    <Text style={styles.credentialText}>patient@kbr.com</Text>
-                    <Text style={styles.credentialText}>patient123</Text>
-                  </View>
-                </View>
-              )}
-
-              {loginTab === 'signup' && (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#999"
-                />
-              )}
-
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#999"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  style={styles.passwordToggle}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={18} color="#999" />
-                </TouchableOpacity>
-              </View>
-
-              {loginTab === 'signup' && (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your phone number"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
-              )}
-
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                <Text style={styles.loginButtonText}>
-                  {loginTab === 'signin' ? 'Sign In & Continue' : 'Create Account & Continue'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Admin Login Modal */}
-        <Modal
-          visible={showAdminModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowAdminModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.adminModalHeader}>
-                <Ionicons name="shield-checkmark" size={48} color="#C62828" />
-                <Text style={styles.adminModalTitle}>Admin Portal Login</Text>
-                <Text style={styles.adminModalSubtitle}>Authorized Access Only</Text>
-                <TouchableOpacity
-                  style={styles.adminModalClose}
-                  onPress={() => setShowAdminModal(false)}
-                >
-                  <Ionicons name="close" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.adminCredentials}>
-                <Text style={styles.adminCredentialTitle}>🔑 Admin Credentials:</Text>
-                <Text style={styles.adminCredentialText}>admin@kbrhospitals.com</Text>
-                <Text style={styles.adminCredentialText}>admin123</Text>
-              </View>
-
-              <TextInput
-                style={styles.input}
-                placeholder="Enter admin email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter password"
-                  placeholderTextColor="#999"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  style={styles.passwordToggle}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={18} color="#999" />
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity style={styles.adminLoginButton} onPress={handleLogin}>
-                <Text style={styles.adminLoginButtonText}>Access Admin Portal</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+        {/* Unified Authentication Modal */}
+        <AuthModal
+          visible={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          navigation={navigation}
+        />
 
         {/* All Notifications Modal */}
         <Modal
@@ -1692,39 +1450,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
-  adminPortalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-    backgroundColor: '#C62828',
-    paddingHorizontal: Sizes.md,
-    paddingVertical: Sizes.sm,
-    borderRadius: Sizes.radiusMedium,
-  },
-  adminPortalText: {
-    color: Colors.white,
-    fontSize: Sizes.medium,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  
-  // Secondary Header Styles (for admin portal and notifications)
-  secondaryHeader: {
-    backgroundColor: '#4AA3DF',
-    paddingHorizontal: Sizes.screenPadding,
-    paddingVertical: Sizes.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  notificationButton: {
-    padding: Sizes.sm,
-    borderRadius: 20,
-    position: 'relative',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
+
+
   
   scrollView: {
     flex: 1,

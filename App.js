@@ -15,13 +15,12 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
-import { UserProvider } from './src/contexts/UserContext';
+import { UnifiedAuthProvider } from './src/contexts/UnifiedAuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppProvider } from './src/contexts/AppContext';
 
 // Import services
 import NetworkService from './src/services/networkService';
-import { FirebaseAuthProvider } from './src/contexts/FirebaseAuthContext';
 import FirebaseInitializer from './src/components/FirebaseInitializer';
 
 // Import screens
@@ -265,11 +264,34 @@ function AdminTabNavigator() {
         headerShown: false,
       })}
     >
-            <Tab.Screen name="Dashboard" component={AdminDashboardScreen} />
-      <Tab.Screen name="Patients" component={PatientManagementScreen} />
-      <Tab.Screen name="Appointments" component={AppointmentManagementScreen} />
-      <Tab.Screen name="Payments" component={PaymentManagementScreen} />
-      <Tab.Screen name="Reports" component={ReportsScreen} />
+            <Tab.Screen 
+        name="Dashboard" 
+        component={AdminDashboardScreen}
+        getId={() => 'dashboard-tab-screen'}
+      />
+      <Tab.Screen 
+        name="Patients" 
+        component={PatientManagementScreen}
+        getId={() => 'patients-tab-screen'}
+      />
+      <Tab.Screen 
+        name="Appointments" 
+        component={AppointmentManagementScreen}
+        getId={() => 'appointments-tab-screen'}
+      />
+      <Tab.Screen 
+        name="Payments" 
+        component={PaymentManagementScreen}
+        getId={() => 'payments-tab-screen'}
+        options={{
+          tabBarLabel: 'Payments'
+        }}
+      />
+      <Tab.Screen 
+        name="Reports" 
+        component={ReportsScreen}
+        getId={() => 'reports-tab-screen'}
+      />
     </Tab.Navigator>
   );
 }
@@ -296,6 +318,7 @@ function AdminDrawerNavigator() {
       <Drawer.Screen 
         name="AdminTabs" 
         component={AdminTabNavigator}
+        getId={() => 'admin-tabs-drawer-screen'}
         options={{
           drawerLabel: 'Dashboard',
           drawerIcon: ({ color, size }) => (
@@ -333,16 +356,7 @@ function AdminDrawerNavigator() {
           ),
         }}
       />
-      <Drawer.Screen
-        name="PaymentManagement" 
-        component={PaymentManagementScreen}
-        options={{
-          drawerLabel: 'Payment Management',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="card-outline" size={size} color={color} />
-          ),
-        }}
-      />
+
       <Drawer.Screen 
         name="TestManagement" 
         component={TestManagementScreen}
@@ -413,12 +427,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <FirebaseAuthProvider>
-          <FirebaseInitializer>
-            <UserProvider>
-              <ServicesProvider>
-                <AppProvider>
-                  <NavigationContainer>
+        <FirebaseInitializer>
+          <UnifiedAuthProvider>
+            <ServicesProvider>
+              <AppProvider>
+                  <NavigationContainer
+                    independent={true}
+                  >
                   <StatusBar style="light" backgroundColor={Colors.primary} />
                   <Stack.Navigator 
                     initialRouteName="Splash"
@@ -426,11 +441,31 @@ export default function App() {
                       headerShown: false
                     }}
                   >
-                    <Stack.Screen name="Splash" component={SplashScreen} />
-                    <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-                    <Stack.Screen name="PatientMain" component={PatientTabNavigator} />
-                    <Stack.Screen name="AdminMain" component={AdminDrawerNavigator} />
-                    <Stack.Screen name="Profile" component={ProfileScreen} />
+                    <Stack.Screen 
+                      name="Splash" 
+                      component={SplashScreen} 
+                      getId={() => 'splash-screen'}
+                    />
+                    <Stack.Screen 
+                      name="Onboarding" 
+                      component={OnboardingScreen}
+                      getId={() => 'onboarding-screen'}
+                    />
+                    <Stack.Screen 
+                      name="PatientMain" 
+                      component={PatientTabNavigator}
+                      getId={() => 'patient-main-screen'}
+                    />
+                    <Stack.Screen 
+                      name="AdminMain" 
+                      component={AdminDrawerNavigator}
+                      getId={() => 'admin-main-screen'}
+                    />
+                    <Stack.Screen 
+                      name="Profile" 
+                      component={ProfileScreen}
+                      getId={() => 'profile-screen'}
+                    />
                     <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
                     <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
                     <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
@@ -443,14 +478,13 @@ export default function App() {
                     <Stack.Screen name="DiagnosticTests" component={DiagnosticTestsScreen} />
                     <Stack.Screen name="FirebaseTest" component={ExampleApiUsageScreen} />
                   </Stack.Navigator>
-                </NavigationContainer>
-              </AppProvider>
-            </ServicesProvider>
-          </UserProvider>
-        </FirebaseInitializer>
-      </FirebaseAuthProvider>
-    </ThemeProvider>
-  </SafeAreaProvider>
+                  </NavigationContainer>
+                </AppProvider>
+              </ServicesProvider>
+            </UnifiedAuthProvider>
+          </FirebaseInitializer>
+        </ThemeProvider>
+      </SafeAreaProvider>
 );
 }
 

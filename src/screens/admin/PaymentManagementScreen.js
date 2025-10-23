@@ -105,8 +105,8 @@ const PaymentManagementScreen = ({ navigation }) => {
     const transformedPayments = uniquePayments.map((payment, index) => {
       // Find the corresponding patient for additional details
       const patient = patients.find(p => p.id === payment.patientId);
-      // Generate stable but unique key using payment details
-      const uniqueKey = `payment-${payment.id || 'no-id'}-${payment.patientId || 'no-patient'}-${payment.amount || 0}-${index}`;
+      // Generate stable unique key using payment data and index - no dynamic timestamps
+      const uniqueKey = `payment-${payment.id || `temp-${index}`}-${payment.patientId || 'unknown'}-${index}`;
       return {
         id: uniqueKey, // Ensure stable unique ID
         originalId: payment.id, // Keep original ID for reference
@@ -134,6 +134,7 @@ const PaymentManagementScreen = ({ navigation }) => {
     .sort((a, b) => new Date(b.lastPaymentDate || b.registrationDate) - new Date(a.lastPaymentDate || a.registrationDate));
     
     console.log('✅ Successfully transformed', transformedPayments.length, 'payments');
+    return transformedPayments;
     
     return transformedPayments;
   }, [payments, patients]);
@@ -635,7 +636,7 @@ const PaymentManagementScreen = ({ navigation }) => {
         ) : (
           <FlatList
             data={filteredPayments}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100, paddingTop: 20 }}
             style={{ flex: 1, backgroundColor: '#F5F5F5' }}

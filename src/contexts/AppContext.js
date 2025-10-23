@@ -592,11 +592,23 @@ export const AppProvider = ({ children }) => {
   const [useBackend, setUseBackend] = useState(true); // Firebase backend integration
   const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize data from Firebase
+  // Initialize data from Firebase - only when user is authenticated
   const initializeFirebaseData = async () => {
     if (!useBackend) return;
     
+    // Check if user is authenticated before attempting data fetch
+    const { auth } = require('../config/firebase.config');
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      console.log('🔒 Skipping Firebase data initialization - user not authenticated');
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
+    console.log('📊 Loading Firebase data for authenticated user...');
+    
     try {
       // Load all data from Firebase
       const [rooms, invoices, payments, reports] = await Promise.all([
@@ -613,8 +625,14 @@ export const AppProvider = ({ children }) => {
         payments: payments || prev.payments,
         reports: reports || prev.reports
       }));
+      
+      console.log('✅ Firebase data loaded successfully');
     } catch (error) {
-      console.error('Error initializing Firebase data:', error);
+      if (error.message.includes('Authentication required')) {
+        console.log('🔐 Firebase data loading skipped - authentication required');
+      } else {
+        console.error('❌ Error loading Firebase data:', error.message);
+      }
     } finally {
       setIsLoading(false);
     }

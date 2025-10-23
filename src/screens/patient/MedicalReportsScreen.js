@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 
@@ -24,7 +24,7 @@ const MedicalReportsScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All Reports');
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const { isLoggedIn, userData } = useUser();
+  const { isLoggedIn, userData } = useUnifiedAuth();
   
   // Helper function to get color for category
   const getCategoryColor = (category) => {

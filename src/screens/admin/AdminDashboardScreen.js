@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
 import AppHeader from '../../components/AppHeader';
 import { 
@@ -198,8 +198,8 @@ const AdminDashboardScreen = ({ navigation }) => {
     </View>
   );
 
-  const renderAppointmentItem = (appointment) => (
-    <View key={appointment.id} style={styles.appointmentItem}>
+  const renderAppointmentItem = (appointment, index) => (
+    <View key={`appointment-${appointment.id || 'temp'}-${index}`} style={styles.appointmentItem}>
       <View style={styles.appointmentLeft}>
         <View style={[styles.avatar, { backgroundColor: Colors.kbrRed }]}>
           <Text style={styles.avatarText}>{appointment.avatar}</Text>
@@ -381,7 +381,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           
           <View style={styles.appointmentsList}>
             {recentAppointments.length > 0 ? (
-              recentAppointments.map(renderAppointmentItem)
+              recentAppointments.map((appointment, index) => renderAppointmentItem(appointment, index))
             ) : (
               <View style={styles.emptyState}>
                 <Ionicons name="calendar-outline" size={48} color={Colors.textSecondary} />

@@ -290,24 +290,25 @@ export class FirebasePatientService {
 class FirebaseDoctorService {
   static collectionName = 'doctors';
 
-  // Helper method to ensure authentication
+  // Helper method to check authentication status
   static async ensureAuth() {
     try {
-      const authResult = await FirebaseAuthService.ensureAuthentication();
+      // Check if user is authenticated
+      const user = auth.currentUser;
       
-      if (authResult.success) {
-        const user = auth.currentUser;
-        console.log('✅ Auth ensured - User ID:', user?.uid);
+      if (user) {
+        console.log('✅ User authenticated - ID:', user.uid);
         return user;
       } else {
-        console.log('⚠️ Authentication failed, continuing without auth...');
-        console.log('💡 Make sure Firebase Security Rules allow public access');
-        return null; // Allow to continue without authentication
+        // Don't attempt data fetching when no user is authenticated
+        throw new Error('Authentication required - please login to access data');
       }
     } catch (error) {
-      console.error('❌ Authentication failed:', error);
-      console.log('⚠️ Continuing without authentication - check Firebase rules');
-      return null; // Allow to continue without authentication
+      if (error.message.includes('Authentication required')) {
+        throw error; // Re-throw auth requirement error
+      }
+      console.error('❌ Auth check failed:', error);
+      throw new Error('Authentication check failed');
     }
   }
 

@@ -10,11 +10,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../contexts/AppContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 
 const PatientPaymentHistoryScreen = ({ navigation }) => {
   const { payments, invoices, getInvoicesByPatient } = useApp();
-  const { userData } = useUser();
+  const { userData } = useUnifiedAuth();
   const [activeTab, setActiveTab] = useState('payments');
 
   // Filter payments and invoices for current patient

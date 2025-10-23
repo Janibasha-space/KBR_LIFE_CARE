@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
-import { useUser } from '../../contexts/UserContext';
+import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useApp } from '../../contexts/AppContext';
 import { LoadingOverlay, LoadingInline } from '../../components/Loading';
@@ -35,13 +35,14 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     userData, 
     familyMembers,
     loginUser,
-    checkMobileExists, 
+    checkMobileExists,
     registerUser, 
-    sendOTP, 
+    sendOTP,
     verifyOTP,
     checkAppointmentConflict,
-    handleAppointmentConflict
-  } = useUser();
+    handleAppointmentConflict,
+    generateTokenNumber
+  } = useUnifiedAuth();
   const { theme } = useTheme();
   
   // Use AppContext for appointments and doctors
@@ -103,6 +104,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   // Load Firebase doctors and services
   const loadFirebaseData = async () => {
     try {
+      if (!isLoggedIn) {
+        console.log('🔒 Skipping Firebase data loading - user not authenticated');
+        setServicesLoading(false);
+        return;
+      }
+
       setServicesLoading(true);
       
       // Load doctors from Firebase

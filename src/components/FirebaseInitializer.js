@@ -20,21 +20,11 @@ const FirebaseInitializer = ({ children, onInitialized }) => {
           return;
         }
 
-        // Try to ensure authentication (anonymous or test user)
-        console.log('🔐 Ensuring user authentication...');
-        const authResult = await FirebaseAuthService.ensureAuthentication();
-        
-        if (authResult.success) {
-          console.log('✅ Firebase initialization complete!');
-          setIsInitializing(false);
-          if (onInitialized) onInitialized(true);
-        } else {
-          console.log('⚠️ Authentication failed, but continuing anyway...');
-          console.log('💡 Make sure Firebase rules allow public access or fix authentication');
-          // Continue anyway - let the app run without authentication
-          setIsInitializing(false);
-          if (onInitialized) onInitialized(true);
-        }
+        // Skip automatic authentication for now
+        console.log('🔐 Skipping automatic authentication - will authenticate on demand');
+        console.log('✅ Firebase initialization complete!');
+        setIsInitializing(false);
+        if (onInitialized) onInitialized(true);
         
       } catch (error) {
         console.error('❌ Firebase initialization failed:', error);

@@ -1,9 +1,8 @@
-// Firebase Configuration
+// Firebase Configuration - Memory-Only Persistence (No Session Saving)
 import { initializeApp } from 'firebase/app';
-import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeAuth, getAuth, browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAU23ScOB4t2_5rYbAAXkAxv7fMvsDEPuE",
@@ -17,10 +16,17 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Auth with AsyncStorage persistence
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
-});
+// Initialize Firebase Auth with memory-only persistence (no session saving)
+let auth;
+try {
+  // Try to initialize with memory-only persistence
+  auth = initializeAuth(app, {
+    persistence: inMemoryPersistence
+  });
+} catch (error) {
+  // Fallback to getAuth if already initialized
+  auth = getAuth(app);
+}
 
 // Initialize Firestore
 const db = getFirestore(app);
