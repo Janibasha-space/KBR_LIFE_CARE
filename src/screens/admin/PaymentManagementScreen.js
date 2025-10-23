@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -18,10 +18,51 @@ import AddPaymentModal from '../../components/AddPaymentModal';
 import AppHeader from '../../components/AppHeader';
 
 const PaymentManagementScreen = ({ navigation }) => {
-  const { patients, getAllPendingPayments, payments, addPayment, updatePaymentStatus, deletePayment } = useApp();
+  const { patients, getAllPendingPayments, payments, addPayment, updatePaymentStatus, deletePayment, initializeFirebaseData, addInvoice } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load payments data when component mounts
+  useEffect(() => {
+    const loadPaymentsData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Initialize Firebase data to ensure payments are loaded
+        if (initializeFirebaseData) {
+          await initializeFirebaseData();
+        }
+        
+      } catch (error) {
+        console.error('❌ Error loading payments:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPaymentsData();
+  }, []);
+
+  // Refresh payments when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setIsLoading(true);
+      if (initializeFirebaseData) {
+        initializeFirebaseData().finally(() => setIsLoading(false));
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, initializeFirebaseData]);
+
+  // Set loading to false when payments are available
+  useEffect(() => {
+    if (payments && payments.length >= 0) {
+      setIsLoading(false);
+    }
+  }, [payments]);
 
   // Calculate real-time payment statistics from actual payments data
   const paymentStats = useMemo(() => {
@@ -43,33 +84,46 @@ const PaymentManagementScreen = ({ navigation }) => {
     };
   }, [payments]);
 
-  // Transform actual payments data for display
+  // Transform actual payments data for display  
   const paymentList = useMemo(() => {
-    // First, deduplicate payments by ID to avoid duplicate key errors
-    const uniquePayments = (payments || []).reduce((acc, payment) => {
-      const existingPayment = acc.find(p => p.id === payment.id);
-      if (!existingPayment) {
-        acc.push(payment);
+    // Ensure we always have data to work with
+    if (!payments || payments.length === 0) {
+      console.log('❌ No payments data available');
+      return [];
+    }
+    
+    // Enhanced deduplication: use Map for better performance and handle edge cases
+    const uniquePaymentsMap = new Map();
+    (payments || []).forEach((payment) => {
+      const key = payment.id || `${payment.patientId}-${payment.amount}-${payment.date}`;
+      if (!uniquePaymentsMap.has(key)) {
+        uniquePaymentsMap.set(key, payment);
       }
-      return acc;
-    }, []);
+    });
+    const uniquePayments = Array.from(uniquePaymentsMap.values());
 
-    return uniquePayments.map((payment, index) => {
+    const transformedPayments = uniquePayments.map((payment, index) => {
       // Find the corresponding patient for additional details
       const patient = patients.find(p => p.id === payment.patientId);
+      // Generate stable but unique key using payment details
+      const uniqueKey = `payment-${payment.id || 'no-id'}-${payment.patientId || 'no-patient'}-${payment.amount || 0}-${index}`;
       return {
-        id: `payment-${index}-${payment.id}-${payment.patientId || 'unknown'}`, // Ensure unique ID using index, payment ID, and patient ID
+        id: uniqueKey, // Ensure stable unique ID
         originalId: payment.id, // Keep original ID for reference
         patientName: payment.patientName,
         patientId: payment.patientId,
         patientType: patient?.patientType || 'N/A',
-        totalAmount: payment.amount,
-        paidAmount: payment.status === 'paid' ? payment.amount : payment.status === 'partial' ? payment.amount * 0.5 : 0,
-        dueAmount: payment.status === 'paid' ? 0 : payment.status === 'partial' ? payment.amount * 0.5 : payment.amount,
-        status: payment.status === 'paid' ? 'Fully Paid' : 
-                payment.status === 'partial' ? 'Partially Paid' : 'Pending',
-        statusColor: payment.status === 'paid' ? '#10B981' : 
-                    payment.status === 'partial' ? '#F59E0B' : '#EF4444',
+        amount: payment.amount || payment.totalAmount || 1000, // Add fallback
+        paymentStatus: payment.status || payment.paymentStatus || 'paid', // Add fallback
+        totalAmount: payment.amount || payment.totalAmount || 1000,
+        paidAmount: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? (payment.amount || 1000) : 
+                   (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : 0,
+        dueAmount: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? 0 : 
+                  (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : (payment.amount || 1000),
+        status: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? 'Fully Paid' : 
+                (payment.status === 'partial' || payment.paymentStatus === 'partial') ? 'Partially Paid' : 'Pending',
+        statusColor: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? '#10B981' : 
+                    (payment.status === 'partial' || payment.paymentStatus === 'partial') ? '#F59E0B' : '#EF4444',
         lastPaymentDate: payment.paymentDate || payment.date,
         paymentHistory: [payment], // Single payment record
         registrationDate: patient?.registrationDate,
@@ -78,15 +132,46 @@ const PaymentManagementScreen = ({ navigation }) => {
       };
     })
     .sort((a, b) => new Date(b.lastPaymentDate || b.registrationDate) - new Date(a.lastPaymentDate || a.registrationDate));
+    
+    console.log('✅ Successfully transformed', transformedPayments.length, 'payments');
+    
+    return transformedPayments;
   }, [payments, patients]);
 
   const filteredPayments = paymentList.filter(payment => {
-    const matchesSearch = payment.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    // Search filtering
+    const matchesSearch = !searchQuery || 
+                         (payment.patientName && payment.patientName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                          (payment.originalId && payment.originalId.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                         payment.patientId.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'All' || payment.status === selectedFilter;
+                         (payment.patientId && payment.patientId.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    // Status filtering - ensure exact match or show all
+    let matchesFilter = false;
+    if (selectedFilter === 'All') {
+      matchesFilter = true; // Show all payments
+    } else if (selectedFilter === 'Fully Paid') {
+      matchesFilter = payment.status === 'Fully Paid' || payment.status === 'paid';
+    } else if (selectedFilter === 'Partially Paid') {
+      matchesFilter = payment.status === 'Partially Paid' || payment.status === 'partial';
+    } else if (selectedFilter === 'Pending') {
+      matchesFilter = payment.status === 'Pending' || payment.status === 'pending';
+    } else {
+      matchesFilter = payment.status === selectedFilter;
+    }
+    
     return matchesSearch && matchesFilter;
   });
+
+  // Log current filtering results
+  console.log(`� Payments: ${paymentList.length} total → ${filteredPayments.length} filtered (${selectedFilter})`);
+  
+  // If no payments show but we have data, log the issue
+  if (paymentList.length > 0 && filteredPayments.length === 0 && selectedFilter === 'All') {
+    console.warn('⚠️ WARNING: No payments showing with "All" filter, but payments exist');
+    paymentList.forEach(payment => {
+      console.log(`   - ${payment.patientName}: "${payment.status}"`);
+    });
+  }
 
   const handleViewDetails = (payment) => {
     // Navigate to PatientDetails instead of PaymentDetails for better integration
@@ -98,14 +183,121 @@ const PaymentManagementScreen = ({ navigation }) => {
     }
   };
 
-  const handleAddPayment = (paymentData) => {
+  const handleAddPayment = async (paymentData) => {
     try {
-      addPayment(paymentData);
+      await addPayment(paymentData);
       Alert.alert('Success', 'Payment added successfully!');
       setShowAddModal(false);
     } catch (error) {
+      console.error('Error adding payment:', error);
       Alert.alert('Error', 'Failed to add payment. Please try again.');
     }
+  };
+
+  const handleUpdatePaymentStatus = async (paymentId, newStatus) => {
+    try {
+      await updatePaymentStatus(paymentId, newStatus);
+      
+      // If payment is marked as paid, automatically generate an invoice
+      if (newStatus === 'paid') {
+        await generateInvoiceForPayment(paymentId);
+      }
+      
+      Alert.alert('Success', 'Payment status updated successfully!');
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      Alert.alert('Error', 'Failed to update payment status. Please try again.');
+    }
+  };
+
+  // Function to automatically generate invoice when payment is completed
+  const generateInvoiceForPayment = async (paymentId) => {
+    try {
+      // Find the payment that was just completed
+      const completedPayment = payments.find(p => p.id === paymentId);
+      if (!completedPayment) {
+        console.error('Payment not found for invoice generation');
+        return;
+      }
+
+      // Find the patient details
+      const patient = patients.find(p => p.id === completedPayment.patientId);
+      if (!patient) {
+        console.error('Patient not found for invoice generation');
+        return;
+      }
+
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now()}`;
+      const currentDate = new Date().toISOString().split('T')[0];
+
+      // Create invoice data
+      const invoiceData = {
+        invoiceNumber,
+        patientId: completedPayment.patientId,
+        patientName: completedPayment.patientName,
+        issueDate: currentDate,
+        dueDate: currentDate, // Same day since payment is already completed
+        totalAmount: completedPayment.amount,
+        status: 'paid', // Already paid
+        description: completedPayment.description || 'Medical Service Payment',
+        items: [
+          {
+            description: completedPayment.description || 'Medical Service',
+            quantity: 1,
+            unitPrice: completedPayment.amount,
+            totalPrice: completedPayment.amount
+          }
+        ],
+        paymentDetails: {
+          paymentId: completedPayment.id,
+          paymentDate: completedPayment.paymentDate,
+          paymentMethod: completedPayment.paymentMethod || 'cash',
+          transactionId: completedPayment.transactionId
+        },
+        notes: `Auto-generated invoice for completed payment ${completedPayment.id}`,
+        terms: 'Payment completed - Thank you for choosing KBR Life Care'
+      };
+
+      // Add invoice to database using the context function
+      if (addInvoice) {
+        await addInvoice(invoiceData);
+        console.log('✅ Invoice generated successfully:', invoiceNumber);
+        
+        // Show success message to user
+        Alert.alert(
+          'Invoice Generated', 
+          `Invoice ${invoiceNumber} has been automatically created and saved to Invoice Management.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error generating invoice:', error);
+      // Don't show error to user since this is automatic - just log it
+    }
+  };
+
+  const handleDeletePayment = (payment) => {
+    Alert.alert(
+      'Delete Payment',
+      `Are you sure you want to delete payment for ${payment.patientName}?\n\nAmount: ₹${payment.amount}\n\nThis action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePayment(payment.id);
+              Alert.alert('Success', 'Payment deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting payment:', error);
+              Alert.alert('Error', 'Failed to delete payment. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDownloadInvoice = (payment) => {
@@ -334,24 +526,26 @@ const PaymentManagementScreen = ({ navigation }) => {
         useSimpleAdminHeader={true}
       />
       <SafeAreaView style={[styles.safeArea]} edges={['left', 'right']}>
-      <View style={styles.content}>
+        {/* Fixed Header Container */}
+        <View style={styles.fixedHeader}>
+          {/* Header Content - Statistics, Search, Filters */}
         {/* Revenue Statistics */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <View style={[styles.statsCard, { backgroundColor: '#E8F5E8' }]}>
               <Text style={styles.statsTitle}>Total Revenue</Text>
               <Text style={[styles.statsAmount, { color: '#22C55E' }]}>
-                ₹17,000
+                ₹{paymentStats.totalRevenue.toLocaleString()}
               </Text>
-              <Text style={styles.statsSubtitle}>3 fully paid</Text>
+              <Text style={styles.statsSubtitle}>{paymentStats.fullyPaidCount} fully paid</Text>
             </View>
             
             <View style={[styles.statsCard, { backgroundColor: '#FFF3CD' }]}>
               <Text style={styles.statsTitle}>Pending Dues</Text>
               <Text style={[styles.statsAmount, { color: '#EF4444' }]}>
-                ₹2,500
+                ₹{paymentStats.totalPending.toLocaleString()}
               </Text>
-              <Text style={styles.statsSubtitle}>1 pending</Text>
+              <Text style={styles.statsSubtitle}>{paymentStats.pendingCount} pending</Text>
             </View>
           </View>
           
@@ -359,7 +553,7 @@ const PaymentManagementScreen = ({ navigation }) => {
             <View style={[styles.statsCard, { backgroundColor: '#E0E7FF' }]}>
               <Text style={styles.statsTitle}>Partially Paid</Text>
               <Text style={[styles.statsAmount, { color: '#8B5CF6' }]}>
-                0
+                {paymentStats.partiallyPaidCount}
               </Text>
               <Text style={styles.statsSubtitle}>patients</Text>
             </View>
@@ -367,7 +561,7 @@ const PaymentManagementScreen = ({ navigation }) => {
             <View style={[styles.statsCard, { backgroundColor: '#F3F4F6' }]}>
               <Text style={styles.statsTitle}>Total Patients</Text>
               <Text style={[styles.statsAmount, { color: '#4A90E2' }]}>
-                4
+                {paymentStats.totalPatients}
               </Text>
               <Text style={styles.statsSubtitle}>with payments</Text>
             </View>
@@ -390,94 +584,162 @@ const PaymentManagementScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.filterTabs}>
-            <TouchableOpacity
-              style={[styles.filterTab, styles.activeFilterTab]}
-            >
-              <Text style={[styles.filterTabText, styles.activeFilterTabText]}>
-                All
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.filterTab}>
-              <Text style={styles.filterTabText}>Fully Paid</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.filterTab}>
-              <Text style={styles.filterTabText}>Partially Paid</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.filterTab}>
-              <Text style={styles.filterTabText}>Pending</Text>
-            </TouchableOpacity>
+            {['All', 'Fully Paid', 'Partially Paid', 'Pending'].map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={[
+                  styles.filterTab,
+                  selectedFilter === filter && styles.activeFilterTab
+                ]}
+                onPress={() => setSelectedFilter(filter)}
+              >
+                <Text style={[
+                  styles.filterTabText,
+                  selectedFilter === filter && styles.activeFilterTabText
+                ]}>
+                  {filter}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
+        {/* End Fixed Header */}
 
-        {/* Payment List - Just showing the mockup card */}
-        <ScrollView 
-          contentContainerStyle={styles.paymentList}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.paymentCard}>
-            <View style={styles.paymentHeader}>
-              <View style={styles.patientInfo}>
-                <View style={styles.patientAvatar}>
-                  <Text style={styles.avatarText}>A</Text>
-                </View>
-                <View style={styles.patientDetails}>
-                  <Text style={styles.patientName}>Amit Patel</Text>
-                  <Text style={styles.patientMeta}>
-                    KBR-IP-2024-002 • IP
-                  </Text>
-                </View>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: "#EF4444" }]}>
-                <Text style={styles.statusText}>Pending</Text>
-              </View>
-            </View>
-            
-            <View style={styles.paymentAmounts}>
-              <View style={styles.amountGrid}>
-                <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Total Amount</Text>
-                  <Text style={styles.amountValue}>₹2,500</Text>
-                </View>
-                
-                <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Amount Paid</Text>
-                  <Text style={styles.amountValue}>₹0</Text>
-                </View>
-                
-                <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Due Amount</Text>
-                  <Text style={[styles.amountValue, { color: "#EF4444" }]}>
-                    ₹2,500
-                  </Text>
-                </View>
-                
-                <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Payments Made</Text>
-                  <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
-                    0
-                  </Text>
-                </View>
-              </View>
-            </View>
+        {/* Scrollable Content Container */}
+        <View style={styles.scrollableContent}>
 
-            <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="eye" size={16} color="#4A90E2" />
-                <Text style={[styles.actionText, { color: "#4A90E2" }]}>View Patient</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="add-circle" size={16} color="#22C55E" />
-                <Text style={[styles.actionText, { color: "#22C55E" }]}>Add Payment</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="download" size={16} color="#8B5CF6" />
-                <Text style={[styles.actionText, { color: "#8B5CF6" }]}>Download</Text>
-              </TouchableOpacity>
-            </View>
+
+          {/* Payment List */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading payments...</Text>
           </View>
-        </ScrollView>
+        ) : filteredPayments.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="receipt-outline" size={64} color="#9CA3AF" />
+            <Text style={styles.emptyTitle}>No Payments Found</Text>
+            <Text style={styles.emptyMessage}>
+              {payments?.length === 0 
+                ? "No payment records available. Add the first payment to get started."
+                : `Found ${payments?.length} payments but ${filteredPayments.length} after filtering. Filter: ${selectedFilter}, Search: "${searchQuery}"`
+              }
+            </Text>
+            <TouchableOpacity 
+              style={styles.emptyButton}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.emptyButtonText}>Add Payment</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredPayments}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 100, paddingTop: 20 }}
+            style={{ flex: 1, backgroundColor: '#F5F5F5' }}
+            ListHeaderComponent={() => (
+              <View style={{ backgroundColor: '#4CAF50', padding: 15, margin: 10, borderRadius: 8 }}>
+                <Text style={{ color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
+                  📋 Showing {filteredPayments.length} Payment Cards
+                </Text>
+              </View>
+            )}
+            renderItem={({ item, index }) => {
+              return (
+                <View style={[styles.paymentCard, { backgroundColor: '#FFFFFF', margin: 10, borderRadius: 12, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
+                  <View style={styles.paymentHeader}>
+                  <View style={styles.patientInfo}>
+                    <View style={styles.patientAvatar}>
+                      <Text style={styles.avatarText}>
+                        {item.patientName?.charAt(0)?.toUpperCase() || 'P'}
+                      </Text>
+                    </View>
+                    <View style={styles.patientDetails}>
+                      <Text style={styles.patientName}>{item.patientName}</Text>
+                      <Text style={styles.patientMeta}>
+                        {item.patientId} • {item.patientType || 'IP'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.statusBadge, { 
+                    backgroundColor: (item.paymentStatus === 'paid' || item.status === 'Fully Paid') ? '#22C55E' : 
+                                   (item.paymentStatus === 'pending' || item.status === 'Pending') ? '#EF4444' : '#F59E0B' 
+                  }]}>
+                    <Text style={styles.statusText}>
+                      {item.status || (item.paymentStatus === 'paid' ? 'Fully Paid' : 
+                       item.paymentStatus === 'pending' ? 'Pending' : 'Partial Paid')}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.paymentAmounts}>
+                  <View style={styles.amountGrid}>
+                    <View style={styles.amountItem}>
+                      <Text style={styles.amountLabel}>Total Amount</Text>
+                      <Text style={styles.amountValue}>₹{(item.totalAmount || item.amount || 0).toLocaleString()}</Text>
+                    </View>
+                    
+                    <View style={styles.amountItem}>
+                      <Text style={styles.amountLabel}>Amount Paid</Text>
+                      <Text style={styles.amountValue}>
+                        ₹{(item.paidAmount || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.amountItem}>
+                      <Text style={styles.amountLabel}>Due Amount</Text>
+                      <Text style={[styles.amountValue, { 
+                        color: (item.dueAmount || 0) > 0 ? "#EF4444" : "#22C55E" 
+                      }]}>
+                        ₹{(item.dueAmount || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.amountItem}>
+                      <Text style={styles.amountLabel}>Payments Made</Text>
+                      <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
+                        {(item.paymentStatus === 'paid' || item.status === 'Fully Paid') ? '1' : '0'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.cardActions}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => handleViewDetails(item)}
+                  >
+                    <Ionicons name="eye" size={16} color="#4A90E2" />
+                    <Text style={[styles.actionText, { color: "#4A90E2" }]}>View Patient</Text>
+                  </TouchableOpacity>
+                  
+                  {(item.paymentStatus !== 'paid' && item.status !== 'Fully Paid') && (
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleUpdatePaymentStatus(item.id, 'paid')}
+                    >
+                      <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                      <Text style={[styles.actionText, { color: "#22C55E" }]}>Mark Paid</Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => Alert.alert('Invoice', 'Generate/Download invoice feature coming soon!')}
+                  >
+                    <Ionicons name="document-text" size={16} color="#8B5CF6" />
+                    <Text style={[styles.actionText, { color: "#8B5CF6" }]}>Invoice</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              );
+            }}
+          />
+        )}
+        </View>
+        {/* End Scrollable Content */}
       </View>
 
       {/* Floating Action Button for adding payment */}
@@ -492,7 +754,7 @@ const PaymentManagementScreen = ({ navigation }) => {
       <AddPaymentModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onSubmit={handleAddPayment}
+        onSave={handleAddPayment}
         patients={patients}
       />
       </SafeAreaView>
@@ -528,9 +790,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
-    paddingTop: 16,
-    paddingBottom: 75, // Extra space for FAB
+    backgroundColor: '#F9FAFB',
   },
   // Statistics Styles
   statsContainer: {
@@ -625,7 +885,8 @@ const styles = StyleSheet.create({
   },
   // Payment List Styles
   paymentList: {
-    paddingBottom: 20,
+    padding: 16,
+    paddingBottom: 90, // Extra space for FAB
   },
   paymentCard: {
     backgroundColor: '#FFFFFF',
@@ -744,6 +1005,71 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    backgroundColor: '#3B82F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  fixedHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  scrollableContent: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
 });
 

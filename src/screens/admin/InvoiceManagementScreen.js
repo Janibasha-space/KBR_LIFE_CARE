@@ -97,9 +97,14 @@ const InvoiceManagementScreen = ({ navigation }) => {
     }
   };
 
-  const handleCreateInvoice = (invoiceData) => {
-    addInvoice(invoiceData);
-    Alert.alert('Success', 'Invoice created successfully!');
+  const handleCreateInvoice = async (invoiceData) => {
+    try {
+      await addInvoice(invoiceData);
+      Alert.alert('Success', 'Invoice created successfully!');
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      Alert.alert('Error', 'Failed to create invoice. Please try again.');
+    }
   };
 
 
@@ -219,15 +224,16 @@ KBR Life Care Hospital
         { text: 'Cancel', style: 'cancel' },
         ...availableStatuses.map(status => ({
           text: status.label,
-          onPress: () => {
+          onPress: async () => {
             try {
-              updateInvoiceStatus(invoice.id, status.value);
+              await updateInvoiceStatus(invoice.id, status.value);
               Alert.alert(
                 'Status Updated',
                 `Invoice ${invoice.invoiceNumber} status changed to ${status.label}`,
                 [{ text: 'OK' }]
               );
             } catch (error) {
+              console.error('Error updating invoice status:', error);
               Alert.alert('Error', 'Failed to update status. Please try again.');
             }
           }
@@ -245,15 +251,16 @@ KBR Life Care Hospital
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             try {
-              deleteInvoice(invoice.id);
+              await deleteInvoice(invoice.id);
               Alert.alert(
                 'Deleted Successfully', 
                 `Invoice ${invoice.invoiceNumber} has been deleted.`,
                 [{ text: 'OK' }]
               );
             } catch (error) {
+              console.error('Error deleting invoice:', error);
               Alert.alert('Error', 'Failed to delete invoice. Please try again.');
             }
           }

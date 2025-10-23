@@ -187,7 +187,7 @@ const ReportsScreen = ({ navigation }) => {
         priority: newReport.priority,
       };
 
-      const createdReport = addReport(reportData);
+      const createdReport = await addReport(reportData);
 
       // Add files to the report
       for (const file of selectedFiles) {
@@ -271,9 +271,14 @@ const ReportsScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            deleteReport(reportId);
-            Alert.alert('Success', 'Report deleted successfully');
+          onPress: async () => {
+            try {
+              await deleteReport(reportId);
+              Alert.alert('Success', 'Report deleted successfully');
+            } catch (error) {
+              console.error('Error deleting report:', error);
+              Alert.alert('Error', 'Failed to delete report. Please try again.');
+            }
           },
         },
       ]
