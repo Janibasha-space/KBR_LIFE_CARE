@@ -1657,13 +1657,31 @@ export const AppProvider = ({ children }) => {
   };
 
   const sendReportToPatient = (reportId, phoneNumber, notificationData = null) => {
-    // Find patient by phone number
-    const patient = appState.patients.find(p => 
-      p.phone === phoneNumber || 
-      p.phone.replace(/\D/g, '').includes(phoneNumber.replace(/\D/g, ''))
-    );
+    // Find patient by phone number with improved matching
+    const patient = appState.patients.find(p => {
+      const patientPhone = p.phone || p.phoneNumber || p.mobile || '';
+      const cleanPatientPhone = patientPhone.replace(/\D/g, '');
+      const cleanSearchPhone = phoneNumber.replace(/\D/g, '');
+      
+      return (
+        patientPhone === phoneNumber ||
+        cleanPatientPhone === cleanSearchPhone ||
+        cleanPatientPhone.includes(cleanSearchPhone) ||
+        cleanSearchPhone.includes(cleanPatientPhone)
+      );
+    });
 
-    if (!patient) {
+    // If not found by phone, try to find by report's patientId
+    let foundPatient = patient;
+    if (!foundPatient) {
+      const report = appState.reports.find(r => r.id === reportId);
+      if (report && report.patientId) {
+        foundPatient = appState.patients.find(p => p.id === report.patientId);
+        console.log('⚠️ Found patient by report patientId instead of phone:', foundPatient?.id);
+      }
+    }
+
+    if (!foundPatient) {
       throw new Error('Patient not found with this phone number');
     }
 
@@ -1686,7 +1704,7 @@ export const AppProvider = ({ children }) => {
     setAppState(prev => ({
       ...prev,
       patients: prev.patients.map(p =>
-        p.id === patient.id
+        p.id === foundPatient.id
           ? {
               ...p,
               medicalReports: [
@@ -1704,7 +1722,7 @@ export const AppProvider = ({ children }) => {
       )
     }));
 
-    return { success: true, patient };
+    return { success: true, patient: foundPatient };
   };
 
   const markReportAsViewed = (reportId, patientId) => {

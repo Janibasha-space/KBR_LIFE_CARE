@@ -58,13 +58,11 @@ export class FirebaseAppointmentService {
       let q;
       
       if (patientId) {
-        q = query(
-          appointmentsRef, 
-          where('patientId', '==', patientId),
-          orderBy('appointmentDate', 'desc')
-        );
+        // Use only where clause to avoid index requirement
+        q = query(appointmentsRef, where('patientId', '==', patientId));
       } else {
-        q = query(appointmentsRef, orderBy('appointmentDate', 'desc'));
+        // For admin - get all appointments and sort in JavaScript
+        q = query(appointmentsRef);
       }
       
       const querySnapshot = await getDocs(q);
@@ -76,6 +74,15 @@ export class FirebaseAppointmentService {
           ...doc.data()
         });
       });
+      
+      // Sort by appointmentDate in JavaScript to avoid index requirement
+      appointments.sort((a, b) => {
+        const dateA = new Date(a.appointmentDate || a.date || 0);
+        const dateB = new Date(b.appointmentDate || b.date || 0);
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      console.log(`✅ Successfully fetched ${appointments.length} appointments for patientId: ${patientId || 'all'}`);
       
       return {
         success: true,

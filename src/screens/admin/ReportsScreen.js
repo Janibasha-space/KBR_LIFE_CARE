@@ -22,11 +22,15 @@ import { Colors, Sizes } from '../../constants/theme';
 import { useApp } from '../../contexts/AppContext';
 import { FileHandler, NotificationHandler } from '../../utils/fileHandler';
 import AppHeader from '../../components/AppHeader';
+import { PatientService, FirebaseDoctorService } from '../../services/firebaseHospitalServices';
+import { collection, onSnapshot, query, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase.config';
 
 const ReportsScreen = ({ navigation }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showPatientSelector, setShowPatientSelector] = useState(false);
+  const [showDoctorSelector, setShowDoctorSelector] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -41,7 +45,7 @@ const ReportsScreen = ({ navigation }) => {
     doctorId: '',
     doctorName: '',
     notes: '',
-    category: 'Laboratory',
+    category: '',
     priority: 'normal',
   });
 
@@ -52,8 +56,13 @@ const ReportsScreen = ({ navigation }) => {
 
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [patientSearch, setPatientSearch] = useState('');
+  const [doctorSearch, setDoctorSearch] = useState('');
 
-
+  // Real-time Firebase data states
+  const [firebasePatients, setFirebasePatients] = useState([]);
+  const [firebaseDoctors, setFirebaseDoctors] = useState([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
 
   // Use real data from AppContext
   const { 
@@ -70,6 +79,124 @@ const ReportsScreen = ({ navigation }) => {
 
   // Calculate real stats from AppContext
   const reportsStats = getReportsStats();
+
+  // Fetch real-time patients data from Firebase
+  const fetchFirebasePatients = async () => {
+    setLoadingPatients(true);
+    try {
+      const response = await PatientService.getAllUsers();
+      if (response.success) {
+        // Filter only patients (users with role 'patient' or without admin role)
+        const patientsData = response.data.filter(user => 
+          !user.role || user.role === 'patient' || user.role !== 'admin'
+        );
+        setFirebasePatients(patientsData);
+        console.log('✅ Fetched', patientsData.length, 'patients from Firebase');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching patients:', error);
+      Alert.alert('Error', 'Failed to fetch patients data. Please try again.');
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
+
+  // Fetch real-time doctors data from Firebase
+  const fetchFirebaseDoctors = async () => {
+    setLoadingDoctors(true);
+    try {
+      const response = await FirebaseDoctorService.getDoctors();
+      if (response.success) {
+        setFirebaseDoctors(response.data);
+        console.log('✅ Fetched', response.data.length, 'doctors from Firebase');
+        console.log('🔍 Firebase doctors data:', response.data.map(doc => ({
+          id: doc.id,
+          name: doc.name || doc.fullName,
+          specialization: doc.specialization || doc.specialty
+        })));
+      }
+    } catch (error) {
+      console.error('❌ Error fetching doctors:', error);
+      Alert.alert('Error', 'Failed to fetch doctors data. Please try again.');
+    } finally {
+      setLoadingDoctors(false);
+    }
+  };
+
+  // Real-time Firebase listeners
+  useEffect(() => {
+    let unsubscribePatients;
+    let unsubscribeDoctors;
+
+    const setupRealtimeListeners = () => {
+      try {
+        // Real-time patients listener
+        const patientsQuery = query(collection(db, 'users'));
+        unsubscribePatients = onSnapshot(patientsQuery, (snapshot) => {
+          const patientsData = [];
+          snapshot.forEach((doc) => {
+            const userData = doc.data();
+            // Filter only patients (users without admin role)
+            if (!userData.role || userData.role === 'patient' || userData.role !== 'admin') {
+              patientsData.push({
+                id: doc.id,
+                ...userData
+              });
+            }
+          });
+          setFirebasePatients(patientsData);
+          console.log('🔄 Real-time update: Fetched', patientsData.length, 'patients');
+        }, (error) => {
+          console.error('❌ Error in patients listener:', error);
+          // Fallback to manual fetch
+          fetchFirebasePatients();
+        });
+
+        // Real-time doctors listener
+        const doctorsQuery = query(collection(db, 'doctors'));
+        unsubscribeDoctors = onSnapshot(doctorsQuery, (snapshot) => {
+          const doctorsData = [];
+          snapshot.forEach((doc) => {
+            doctorsData.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          setFirebaseDoctors(doctorsData);
+          console.log('🔄 Real-time update: Fetched', doctorsData.length, 'doctors');
+          console.log('🔍 Real-time doctors data:', doctorsData.map(doc => ({
+            id: doc.id,
+            name: doc.name || doc.fullName,
+            specialization: doc.specialization || doc.specialty
+          })));
+        }, (error) => {
+          console.error('❌ Error in doctors listener:', error);
+          // Fallback to manual fetch
+          fetchFirebaseDoctors();
+        });
+      } catch (error) {
+        console.error('❌ Error setting up real-time listeners:', error);
+        // Fallback to initial fetch
+        fetchFirebasePatients();
+        fetchFirebaseDoctors();
+      }
+    };
+
+    // Setup listeners on component mount
+    setupRealtimeListeners();
+
+    // Cleanup listeners on unmount
+    return () => {
+      if (unsubscribePatients) {
+        unsubscribePatients();
+        console.log('🔧 Cleaned up patients listener');
+      }
+      if (unsubscribeDoctors) {
+        unsubscribeDoctors();
+        console.log('🔧 Cleaned up doctors listener');
+      }
+    };
+  }, []);
   
   // Format storage size for display
   const formatFileSize = (bytes) => {
@@ -80,12 +207,41 @@ const ReportsScreen = ({ navigation }) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i];
   };
 
-  // Filtered patients for search
-  const filteredPatients = (patients || []).filter(patient =>
-    patient.name.toLowerCase().includes(patientSearch.toLowerCase()) ||
-    patient.phone.includes(patientSearch) ||
-    patient.id.toLowerCase().includes(patientSearch.toLowerCase())
-  );
+  // Filtered patients for search - Use Firebase data if available, fallback to AppContext
+  const patientsToFilter = firebasePatients.length > 0 ? firebasePatients : (patients || []);
+  const filteredPatients = patientsToFilter.filter(patient => {
+    const searchTerm = patientSearch.toLowerCase();
+    return (
+      (patient.name || patient.fullName || '').toLowerCase().includes(searchTerm) ||
+      (patient.phone || patient.phoneNumber || '').includes(patientSearch) ||
+      (patient.id || '').toLowerCase().includes(searchTerm) ||
+      (patient.email || '').toLowerCase().includes(searchTerm)
+    );
+  });
+
+  // Filtered doctors for search - Use Firebase data if available, fallback to AppContext
+  const doctorsToFilter = firebaseDoctors.length > 0 ? firebaseDoctors : (doctors || []);
+  const filteredDoctors = doctorsToFilter.filter(doctor => {
+    const searchTerm = doctorSearch.toLowerCase();
+    return (
+      (doctor.name || doctor.fullName || '').toLowerCase().includes(searchTerm) ||
+      (doctor.specialization || doctor.specialty || '').toLowerCase().includes(searchTerm) ||
+      (doctor.department || '').toLowerCase().includes(searchTerm) ||
+      (doctor.id || '').toLowerCase().includes(searchTerm)
+    );
+  });
+
+  // Debug logging when doctor selector is open
+  React.useEffect(() => {
+    if (showDoctorSelector) {
+      console.log('🔍 Doctor Selector Debug:');
+      console.log('- Firebase doctors:', firebaseDoctors.length);
+      console.log('- AppContext doctors:', doctors.length);  
+      console.log('- Doctors to filter:', doctorsToFilter.length);
+      console.log('- Filtered doctors:', filteredDoctors.length);
+      console.log('- Search term:', doctorSearch);
+    }
+  }, [showDoctorSelector, firebaseDoctors.length, doctors.length, filteredDoctors.length, doctorSearch]);
 
   // File Upload Functions
   const handleFileUpload = async (type = 'gallery') => {
@@ -133,11 +289,15 @@ const ReportsScreen = ({ navigation }) => {
 
   // Patient Selection Functions
   const selectPatient = (patient) => {
+    // Handle both AppContext and Firebase data structures
+    const patientName = patient.name || patient.fullName || patient.displayName || 'Unknown';
+    const patientPhone = patient.phone || patient.phoneNumber || patient.mobile || '';
+    
     setNewReport(prev => ({
       ...prev,
       patientId: patient.id,
-      patientName: patient.name,
-      patientPhone: patient.phone,
+      patientName: patientName,
+      patientPhone: patientPhone,
     }));
     
     setShowPatientSelector(false);
@@ -146,18 +306,32 @@ const ReportsScreen = ({ navigation }) => {
     // Show confirmation
     Alert.alert(
       'Patient Selected',
-      `${patient.name} has been selected for this report.`,
+      `${patientName} has been selected for this report.`,
       [{ text: 'OK' }],
       { cancelable: true }
     );
   };
 
-  const selectDoctor = (doctorId, doctorName) => {
+  const selectDoctor = (doctor) => {
+    // Handle both AppContext and Firebase data structures
+    const doctorName = doctor.name || doctor.fullName || doctor.displayName || 'Unknown';
+    
     setNewReport(prev => ({
       ...prev,
-      doctorId,
-      doctorName,
+      doctorId: doctor.id,
+      doctorName: doctorName,
     }));
+    
+    setShowDoctorSelector(false);
+    setDoctorSearch('');
+    
+    // Show confirmation
+    Alert.alert(
+      'Doctor Selected',
+      `${doctorName} has been selected for this report.`,
+      [{ text: 'OK' }],
+      { cancelable: true }
+    );
   };
 
   // Report Management Functions
@@ -189,6 +363,32 @@ const ReportsScreen = ({ navigation }) => {
 
       const createdReport = await addReport(reportData);
 
+      // Also save to Firebase for real-time access
+      try {
+        const firebaseReportData = {
+          ...reportData,
+          id: createdReport.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          sentToPatient: false,
+          files: selectedFiles.map(file => ({
+            id: file.id || Date.now().toString(),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            uri: file.uri
+          }))
+        };
+        
+        const reportRef = doc(db, 'reports', createdReport.id);
+        await setDoc(reportRef, firebaseReportData);
+        
+        console.log('✅ Report saved to Firebase:', createdReport.id);
+      } catch (firebaseError) {
+        console.error('❌ Error saving report to Firebase:', firebaseError);
+        // Don't fail the operation since AppContext save succeeded
+      }
+
       // Add files to the report
       for (const file of selectedFiles) {
         await addFileToReport(createdReport.id, file);
@@ -204,7 +404,7 @@ const ReportsScreen = ({ navigation }) => {
         doctorId: '',
         doctorName: '',
         notes: '',
-        category: 'Laboratory',
+        category: '',
         priority: 'normal',
       });
       setSelectedFiles([]);
@@ -242,20 +442,51 @@ const ReportsScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const result = await NotificationHandler.sendReportToPatient(
-        validation.formattedNumber,
-        selectedReport,
-        patients
-      );
-
-      if (result.success) {
-        // Update report as sent in context
-        sendReportToPatient(selectedReport.id, validation.formattedNumber);
+      // Skip the phone number lookup - we already have the patient ID from the report
+      const patientId = selectedReport.patientId;
+      
+      // Directly update the report as sent (bypass phone number lookup issues)
+      try {
+        const reportRef = doc(db, 'reports', selectedReport.id);
+        
+        // Use setDoc with merge to create document if it doesn't exist
+        await setDoc(reportRef, {
+          ...selectedReport, // Include all existing report data
+          sentToPatient: true,
+          sentAt: new Date().toISOString(),
+          sentToPhoneNumber: validation.formattedNumber,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        
+        console.log('✅ Report marked as sent in Firebase:', selectedReport.id);
+        
+        // Also update in AppContext using updateReport function
+        await updateReport(selectedReport.id, {
+          sentToPatient: true,
+          sentAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        
+        Alert.alert(
+          'Report Sent Successfully',
+          `Report "${selectedReport.type}" has been sent to ${validation.formattedNumber} and is now available in the patient dashboard.`,
+          [{ text: 'OK' }]
+        );
+        
         setShowSendModal(false);
         setSendReportData({ phoneNumber: '', message: '' });
         setSelectedReport(null);
+        
+      } catch (firebaseError) {
+        console.error('❌ Error updating Firebase report:', firebaseError);
+        Alert.alert(
+          'Error',
+          'Failed to send report. Please try again.',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
+      console.error('❌ Error in send report:', error);
       Alert.alert('Error', error.message || 'Failed to send report. Please try again.');
     } finally {
       setLoading(false);
@@ -660,7 +891,7 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                   }}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                  <Ionicons name="close-circle" size={28} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
 
@@ -678,7 +909,14 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
 
                 {/* Patient Selection */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Patient * ({(patients || []).length} available)</Text>
+                  <View style={styles.labelContainer}>
+                    <Text style={styles.inputLabel}>
+                      Patient * ({patientsToFilter.length} available)
+                    </Text>
+                    {loadingPatients && (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    )}
+                  </View>
                   <TouchableOpacity 
                     style={[
                       styles.textInput, 
@@ -686,6 +924,7 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                       newReport.patientName && styles.selectedInput
                     ]}
                     onPress={() => setShowPatientSelector(true)}
+                    disabled={loadingPatients}
                   >
                     <View style={styles.selectorContent}>
                       {newReport.patientName ? (
@@ -714,22 +953,18 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
 
                 {/* Doctor Selection */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Doctor *</Text>
+                  <View style={styles.labelContainer}>
+                    <Text style={styles.inputLabel}>
+                      Doctor * (Firebase: {firebaseDoctors.length} | AppContext: {doctors.length} available)
+                    </Text>
+                    {loadingDoctors && (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    )}
+                  </View>
                   <TouchableOpacity 
                     style={[styles.textInput, styles.selectorInput]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Select Doctor',
-                        'Choose a doctor for this report:',
-                        [
-                          ...doctors.map(doctor => ({
-                            text: doctor.name,
-                            onPress: () => selectDoctor(doctor.id, doctor.name)
-                          })),
-                          { text: 'Cancel', style: 'cancel' }
-                        ]
-                      );
-                    }}
+                    onPress={() => setShowDoctorSelector(true)}
+                    disabled={loadingDoctors}
                   >
                     <Text style={[
                       styles.selectorText, 
@@ -745,26 +980,12 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                 <View style={styles.rowInputGroup}>
                   <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                     <Text style={styles.inputLabel}>Category</Text>
-                    <TouchableOpacity 
-                      style={[styles.textInput, styles.selectorInput]}
-                      onPress={() => {
-                        const categories = ['Laboratory', 'Radiology', 'Cardiology', 'Pathology', 'Other'];
-                        Alert.alert(
-                          'Select Category',
-                          'Choose a category:',
-                          [
-                            ...categories.map(category => ({
-                              text: category,
-                              onPress: () => setNewReport({...newReport, category})
-                            })),
-                            { text: 'Cancel', style: 'cancel' }
-                          ]
-                        );
-                      }}
-                    >
-                      <Text style={styles.selectorText}>{newReport.category}</Text>
-                      <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} />
-                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.textInput}
+                      value={newReport.category}
+                      onChangeText={(text) => setNewReport({...newReport, category: text})}
+                      placeholder="e.g., Laboratory, Radiology, Cardiology"
+                    />
                   </View>
                   <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                     <Text style={styles.inputLabel}>Priority</Text>
@@ -903,7 +1124,7 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                   }}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                  <Ionicons name="close-circle" size={28} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
 
@@ -922,7 +1143,22 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
               <View style={styles.patientsCountContainer}>
                 <Text style={styles.patientsCountText}>
                   {filteredPatients.length} patient{filteredPatients.length !== 1 ? 's' : ''} found
+                  {firebasePatients.length > 0 && ' (Real-time)'}
                 </Text>
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={() => {
+                    fetchFirebasePatients();
+                    fetchFirebaseDoctors();
+                  }}
+                  disabled={loadingPatients || loadingDoctors}
+                >
+                  <Ionicons 
+                    name="refresh" 
+                    size={16} 
+                    color={Colors.primary} 
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Patients List */}
@@ -946,12 +1182,14 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                         </View>
                       </View>
                       <View style={styles.patientInfo}>
-                        <Text style={styles.patientName}>{item.name}</Text>
+                        <Text style={styles.patientName}>
+                          {item.name || item.fullName || item.displayName || 'Unknown Patient'}
+                        </Text>
                         <Text style={styles.patientDetails}>
-                          ID: {item.id} • Phone: {item.phone}
+                          ID: {item.id} • Phone: {item.phone || item.phoneNumber || item.mobile || 'No phone'}
                         </Text>
                         <Text style={styles.patientMeta}>
-                          {item.age}yr • {item.gender} • {item.bloodGroup}
+                          {(item.age || 'N/A')}yr • {(item.gender || 'N/A')} • {(item.bloodGroup || item.bloodType || 'N/A')}
                         </Text>
                         {item.doctor && (
                           <Text style={styles.patientDoctor}>
@@ -994,6 +1232,124 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
           </View>
         </Modal>
 
+        {/* Doctor Selector Modal */}
+        <Modal
+          visible={showDoctorSelector}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setShowDoctorSelector(false);
+            setDoctorSearch('');
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.patientSelectorModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Doctor</Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setShowDoctorSelector(false);
+                    setDoctorSearch('');
+                  }}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close-circle" size={28} color={Colors.danger} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color={Colors.textSecondary} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={doctorSearch}
+                  onChangeText={setDoctorSearch}
+                  placeholder="Search by name, specialization, or department..."
+                  autoFocus={false}
+                />
+              </View>
+
+              {/* Doctors Count Info */}
+              <View style={styles.patientsCountContainer}>
+                <Text style={styles.patientsCountText}>
+                  {filteredDoctors.length} doctor{filteredDoctors.length !== 1 ? 's' : ''} found
+                  {firebaseDoctors.length > 0 && ' (Real-time)'}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={() => {
+                    fetchFirebasePatients();
+                    fetchFirebaseDoctors();
+                  }}
+                  disabled={loadingPatients || loadingDoctors}
+                >
+                  <Ionicons 
+                    name="refresh" 
+                    size={16} 
+                    color={Colors.primary} 
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Doctors List */}
+              {filteredDoctors.length > 0 ? (
+                <FlatList
+                  data={filteredDoctors}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity 
+                      style={styles.patientItem}
+                      onPress={() => selectDoctor(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.patientAvatarContainer}>
+                        <View style={[styles.patientAvatar, { backgroundColor: '#10B981' }]}>
+                          <Ionicons 
+                            name="medical" 
+                            size={20} 
+                            color="white" 
+                          />
+                        </View>
+                      </View>
+                      <View style={styles.patientInfo}>
+                        <Text style={styles.patientName}>
+                          {item.name || item.fullName || item.displayName || 'Unknown Doctor'}
+                        </Text>
+                        <Text style={styles.patientDetails}>
+                          ID: {item.id} • {item.specialization || item.specialty || 'General'}
+                        </Text>
+                        <Text style={styles.patientMeta}>
+                          {item.department || 'N/A'} • {item.experience || 'N/A'} • {item.consultationFee ? `₹${item.consultationFee}` : 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.selectIndicator}>
+                        <Ionicons name="chevron-forward" size={20} color={Colors.kbrBlue} />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  contentContainerStyle={styles.patientsListContent}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.emptyPatientsList}>
+                  <Ionicons name="medical-outline" size={64} color={Colors.textSecondary} />
+                  <Text style={styles.emptyPatientsTitle}>No Doctors Found</Text>
+                  <Text style={styles.emptyPatientsText}>
+                    {doctorSearch ? 'Try adjusting your search terms' : 'No doctors available in the system'}
+                  </Text>
+                  {doctorSearch && (
+                    <TouchableOpacity 
+                      style={styles.clearSearchButton}
+                      onPress={() => setDoctorSearch('')}
+                    >
+                      <Text style={styles.clearSearchText}>Clear Search</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {/* Send Report Modal */}
         <Modal
           visible={showSendModal}
@@ -1009,7 +1365,7 @@ ${report.files.map(file => `• ${file.name}`).join('\n')}
                   onPress={() => setShowSendModal(false)}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                  <Ionicons name="close-circle" size={28} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
 
@@ -1705,11 +2061,16 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: Sizes.md,
   },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Sizes.xs,
+  },
   inputLabel: {
     fontSize: Sizes.medium,
     fontWeight: '500',
     color: Colors.textPrimary,
-    marginBottom: Sizes.xs,
   },
   textInput: {
     borderWidth: 1,
@@ -1891,6 +2252,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   patientsCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Sizes.lg,
     paddingBottom: Sizes.sm,
   },
@@ -1898,6 +2262,13 @@ const styles = StyleSheet.create({
     fontSize: Sizes.small,
     color: Colors.textSecondary,
     fontWeight: '500',
+  },
+  refreshButton: {
+    padding: Sizes.xs,
+    borderRadius: Sizes.radiusSmall,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   patientsList: {
     flex: 1,

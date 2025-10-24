@@ -278,16 +278,29 @@ Search: "${searchQuery || 'none'}"`,
   // Calculate real-time payment statistics from actual payments data
   const paymentStats = useMemo(() => {
     const totalPayments = payments?.length || 0;
-    const totalRevenue = (payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
-    const paidAmount = (payments || []).filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-    const pendingAmount = (payments || []).filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
+    
+    // Calculate total revenue from actual amounts paid
+    const totalRevenue = (payments || []).reduce((sum, payment) => {
+      const actualPaid = payment.actualAmountPaid || payment.paidAmount || 
+                        (payment.status === 'paid' ? payment.amount : 0) || 0;
+      return sum + actualPaid;
+    }, 0);
+    
+    // Calculate pending amounts using full amounts and due amounts
+    const totalPending = (payments || []).reduce((sum, payment) => {
+      const dueAmount = payment.dueAmount || 
+                       (payment.fullAmount ? payment.fullAmount - (payment.actualAmountPaid || 0) : 
+                        payment.status === 'pending' ? payment.amount : 0) || 0;
+      return sum + dueAmount;
+    }, 0);
+    
     const fullyPaidCount = (payments || []).filter(p => p.status === 'paid').length;
     const pendingCount = (payments || []).filter(p => p.status === 'pending').length;
     const partiallyPaidCount = (payments || []).filter(p => p.status === 'partial').length;
 
     return {
-      totalRevenue: paidAmount,
-      totalPending: pendingAmount,
+      totalRevenue,
+      totalPending,
       fullyPaidCount,
       partiallyPaidCount,
       pendingCount,
@@ -405,14 +418,15 @@ Search: "${searchQuery || 'none'}"`,
           patientId: payment.patientId || `unknown-${index}`,
           patientType: patient?.patientType || 'IP',
           
-          // Payment amounts
-          amount: payment.amount || payment.totalAmount || 1000, // Add fallback
+          // Payment amounts - Fixed to show correct total and paid amounts
+          amount: payment.actualAmountPaid || payment.amount || payment.totalAmount || 1000, // Actual amount paid
           paymentStatus: payment.status || payment.paymentStatus || 'paid', // Add fallback
-          totalAmount: payment.amount || payment.totalAmount || 1000,
-          paidAmount: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? (payment.amount || 1000) : 
+          totalAmount: payment.fullAmount || payment.totalAmount || payment.amount || 1000, // Full amount owed
+          paidAmount: payment.actualAmountPaid || payment.paidAmount || (payment.status === 'paid' || payment.paymentStatus === 'paid') ? (payment.amount || 1000) : 
                     (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : 0,
-          dueAmount: (payment.status === 'paid' || payment.paymentStatus === 'paid') ? 0 : 
-                    (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : (payment.amount || 1000),
+          dueAmount: payment.dueAmount || (payment.fullAmount ? payment.fullAmount - (payment.actualAmountPaid || 0) : 
+                    (payment.status === 'paid' || payment.paymentStatus === 'paid') ? 0 : 
+                    (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : (payment.amount || 1000)),
           
           // Status information
           status: isLocalPayment && hasSyncFailed ? 'Sync Failed' :
@@ -539,15 +553,17 @@ Search: "${searchQuery || 'none'}"`,
         id: localId,
         patientId: paymentData.patientId,
         patientName: paymentData.patientName,
-        amount: parseFloat(paymentData.amount),
-        totalAmount: parseFloat(paymentData.amount),
-        paidAmount: parseFloat(paymentData.amount),
-        dueAmount: 0,
+        fullAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
+        actualAmountPaid: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
+        amount: parseFloat(paymentData.actualAmountPaid || paymentData.amount), // For backwards compatibility
+        totalAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
+        paidAmount: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
+        dueAmount: parseFloat(paymentData.dueAmount || 0),
         type: paymentData.type || 'consultation',
         paymentMethod: paymentData.paymentMethod || 'cash',
         description: paymentData.description || '',
-        status: 'paid',
-        paymentStatus: 'paid',
+        status: paymentData.status || 'paid',
+        paymentStatus: paymentData.status || 'paid',
         date: new Date().toISOString().split('T')[0],
         time: new Date().toLocaleTimeString('en-US', { 
           hour: '2-digit', 

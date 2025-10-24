@@ -15,7 +15,8 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
-    amount: '',
+    fullAmount: '',
+    actualAmountPaid: '',
     type: 'consultation',
     paymentMethod: 'cash',
     description: '',
@@ -56,8 +57,18 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
       return false;
     }
 
-    if (!formData.amount || isNaN(parseFloat(formData.amount)) || parseFloat(formData.amount) <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid amount');
+    if (!formData.fullAmount || isNaN(parseFloat(formData.fullAmount)) || parseFloat(formData.fullAmount) <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid full amount');
+      return false;
+    }
+
+    if (!formData.actualAmountPaid || isNaN(parseFloat(formData.actualAmountPaid)) || parseFloat(formData.actualAmountPaid) < 0) {
+      Alert.alert('Validation Error', 'Please enter a valid actual amount paid');
+      return false;
+    }
+
+    if (parseFloat(formData.actualAmountPaid) > parseFloat(formData.fullAmount)) {
+      Alert.alert('Validation Error', 'Actual amount paid cannot be more than the full amount');
       return false;
     }
 
@@ -72,15 +83,34 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
   const handleSave = () => {
     if (!validateForm()) return;
 
+    const fullAmount = parseFloat(formData.fullAmount);
+    const actualAmountPaid = parseFloat(formData.actualAmountPaid);
+    const dueAmount = fullAmount - actualAmountPaid;
+
+    // Determine payment status based on amount paid
+    let status = 'pending';
+    if (actualAmountPaid === 0) {
+      status = 'pending';
+    } else if (actualAmountPaid === fullAmount) {
+      status = 'paid';
+    } else {
+      status = 'partial';
+    }
+
     const paymentData = {
       patientId: formData.patientId,
       patientName: formData.patientName,
-      amount: parseFloat(formData.amount),
+      fullAmount: fullAmount,
+      actualAmountPaid: actualAmountPaid,
+      amount: actualAmountPaid, // Keep this for backwards compatibility
+      totalAmount: fullAmount,
+      paidAmount: actualAmountPaid,
+      dueAmount: dueAmount,
       type: formData.type,
       paymentMethod: formData.paymentMethod,
       description: formData.description.trim(),
       transactionId: formData.transactionId.trim() || null,
-      status: 'paid', // New payments are typically marked as paid
+      status: status,
     };
 
     console.log('Saving payment with data:', paymentData);
@@ -92,7 +122,8 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
     setFormData({
       patientId: '',
       patientName: '',
-      amount: '',
+      fullAmount: '',
+      actualAmountPaid: '',
       type: 'consultation',
       paymentMethod: 'cash',
       description: '',
@@ -166,16 +197,42 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
               )}
             </View>
 
-            {/* Payment Amount */}
+            {/* Full Amount */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Payment Amount *</Text>
+              <Text style={styles.inputLabel}>Full Amount *</Text>
               <TextInput
                 style={styles.textInput}
-                value={formData.amount}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, amount: text }))}
-                placeholder="Enter amount in ₹"
+                value={formData.fullAmount}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, fullAmount: text }))}
+                placeholder="Enter total amount in ₹"
                 keyboardType="numeric"
               />
+            </View>
+
+            {/* Actual Amount Paid */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Actual Amount Paid *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={formData.actualAmountPaid}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, actualAmountPaid: text }))}
+                placeholder="Enter amount actually paid in ₹"
+                keyboardType="numeric"
+              />
+              {formData.fullAmount && formData.actualAmountPaid && (
+                <View style={styles.amountSummary}>
+                  <Text style={styles.summaryText}>
+                    Due Amount: ₹{(parseFloat(formData.fullAmount || 0) - parseFloat(formData.actualAmountPaid || 0)).toLocaleString()}
+                  </Text>
+                  <Text style={[styles.statusText, {
+                    color: parseFloat(formData.actualAmountPaid || 0) === parseFloat(formData.fullAmount || 0) ? '#22C55E' :
+                          parseFloat(formData.actualAmountPaid || 0) === 0 ? '#EF4444' : '#F59E0B'
+                  }]}>
+                    Status: {parseFloat(formData.actualAmountPaid || 0) === parseFloat(formData.fullAmount || 0) ? 'Fully Paid' :
+                             parseFloat(formData.actualAmountPaid || 0) === 0 ? 'Pending' : 'Partially Paid'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Payment Type */}
@@ -482,6 +539,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
     marginLeft: 6,
+  },
+  amountSummary: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+  },
+  summaryText: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
