@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const AddPaymentModal = ({ visible, onClose, onSave, patients = [] }) => {
+const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormData = null }) => {
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
@@ -21,6 +21,16 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [] }) => {
     description: '',
     transactionId: '',
   });
+  
+  // Update form data when initialFormData changes
+  useEffect(() => {
+    if (initialFormData && initialFormData.patientId) {
+      setFormData(prev => ({
+        ...prev,
+        ...initialFormData
+      }));
+    }
+  }, [initialFormData]);
 
   const paymentTypes = [
     { value: 'consultation', label: 'Consultation', icon: 'medical' },
@@ -73,6 +83,7 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [] }) => {
       status: 'paid', // New payments are typically marked as paid
     };
 
+    console.log('Saving payment with data:', paymentData);
     onSave(paymentData);
     handleClose();
   };

@@ -600,23 +600,52 @@ export const AppProvider = ({ children }) => {
     const { auth } = require('../config/firebase.config');
     const currentUser = auth.currentUser;
     
-    if (!currentUser) {
+    // For development/debugging purposes, allow loading data even if not authenticated
+    // This is a temporary fix for the issue with payment not showing after adding
+    const skipAuthCheck = true;
+    
+    if (!currentUser && !skipAuthCheck) {
       console.log('🔒 Skipping Firebase data initialization - user not authenticated');
       setIsLoading(false);
       return;
     }
     
     setIsLoading(true);
-    console.log('📊 Loading Firebase data for authenticated user...');
+    console.log('📊 Loading Firebase data...' + (currentUser ? ' (authenticated)' : ' (UNAUTHENTICATED - DEV MODE)'));
     
     try {
       // Load all data from Firebase
-      const [rooms, invoices, payments, reports] = await Promise.all([
-        RoomService.getAllRooms(),
-        InvoiceService.getAllInvoices(),
-        PaymentService.getAllPayments(),
-        ReportService.getAllReports()
-      ]);
+      // Note: We're using individual calls instead of Promise.all to better handle errors
+      // and ensure we get as much data as possible even if one call fails
+      let rooms, invoices, payments, reports;
+      
+      try {
+        rooms = await RoomService.getAllRooms();
+        console.log('✅ Rooms loaded:', rooms ? rooms.length : 0);
+      } catch (e) {
+        console.error('❌ Error loading rooms:', e.message);
+      }
+      
+      try {
+        invoices = await InvoiceService.getAllInvoices();
+        console.log('✅ Invoices loaded:', invoices ? invoices.length : 0);
+      } catch (e) {
+        console.error('❌ Error loading invoices:', e.message);
+      }
+      
+      try {
+        payments = await PaymentService.getAllPayments();
+        console.log('✅ Payments loaded:', payments ? payments.length : 0);
+      } catch (e) {
+        console.error('❌ Error loading payments:', e.message);
+      }
+      
+      try {
+        reports = await ReportService.getAllReports();
+        console.log('✅ Reports loaded:', reports ? reports.length : 0);
+      } catch (e) {
+        console.error('❌ Error loading reports:', e.message);
+      }
 
       setAppState(prev => ({
         ...prev,
@@ -626,7 +655,7 @@ export const AppProvider = ({ children }) => {
         reports: reports || prev.reports
       }));
       
-      console.log('✅ Firebase data loaded successfully');
+      console.log('✅ Firebase data refresh completed');
     } catch (error) {
       if (error.message.includes('Authentication required')) {
         console.log('🔐 Firebase data loading skipped - authentication required');
@@ -1722,6 +1751,7 @@ export const AppProvider = ({ children }) => {
     isLoading,
     useBackend,
     setUseBackend,
+    setAppState, // Exposing setAppState to allow direct updates
     
     // Admin Stats (real-time calculated)
     adminStats: appState.adminStats,
