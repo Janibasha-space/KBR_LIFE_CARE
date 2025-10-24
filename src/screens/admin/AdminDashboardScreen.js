@@ -19,9 +19,10 @@ import {
   FirebaseAppointmentService,
   FirebasePatientService, 
   FirebaseDoctorService,
+  FirebasePaymentService,
   firebaseHospitalServices 
 } from '../../services/firebaseHospitalServices';
-import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
 
 // Helper function to create transparent colors
@@ -40,36 +41,60 @@ const AdminDashboardScreen = ({ navigation }) => {
     pendingInvoicesCount: 0
   });
 
+  console.log('🏥 AdminDashboardScreen rendered, isAuthenticated:', isAuthenticated);
+
   // Fetch real-time dashboard data from Firebase
   useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchDashboardData = async () => {
+    console.log('🔄 AdminDashboard useEffect triggered, isAuthenticated:', isAuthenticated);
+    
+    // Force fetch data even if authentication status is being checked
+    const fetchData = async () => {
+      console.log('🚀 Force fetching dashboard data...');
       try {
         setLoading(true);
         
-        // Fetch dashboard statistics in parallel
-        const [doctorsResult, appointmentsResult] = await Promise.all([
+        // Fetch all data from Firebase collections using proper services
+        const [doctorsResult, appointmentsResult, usersResult, paymentsResult] = await Promise.all([
           FirebaseDoctorService.getDoctors(),
-          FirebaseAppointmentService.getAppointments()
+          FirebaseAppointmentService.getAppointments(),
+          FirebasePatientService.getAllUsers(),
+          FirebasePaymentService.getPayments()
         ]);
 
-        const doctors = doctorsResult.success ? doctorsResult.data : [];
-        const appointments = appointmentsResult.success ? appointmentsResult.data : [];
+        const doctors = doctorsResult?.success ? doctorsResult.data : [];
+        const appointments = appointmentsResult?.success ? appointmentsResult.data : [];
+        const users = usersResult?.success ? usersResult.data : [];
+        const payments = paymentsResult?.success ? paymentsResult.data : [];
         
-        // Calculate stats from real Firebase data
+        // Calculate real stats from Firebase data
         const today = new Date().toISOString().split('T')[0];
         const todayAppointments = appointments.filter(apt => 
           apt.appointmentDate && apt.appointmentDate.startsWith(today)
         ).length;
 
-        // Calculate revenue from appointments (simple calculation)
-        const totalRevenue = appointments
-          .filter(apt => apt.status === 'completed')
-          .reduce((sum, apt) => sum + (apt.consultationFee || 0), 0);
+        // Calculate total registered users (people who have logged into the app)
+        const totalRegisteredUsers = users.length;
+
+        // Calculate revenue from payments collection (real payments data)
+        let totalRevenue = 0;
+        payments.forEach(payment => {
+          if (payment.status === 'completed' || payment.status === 'success' || payment.status === 'paid') {
+            totalRevenue += payment.amount || 0;
+          }
+        });
+
+        // If no payments data, fallback to calculating from completed appointments
+        if (totalRevenue === 0) {
+          totalRevenue = appointments
+            .filter(apt => apt.status === 'completed')
+            .reduce((sum, apt) => sum + (apt.consultationFee || apt.amount || 0), 0);
+        }
+
+        // Count active doctors (doctors available today - you can customize this logic)
+        const activeDoctorsToday = doctors.filter(doctor => {
+          // More lenient filtering - count doctors that are not explicitly inactive
+          return doctor.status !== 'inactive' && doctor.isAvailable !== false;
+        }).length;
 
         // Get recent appointments (latest 3)
         const recentAppointments = appointments
@@ -79,29 +104,56 @@ const AdminDashboardScreen = ({ navigation }) => {
             id: appointment.id,
             patientName: appointment.patientName || 'N/A',
             doctor: `${appointment.doctorName || 'Dr. Unknown'} • ${appointment.specialty || 'General'}`,
-            time: `${appointment.appointmentDate || 'TBD'} • ₹${appointment.consultationFee || 0}`,
+            time: `${appointment.appointmentDate || 'TBD'} • ₹${appointment.consultationFee || appointment.amount || 0}`,
             status: appointment.status || 'pending',
             avatar: (appointment.patientName || 'U').charAt(0).toUpperCase(),
           }));
 
-        setDashboardData({
-          totalUsers: appointments.length > 0 ? new Set(appointments.map(a => a.patientId)).size : 0,
-          totalAppointments: appointments.length,
-          totalRevenue: totalRevenue,
-          activeDoctors: doctors.length,
+        const newDashboardData = {
+          totalUsers: totalRegisteredUsers, // Real count of registered users
+          totalAppointments: appointments.length, // Real appointments count from backend
+          totalRevenue: totalRevenue, // Real revenue from payments
+          activeDoctors: activeDoctorsToday, // Real active doctors available today
           todayAppointments: todayAppointments,
           recentAppointments: recentAppointments,
           pendingInvoicesCount: appointments.filter(apt => apt.status === 'pending').length
+        };
+
+        setDashboardData(newDashboardData);
+
+        console.log('📊 Dashboard Stats Updated:', {
+          registeredUsers: totalRegisteredUsers,
+          totalAppointments: appointments.length,
+          totalRevenue: totalRevenue,
+          activeDoctors: activeDoctorsToday,
+          todayAppointments: todayAppointments,
+          paymentsProcessed: payments.length
         });
 
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error('❌ Error fetching dashboard data:', error);
+        // Set fallback data
+        setDashboardData({
+          totalUsers: 0,
+          totalAppointments: 0,
+          totalRevenue: 0,
+          activeDoctors: 0,
+          todayAppointments: 0,
+          recentAppointments: [],
+          pendingInvoicesCount: 0
+        });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
+    // Always fetch data regardless of auth status
+    fetchData();
+    
+    if (!isAuthenticated) {
+      console.log('❌ User not authenticated, but data fetch attempted');
+      return;
+    }
 
     // Set up real-time listeners for live updates
     const appointmentsQuery = query(
@@ -111,20 +163,36 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
     
     const unsubscribeAppointments = onSnapshot(appointmentsQuery, (snapshot) => {
-      // Refresh data when appointments change
-      fetchDashboardData();
+      console.log('🔄 Appointments updated, refreshing dashboard...');
+      fetchData();
     });
 
     const doctorsQuery = query(collection(db, 'doctors'));
     const unsubscribeDoctors = onSnapshot(doctorsQuery, (snapshot) => {
-      // Refresh data when doctors change
-      fetchDashboardData();
+      console.log('🔄 Doctors updated, refreshing dashboard...');
+      fetchData();
+    });
+
+    // Listen to users collection for real-time user count updates
+    const usersQuery = query(collection(db, 'users'));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      console.log('🔄 Users updated, refreshing dashboard...');
+      fetchData();
+    });
+
+    // Listen to payments collection for real-time revenue updates
+    const paymentsQuery = query(collection(db, 'payments'));
+    const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
+      console.log('🔄 Payments updated, refreshing dashboard...');
+      fetchData();
     });
 
     // Cleanup listeners
     return () => {
       unsubscribeAppointments();
       unsubscribeDoctors();
+      unsubscribeUsers();
+      unsubscribePayments();
     };
   }, [isAuthenticated]);
 
@@ -141,7 +209,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const statsCards = [
     {
       id: 'users',
-      title: 'Total Patients',
+      title: 'Total Users',
       value: dashboardData.totalUsers.toString(),
       change: `${dashboardData.totalUsers} registered`,
       icon: 'people-outline',
@@ -170,7 +238,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       id: 'doctors',
       title: 'Active Doctors',
       value: dashboardData.activeDoctors.toString(),
-      change: 'Available now',
+      change: 'Available today',
       icon: 'medical-outline',
       backgroundColor: Colors.activeDoctors || '#F3E8FF',
       iconColor: Colors.kbrPurple,

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthService } from '../services/authService';
-import { useApp } from './AppContext';
 
 // Firebase-only authentication - no more demo accounts
 
@@ -31,6 +30,8 @@ export const useUnifiedAuth = () => {
 export const UnifiedAuthProvider = ({ children }) => {
   const [authState, setAuthState] = useState(initialAuthState);
   const [tokenCounter, setTokenCounter] = useState(9);
+  
+  // Note: AppContext integration handled separately to avoid circular dependencies
 
   // Initialize authentication state
   useEffect(() => {
@@ -376,9 +377,284 @@ export const UnifiedAuthProvider = ({ children }) => {
       // Mock implementation for compatibility
       return { hasConflict: false };
     },
-    handleAppointmentConflict: (conflictData) => {
+    handleAppointmentConflict: async (conflictData) => {
       // Mock implementation for compatibility
       console.log('Handling appointment conflict:', conflictData);
+      return { success: false, message: 'Conflict handling disabled' };
+    },
+    
+    // Appointment management functions
+    getUpcomingAppointments: (appointmentsData = []) => {
+      if (!authState.isAuthenticated) {
+        console.log('📋 User not authenticated, returning empty appointments');
+        return [];
+      }
+      
+      // Use provided appointments data or fallback to user appointments
+      const appointments = appointmentsData.length > 0 ? appointmentsData : (authState.user?.appointments || []);
+      const userId = authState.user?.id;
+      
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Set to start of day for proper comparison
+      
+      console.log(`📋 Found ${appointments.length} total appointments for user ${userId}`);
+      
+      const upcoming = appointments
+        .filter(appointment => {
+          // First filter by user ID - be more flexible with matching
+          const appointmentUserId = appointment.patientId || appointment.userId;
+          
+          if (appointmentUserId !== userId) {
+            return false;
+          }
+          
+          try {
+            // Handle different date formats more flexibly
+            let appointmentDate;
+            
+            if (appointment.appointmentDate) {
+              // appointmentDate format could be "2025-10-25 10:00 AM" or just "2025-10-25"
+              const dateStr = appointment.appointmentDate.split(' ')[0]; // Get just the date part
+              appointmentDate = new Date(dateStr);
+            } else if (appointment.date) {
+              appointmentDate = new Date(appointment.date);
+            } else {
+              console.warn('⚠️ No date found in appointment:', appointment);
+              return false;
+            }
+            
+            // Check if date is valid
+            if (isNaN(appointmentDate.getTime())) {
+              console.warn('⚠️ Invalid date in appointment:', appointment);
+              return false;
+            }
+            
+            const isUpcoming = appointmentDate >= now;
+            // Be more flexible with status - accept multiple status values
+            const validStatuses = ['confirmed', 'scheduled', 'pending', 'booked', 'active'];
+            const isActive = !appointment.status || validStatuses.includes(appointment.status.toLowerCase());
+            
+            return isUpcoming && isActive;
+          } catch (error) {
+            console.warn('⚠️ Error parsing appointment date:', appointment, error);
+            return false;
+          }
+        })
+        .map(appointment => {
+          // Normalize appointment data for UI
+          return {
+            ...appointment,
+            date: appointment.date || (appointment.appointmentDate ? appointment.appointmentDate.split(' ')[0] : ''),
+            time: appointment.time || (appointment.appointmentDate ? appointment.appointmentDate.split(' ')[1] : ''),
+            doctorName: appointment.doctorName || appointment.doctor || 'Dr. Unknown',
+            serviceName: appointment.serviceName || appointment.service || 'General Consultation'
+          };
+        });
+      
+      console.log(`📅 Returning ${upcoming.length} upcoming appointments:`, upcoming);
+      return upcoming;
+    },
+    
+    getPastAppointments: (appointmentsData = []) => {
+      if (!authState.isAuthenticated) {
+        console.log('📋 User not authenticated, returning empty appointments');
+        return [];
+      }
+      
+      // Use provided appointments data or fallback to user appointments
+      const appointments = appointmentsData.length > 0 ? appointmentsData : (authState.user?.appointments || []);
+      const userId = authState.user?.id;
+      
+      const now = new Date();
+      now.setHours(23, 59, 59, 999); // Set to end of day for proper comparison
+      
+      console.log(`📋 Found ${appointments.length} total appointments for user ${userId}`);
+      
+      const past = appointments
+        .filter(appointment => {
+          // First filter by user ID
+          const appointmentUserId = appointment.patientId || appointment.userId;
+          
+          if (appointmentUserId !== userId) {
+            return false;
+          }
+          
+          try {
+            // Handle different date formats
+            let appointmentDate;
+            
+            if (appointment.appointmentDate) {
+              // appointmentDate format could be "2025-10-25 10:00 AM" or just "2025-10-25"
+              const dateStr = appointment.appointmentDate.split(' ')[0]; // Get just the date part
+              appointmentDate = new Date(dateStr);
+            } else if (appointment.date) {
+              appointmentDate = new Date(appointment.date);
+            } else {
+              console.warn('⚠️ No date found in past appointment:', appointment);
+              return false;
+            }
+            
+            // Check if date is valid
+            if (isNaN(appointmentDate.getTime())) {
+              console.warn('⚠️ Invalid date in past appointment:', appointment);
+              return false;
+            }
+            
+            const isPast = appointmentDate < now;
+            // Be more flexible with completed status
+            const completedStatuses = ['completed', 'cancelled', 'finished', 'done'];
+            const isCompleted = appointment.status && completedStatuses.includes(appointment.status.toLowerCase());
+            
+            return isPast || isCompleted;
+          } catch (error) {
+            console.warn('⚠️ Error parsing appointment date:', appointment, error);
+            return false;
+          }
+        })
+        .map(appointment => {
+          // Normalize appointment data for UI
+          return {
+            ...appointment,
+            date: appointment.date || (appointment.appointmentDate ? appointment.appointmentDate.split(' ')[0] : ''),
+            time: appointment.time || (appointment.appointmentDate ? appointment.appointmentDate.split(' ')[1] : ''),
+            doctorName: appointment.doctorName || appointment.doctor || 'Dr. Unknown',
+            serviceName: appointment.serviceName || appointment.service || 'General Consultation'
+          };
+        });
+      
+      console.log(`📜 Returning ${past.length} past appointments`);
+      return past;
+    },
+    
+    cancelAppointment: async (appointmentId) => {
+      try {
+        console.log('Cancelling appointment:', appointmentId);
+        // Update local state
+        setAuthState(prev => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            appointments: prev.user?.appointments?.map(apt => 
+              apt.id === appointmentId 
+                ? { ...apt, status: 'cancelled', updatedAt: new Date().toISOString() }
+                : apt
+            ) || []
+          }
+        }));
+        return { success: true, message: 'Appointment cancelled successfully' };
+      } catch (error) {
+        console.error('Failed to cancel appointment:', error);
+        return { success: false, message: 'Failed to cancel appointment' };
+      }
+    },
+
+    // Add appointment to user's data (called when booking is successful)
+    addUserAppointment: (appointmentData) => {
+      if (!authState.isAuthenticated) {
+        console.warn('⚠️ Cannot add appointment: user not authenticated');
+        return;
+      }
+      
+      console.log('📝 Adding appointment to user data:', appointmentData);
+      setAuthState(prev => ({
+        ...prev,
+        user: {
+          ...prev.user,
+          appointments: [
+            ...(prev.user?.appointments || []),
+            {
+              ...appointmentData,
+              addedAt: new Date().toISOString()
+            }
+          ]
+        }
+      }));
+    },
+
+    // Add test appointments for debugging (remove in production)
+    addTestAppointments: () => {
+      if (!authState.isAuthenticated) {
+        console.warn('⚠️ Cannot add test appointments: user not authenticated');
+        return;
+      }
+
+      const testAppointments = [
+        {
+          id: "test-001",
+          patientId: authState.user?.id,
+          serviceName: "General Consultation",
+          doctorName: "Dr. John Smith",
+          appointmentDate: "2025-10-25 10:00 AM",
+          date: "2025-10-25",
+          time: "10:00 AM",
+          tokenNumber: "KBR-001",
+          status: "scheduled",
+          createdAt: new Date().toISOString(),
+          amount: 500,
+          paymentType: "hospital"
+        },
+        {
+          id: "test-002",
+          patientId: authState.user?.id,
+          serviceName: "Cardiology Consultation",
+          doctorName: "Dr. Sarah Johnson",
+          appointmentDate: "2025-10-27 02:00 PM",
+          date: "2025-10-27",
+          time: "02:00 PM",
+          tokenNumber: "KBR-002",
+          status: "scheduled",
+          createdAt: new Date().toISOString(),
+          amount: 800,
+          paymentType: "online"
+        },
+        {
+          id: "test-003",
+          patientId: authState.user?.id,
+          serviceName: "Blood Test",
+          doctorName: "Dr. Mike Wilson",
+          appointmentDate: "2025-10-20 09:00 AM",
+          date: "2025-10-20",
+          time: "09:00 AM",
+          tokenNumber: "KBR-003",
+          status: "completed",
+          createdAt: "2025-10-18T17:28:48.454Z",
+          amount: 300,
+          paymentType: "hospital"
+        }
+      ];
+
+      console.log('🧪 Adding test appointments for user:', authState.user?.id);
+      setAuthState(prev => ({
+        ...prev,
+        user: {
+          ...prev.user,
+          appointments: testAppointments
+        }
+      }));
+
+      console.log('✅ Test appointments added successfully');
+    },
+
+    // Get hospital admissions for the authenticated user
+    getHospitalAdmissions: (admissionsData = []) => {
+      if (!authState.isAuthenticated) {
+        console.warn('⚠️ User not authenticated for admissions');
+        return [];
+      }
+
+      const userId = authState.user?.id;
+      return admissionsData.filter(admission => admission.patientId === userId);
+    },
+
+    // Get test appointments (lab tests, diagnostics) for the authenticated user  
+    getTestAppointments: (testAppointmentsData = []) => {
+      if (!authState.isAuthenticated) {
+        console.warn('⚠️ User not authenticated for test appointments');
+        return [];
+      }
+
+      const userId = authState.user?.id;
+      return testAppointmentsData.filter(testAppt => testAppt.patientId === userId);
     }
   };
 

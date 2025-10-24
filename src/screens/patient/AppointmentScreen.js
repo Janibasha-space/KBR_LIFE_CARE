@@ -9,23 +9,97 @@ import {
   Image,
   Alert,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useServices } from '../../contexts/ServicesContext';
 import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
+import { useApp } from '../../contexts/AppContext';
+import { AppointmentMigration } from '../../services/appointmentMigration';
 
 const AppointmentScreen = ({ navigation }) => {
   const { getAllServices } = useServices();
   const { isLoggedIn, userData, getUpcomingAppointments, getPastAppointments, cancelAppointment, logout } = useUnifiedAuth();
+  const { appState, addAppointment, refreshAppointmentData } = useApp(); // Get appointment data and refresh function
   const [selectedService, setSelectedService] = useState(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0); // For forcing re-renders
+  const [isRefreshing, setIsRefreshing] = useState(false); // For loading state
   const [rescheduleData, setRescheduleData] = useState({
     date: '',
     time: '',
   });
+
+  // Load appointments when screen is focused or user logs in
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      loadUserAppointments();
+    }
+  }, [isLoggedIn]);
+
+  // Refresh appointments when screen comes into focus
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (isLoggedIn) {
+        loadUserAppointments();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isLoggedIn]);
+
+  // Function to load user appointments
+  const loadUserAppointments = async () => {
+    if (!isLoggedIn) return;
+    
+    setIsRefreshing(true);
+    try {
+      console.log('🔄 Loading user appointments...');
+      await refreshAppointmentData();
+      setRefreshKey(prev => prev + 1); // Force re-render
+    } catch (error) {
+      console.error('❌ Error loading appointments:', error);
+    }
+    setIsRefreshing(false);
+  };
+
+  // Migration function to fix existing appointments
+  const runAppointmentMigration = async () => {
+    Alert.alert(
+      'Fix Existing Appointments',
+      'This will update your existing appointments to show in your account. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Fix Appointments', 
+          onPress: async () => {
+            setIsRefreshing(true);
+            try {
+              console.log('🔧 Running appointment migration...');
+              const result = await AppointmentMigration.fixExistingAppointments();
+              
+              if (result.success) {
+                Alert.alert(
+                  'Success!', 
+                  `Fixed ${result.updatedCount} appointments. They should now appear in your list.`,
+                  [{ text: 'OK', onPress: () => loadUserAppointments() }]
+                );
+              } else {
+                Alert.alert('Error', `Migration failed: ${result.error}`);
+              }
+            } catch (error) {
+              console.error('❌ Migration error:', error);
+              Alert.alert('Error', 'Failed to run migration');
+            }
+            setIsRefreshing(false);
+          }
+        }
+      ]
+    );
+  };
 
   // Navigation logic: Non-logged users go directly to booking flow
   React.useEffect(() => {
@@ -37,8 +111,17 @@ const AppointmentScreen = ({ navigation }) => {
   }, [isLoggedIn, navigation]);
 
   // Get appointments for logged-in user (only when logged in)
-  const upcomingAppointments = isLoggedIn ? getUpcomingAppointments() : [];
-  const pastAppointments = isLoggedIn ? getPastAppointments() : [];
+  // Pass appointment data from AppContext to UnifiedAuthContext functions
+  // Use refreshKey to force recalculation when test appointments are added
+  const appointmentsData = React.useMemo(() => appState?.appointments || [], [appState?.appointments, refreshKey]);
+  const upcomingAppointments = React.useMemo(() => 
+    isLoggedIn ? getUpcomingAppointments(appointmentsData) : [], 
+    [isLoggedIn, appointmentsData, getUpcomingAppointments, refreshKey]
+  );
+  const pastAppointments = React.useMemo(() => 
+    isLoggedIn ? getPastAppointments(appointmentsData) : [], 
+    [isLoggedIn, appointmentsData, getPastAppointments, refreshKey]
+  );
 
   // If user is not logged in, show loading while redirecting
   if (!isLoggedIn) {
@@ -110,7 +193,12 @@ const AppointmentScreen = ({ navigation }) => {
     const canManageAppointment = canCancelAppointment(appointment);
     
     return (
-      <View key={appointment.id} style={styles.appointmentCard}>
+      <TouchableOpacity 
+        key={appointment.id} 
+        style={styles.appointmentCard}
+        onPress={() => navigation.navigate('AppointmentDetail', { appointment })}
+        activeOpacity={0.7}
+      >
         <View style={styles.appointmentHeader}>
           <Text style={styles.appointmentService}>{appointment.serviceName}</Text>
           <View style={styles.tokenBadge}>
@@ -125,18 +213,30 @@ const AppointmentScreen = ({ navigation }) => {
           <Text style={styles.appointmentTime}>{appointment.time}</Text>
         </View>
         
+        {/* Tap to view details indicator */}
+        <View style={styles.tapIndicator}>
+          <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
+          <Text style={styles.tapText}>Tap for details</Text>
+        </View>
+        
         {canManageAppointment ? (
           <View style={styles.appointmentActions}>
             <TouchableOpacity
               style={styles.rescheduleButton}
-              onPress={() => handleRescheduleAppointment(appointment)}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleRescheduleAppointment(appointment);
+              }}
             >
               <Ionicons name="calendar-outline" size={16} color={Colors.kbrBlue} />
               <Text style={styles.rescheduleButtonText}>Reschedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.cancelButton}
-              onPress={() => handleCancelAppointment(appointment)}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleCancelAppointment(appointment);
+              }}
             >
               <Ionicons name="close-circle-outline" size={16} color="#EF4444" />
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -149,13 +249,18 @@ const AppointmentScreen = ({ navigation }) => {
             </Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
   // Render past appointment card
   const renderPastAppointment = (appointment) => (
-    <View key={appointment.id} style={styles.pastAppointmentCard}>
+    <TouchableOpacity 
+      key={appointment.id} 
+      style={styles.pastAppointmentCard}
+      onPress={() => navigation.navigate('AppointmentDetail', { appointment })}
+      activeOpacity={0.7}
+    >
       <View style={styles.appointmentHeader}>
         <Text style={styles.appointmentService}>{appointment.serviceName}</Text>
         <View style={styles.completedBadge}>
@@ -169,7 +274,13 @@ const AppointmentScreen = ({ navigation }) => {
         <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
         <Text style={styles.pastAppointmentTime}>{appointment.time}</Text>
       </View>
-    </View>
+      
+      {/* Tap to view details indicator */}
+      <View style={styles.tapIndicator}>
+        <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
+        <Text style={styles.tapText}>Tap for details</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   // If user is not logged in, show the booking screen directly
@@ -226,65 +337,61 @@ const AppointmentScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={{flex: 1}}>
-      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={false} />
-      <SafeAreaView style={{flex: 1, backgroundColor: '#f5f5f5'}}>
-        {/* Header */}
+    <View style={{flex: 1, backgroundColor: '#f5f5f5'}}>
+      <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" translucent={true} />
+      
+      {/* Header - Full screen with rounded bottom corners */}
+      <View style={{
+        backgroundColor: Colors.kbrBlue,
+        paddingTop: StatusBar.currentHeight || 44, // Account for status bar
+        paddingHorizontal: 20,
+        paddingBottom: 25,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
+      }}>
         <View style={{
-          backgroundColor: Colors.kbrBlue,
-          paddingHorizontal: 20,
-          paddingVertical: 15,
           flexDirection: 'row',
           alignItems: 'center',
+          marginBottom: 10,
         }}>
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            flex: 1,
-          }}>
-            <Image 
-              source={require('../../../assets/hospital-logo.jpeg')}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                marginRight: 10,
-              }}
-              resizeMode="contain"
-            />
-            <View>
-              <Text style={{fontSize: 16, fontWeight: 'bold', color: Colors.white}}>
-                KBR LIFE CARE HOSPITALS
-              </Text>
-              <Text style={{fontSize: 12, color: Colors.white}}>
-                Book Appointment
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <Ionicons name="person-circle" size={28} color={Colors.white} />
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={24} color={Colors.white} />
           </TouchableOpacity>
         </View>
-
-        {/* Page Title */}
-        <View style={{
-          backgroundColor: 'white',
-          paddingHorizontal: 20,
-          paddingVertical: 20,
-          borderBottomWidth: 1,
-          borderBottomColor: '#E5E7EB'
-        }}>
-          <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 5}}>
+        
+        <View>
+          <Text style={{
+            fontSize: 24, 
+            fontWeight: 'bold', 
+            color: Colors.white,
+            marginBottom: 4
+          }}>
             Your Appointments
           </Text>
-          <Text style={{fontSize: 14, color: '#6B7280'}}>
+          <Text style={{
+            fontSize: 14, 
+            color: 'rgba(255, 255, 255, 0.8)'
+          }}>
             View your past and upcoming appointments
           </Text>
         </View>
+      </View>
 
-        <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={{flex: 1}} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{paddingBottom: 20}}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={loadUserAppointments}
+              colors={[Colors.kbrBlue]}
+              tintColor={Colors.kbrBlue}
+            />
+          }
+        >
           {/* Upcoming Appointments */}
-          <View style={{backgroundColor: 'white', marginBottom: 10}}>
+          <View style={{backgroundColor: 'white', marginTop: 0, marginBottom: 8}}>
             <View style={{paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'}}>
               <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937'}}>
                 Upcoming Appointments
@@ -294,8 +401,8 @@ const AppointmentScreen = ({ navigation }) => {
             {upcomingAppointments.length > 0 ? (
               upcomingAppointments.map((appointment) => (
                 <View key={appointment.id} style={{
-                  marginHorizontal: 20,
-                  marginVertical: 10,
+                  marginHorizontal: 16,
+                  marginVertical: 8,
                   backgroundColor: '#F8F9FF',
                   borderRadius: 12,
                   padding: 16,
@@ -344,12 +451,44 @@ const AppointmentScreen = ({ navigation }) => {
                 <Text style={{fontSize: 16, color: '#9CA3AF', textAlign: 'center', marginTop: 12}}>
                   No upcoming appointments
                 </Text>
+                
+                {/* Fix Appointments Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FF6B35',
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    marginTop: 16,
+                    marginBottom: 8
+                  }}
+                  onPress={runAppointmentMigration}
+                >
+                  <Text style={{color: 'white', fontSize: 14, fontWeight: '600'}}>
+                    Fix My Existing Appointments
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: Colors.primary,
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    marginTop: 8
+                  }}
+                  onPress={() => navigation.navigate('BookAppointment')}
+                >
+                  <Text style={{color: 'white', fontSize: 14, fontWeight: '600'}}>
+                    Book Your First Appointment
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Past Appointments */}
-          <View style={{backgroundColor: 'white', marginBottom: 10}}>
+          <View style={{backgroundColor: 'white', marginBottom: 0}}>
             <View style={{paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F3F4F6'}}>
               <Text style={{fontSize: 18, fontWeight: 'bold', color: '#1F2937'}}>
                 Past Appointments
@@ -359,8 +498,8 @@ const AppointmentScreen = ({ navigation }) => {
             {pastAppointments.length > 0 ? (
               pastAppointments.map((appointment) => (
                 <View key={appointment.id} style={{
-                  marginHorizontal: 20,
-                  marginVertical: 10,
+                  marginHorizontal: 16,
+                  marginVertical: 8,
                   backgroundColor: '#F9FAFB',
                   borderRadius: 12,
                   padding: 16,
@@ -500,7 +639,6 @@ const AppointmentScreen = ({ navigation }) => {
             </View>
           </View>
         </Modal>
-      </SafeAreaView>
     </View>
   );
 };
@@ -889,6 +1027,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  tapIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  tapText: {
+    fontSize: 12,
+    color: Colors.gray,
+    marginLeft: 4,
   },
 });
 

@@ -15,7 +15,8 @@ import {
   ActivityIndicator,
   Modal,
   StatusBar,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
@@ -34,31 +35,28 @@ const DoctorsScreen = ({ navigation }) => {
   const [bookingDoctor, setBookingDoctor] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
 
-  // Load doctors from Firebase
+  // Load doctors from Firebase - Now works for everyone
   useEffect(() => {
-    if (isLoggedIn) {
-      loadDoctors();
-    } else {
-      console.log('🔒 Skipping doctors loading - user not authenticated');
-      setIsLoading(false);
-    }
-  }, [isLoggedIn]);
+    loadDoctors();
+  }, []); // Removed dependency on isLoggedIn
 
   const loadDoctors = async () => {
     try {
+      console.log('🔄 Loading doctors from Firebase for all users...');
       setIsLoading(true);
       const doctorsResponse = await firebaseHospitalServices.getDoctors();
-      console.log('Loaded doctors from Firebase:', doctorsResponse);
+      console.log('✅ Loaded doctors from Firebase:', doctorsResponse);
       
       // Handle the response object format {success: boolean, data: array}
       if (doctorsResponse.success && doctorsResponse.data) {
         setDoctors(doctorsResponse.data);
+        console.log('✅ Successfully loaded doctors:', doctorsResponse.data.length);
       } else {
-        console.error('Failed to load doctors:', doctorsResponse.message);
+        console.error('❌ Failed to load doctors:', doctorsResponse.message);
         setDoctors([]);
       }
     } catch (error) {
-      console.error('Error loading doctors:', error);
+      console.error('❌ Error loading doctors:', error);
       setDoctors([]);
     } finally {
       setIsLoading(false);
@@ -71,13 +69,33 @@ const DoctorsScreen = ({ navigation }) => {
   };
 
   const handleBookAppointment = (doctor) => {
-    // Navigate directly to BookAppointmentScreen with pre-selected doctor
-    navigation.navigate('BookAppointment', { 
-      selectedDoctor: doctor,
-      preSelectedDoctor: true, // Flag to indicate doctor was pre-selected
-      doctorCentricFlow: true  // Flag for doctor-centric booking flow
-    });
-    setShowDetailModal(false); // Close detail modal if open
+    if (isLoggedIn) {
+      // Navigate directly to BookAppointmentScreen with pre-selected doctor
+      navigation.navigate('BookAppointment', { 
+        selectedDoctor: doctor,
+        preSelectedDoctor: true, // Flag to indicate doctor was pre-selected
+        doctorCentricFlow: true  // Flag for doctor-centric booking flow
+      });
+      setShowDetailModal(false); // Close detail modal if open
+    } else {
+      Alert.alert(
+        'Login Required',
+        'Please login to book an appointment with this doctor',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Login', 
+            onPress: () => {
+              setShowDetailModal(false);
+              navigation.navigate('PatientMain', { 
+                screen: 'Home',
+                params: { showAuthModal: true }
+              });
+            }
+          }
+        ]
+      );
+    }
   };
 
   const confirmBooking = () => {

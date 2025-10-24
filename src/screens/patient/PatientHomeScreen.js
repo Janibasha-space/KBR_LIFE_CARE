@@ -453,14 +453,23 @@ const PatientHomeScreen = ({ navigation }) => {
         // Load Firebase doctors only if user is authenticated
         try {
           if (user) {
-            const doctors = await firebaseHospitalServices.getDoctors();
-            console.log('Loaded Firebase doctors:', doctors?.length || 0);
-            setFirebaseDoctors(doctors || []);
+            const doctorsResult = await firebaseHospitalServices.getDoctors();
+            console.log('Loaded Firebase doctors:', doctorsResult);
+            
+            // Handle the response object format {success: boolean, data: array}
+            if (doctorsResult?.success && doctorsResult?.data && doctorsResult.data.length > 0) {
+              setFirebaseDoctors(doctorsResult.data);
+            } else {
+              console.log('No Firebase doctors found, using sample data');
+              setFirebaseDoctors(doctors); // Fallback to sample doctors
+            }
           } else {
-            console.log('🔒 Skipping Firebase doctors loading - user not authenticated');
+            console.log('🔒 User not authenticated, using sample doctors');
+            setFirebaseDoctors(doctors); // Use sample doctors for non-authenticated users
           }
         } catch (err) {
-          console.log('Error loading Firebase doctors:', err);
+          console.log('Error loading Firebase doctors, using sample data:', err);
+          setFirebaseDoctors(doctors); // Fallback to sample doctors on error
         }
         
         setIsLoading(false);
@@ -839,9 +848,15 @@ const PatientHomeScreen = ({ navigation }) => {
               {firebaseDoctors.length > 0 ? firebaseDoctors.map((doctor, index) => (
                 <View key={doctor.id} style={styles.doctorSlideItem}>
                   <View style={styles.doctorImageWrapper}>
-                    {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+                    {(doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://'))) ? (
                       <Image 
                         source={{ uri: doctor.avatar }}
+                        style={styles.doctorCarouselImage}
+                        resizeMode="cover"
+                      />
+                    ) : doctor.image ? (
+                      <Image 
+                        source={doctor.image}
                         style={styles.doctorCarouselImage}
                         resizeMode="cover"
                       />
@@ -858,13 +873,13 @@ const PatientHomeScreen = ({ navigation }) => {
                     <Text style={styles.doctorName} numberOfLines={1} ellipsizeMode="tail">{doctor.name || 'Doctor Name'}</Text>
                     <Text style={styles.doctorCredentials} numberOfLines={1} ellipsizeMode="tail">{doctor.qualifications || doctor.credentials || 'Medical Qualifications'}</Text>
                     <Text style={styles.doctorRole} numberOfLines={2} ellipsizeMode="tail">{doctor.specialty || doctor.role || 'Specialist'}</Text>
-                    {doctor.department && (
-                      <Text style={styles.doctorFellowship} numberOfLines={1} ellipsizeMode="tail">{doctor.department}</Text>
+                    {(doctor.department || doctor.fellowship) && (
+                      <Text style={styles.doctorFellowship} numberOfLines={1} ellipsizeMode="tail">{doctor.department || doctor.fellowship}</Text>
                     )}
                     
                     <View style={styles.expertiseSection}>
                       <Text style={styles.expertiseTitle}>Areas of Expertise:</Text>
-                      {doctor.expertise.slice(0, 3).map((item, idx) => (
+                      {(doctor.expertise && Array.isArray(doctor.expertise) ? doctor.expertise : []).slice(0, 3).map((item, idx) => (
                         <View key={idx} style={styles.expertiseItem}>
                           <Ionicons name="checkmark-circle" size={16} color="#4AA3DF" />
                           <Text style={styles.expertiseText} numberOfLines={1} ellipsizeMode="tail">{item}</Text>
@@ -880,9 +895,14 @@ const PatientHomeScreen = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
                 </View>
-              )) : (
+              )) : isLoading ? (
                 <View style={styles.noDoctorsContainer}>
+                  <ActivityIndicator size="large" color={Colors.kbrBlue} style={{ marginBottom: 10 }} />
                   <Text style={styles.noDoctorsText}>Loading doctors...</Text>
+                </View>
+              ) : (
+                <View style={styles.noDoctorsContainer}>
+                  <Text style={styles.noDoctorsText}>No doctors available</Text>
                 </View>
               )}
               </ScrollView>

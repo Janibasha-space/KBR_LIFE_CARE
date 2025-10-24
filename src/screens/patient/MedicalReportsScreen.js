@@ -283,6 +283,44 @@ const MedicalReportsScreen = ({ navigation }) => {
 
   const { theme } = useTheme();
 
+  // Check authentication - redirect if not logged in
+  if (!isLoggedIn) {
+    return (
+      <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+        <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
+          <AppHeader 
+            subtitle="Reports"
+            navigation={navigation}
+            showBackButton={true}
+          />
+          
+          <View style={styles.authRequiredContainer}>
+            <View style={styles.authRequiredContent}>
+              <Ionicons name="document-text-outline" size={80} color={Colors.textSecondary} />
+              <Text style={styles.authRequiredTitle}>Login Required</Text>
+              <Text style={styles.authRequiredMessage}>
+                Please login to access your medical reports and health information.
+              </Text>
+              <TouchableOpacity 
+                style={styles.loginButton}
+                onPress={() => {
+                  navigation.navigate('PatientMain', { 
+                    screen: 'Home',
+                    params: { showAuthModal: true }
+                  });
+                }}
+              >
+                <Ionicons name="log-in-outline" size={20} color={Colors.white} />
+                <Text style={styles.loginButtonText}>Login Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
       <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
@@ -1045,6 +1083,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  // Authentication required styles
+  authRequiredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Sizes.screenPadding,
+  },
+  authRequiredContent: {
+    alignItems: 'center',
+    paddingVertical: Sizes.xxl,
+  },
+  authRequiredTitle: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginTop: Sizes.lg,
+    marginBottom: Sizes.sm,
+  },
+  authRequiredMessage: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Sizes.xl,
+    paddingHorizontal: Sizes.lg,
+  },
+  loginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: Sizes.xl,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loginButtonText: {
+    color: Colors.white,
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    marginLeft: Sizes.sm,
   },
 });
 
