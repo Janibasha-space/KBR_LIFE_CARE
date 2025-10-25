@@ -180,9 +180,11 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
                   showsHorizontalScrollIndicator={false}
                   style={styles.patientsScroll}
                 >
-                  {patients.map((patient) => (
+                  {patients
+                    .filter((patient, index, self) => index === self.findIndex(p => p.id === patient.id))
+                    .map((patient, index) => (
                     <TouchableOpacity
-                      key={patient.id}
+                      key={`payment-patient-${patient.firebaseDocId || patient._id || ''}-${patient.id}-${index}`}
                       style={styles.patientCard}
                       onPress={() => selectPatient(patient)}
                     >

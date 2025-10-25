@@ -206,18 +206,32 @@ const AddAppointmentModal = ({ visible, onClose, onSuccess }) => {
       
       {showDropdowns[field] && (
         <View style={styles.dropdownOptions}>
-          {options && Array.isArray(options) && options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.dropdownOption}
-              onPress={() => {
-                setFormData(prev => ({ ...prev, [field]: option }));
-                setShowDropdowns(prev => ({ ...prev, [field]: false }));
-              }}
-            >
-              <Text style={styles.dropdownOptionText}>{option}</Text>
-            </TouchableOpacity>
-          )) || null}
+          <ScrollView 
+            style={styles.dropdownScrollView}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled={true}
+            scrollEnabled={true}
+            bounces={true}
+          >
+            {options && Array.isArray(options) && options.length > 0 ? 
+              options.map((option, index) => (
+                <TouchableOpacity
+                  key={`${field}-${index}-${option}`}
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, [field]: option }));
+                    setShowDropdowns(prev => ({ ...prev, [field]: false }));
+                  }}
+                >
+                  <Text style={styles.dropdownOptionText}>{option}</Text>
+                </TouchableOpacity>
+              )) :
+              <View style={styles.emptyDropdownOption}>
+                <Text style={styles.emptyDropdownText}>No options available</Text>
+              </View>
+            }
+          </ScrollView>
         </View>
       )}
     </View>
@@ -240,7 +254,12 @@ const AddAppointmentModal = ({ visible, onClose, onSuccess }) => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!Object.values(showDropdowns).some(isOpen => isOpen)}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Patient Information */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Patient Information</Text>
@@ -516,6 +535,18 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
+    minHeight: 100,
+  },
+  emptyDropdownOption: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  emptyDropdownText: {
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
 

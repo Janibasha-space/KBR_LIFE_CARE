@@ -1,13 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { 
-  RoomService, 
   InvoiceService, 
   PaymentService, 
   DischargeService, 
   ReportService 
 } from '../services/hospitalServices';
-import { FirebaseHospitalService } from '../services/firebaseHospitalServices';
+import { 
+  FirebaseHospitalService, 
+  FirebaseAppointmentService,
+  FirebasePatientService,
+  FirebaseRoomService
+} from '../services/firebaseHospitalServices';
 import { SimpleBookingService } from '../services/simpleBookingService';
 
 // Central App Context for Admin-Patient Integration
@@ -426,173 +430,31 @@ const initialAppState = {
     }
   ],
 
-  // User Management
-  patients: [
-    {
-      id: 'KBR-IP-2024-001',
-      name: 'Rajesh Kumar',
-      age: 45,
-      gender: 'Male',
-      bloodGroup: 'B+',
-      phone: '+91 98765 43210',
-      emergencyContact: '+91 98765 43211',
-      address: 'Hyderabad, Telangana',
-      doctor: 'Dr. K. Ramesh',
-      department: 'Cardiology',
-      referredBy: 'Dr. Suresh (City Hospital)',
-      symptoms: 'Chest pain and shortness of breath',
-      allergies: 'Penicillin',
-      patientType: 'IP',
-      status: 'IP',
-      statusText: 'Admitted',
-      statusColor: '#007AFF',
-      room: '201',
-      bedNo: 'A1',
-      admissionDate: '2024-01-05',
-      registrationDate: '2024-01-05',
-      registrationTime: '09:30 AM',
-      medicalReports: [],
-      editHistory: [{
-        action: 'created',
-        timestamp: '2024-01-05T09:30:00Z',
-        details: 'Patient registered and admitted',
-      }],
-    },
-    {
-      id: 'KBR-OP-2024-501',
-      name: 'Priya Sharma',
-      age: 32,
-      gender: 'Female',
-      bloodGroup: 'A+',
-      phone: '+91 98765 43220',
-      emergencyContact: '+91 98765 43221',
-      address: 'Secunderabad, Telangana',
-      doctor: 'Dr. K. Divyasri',
-      department: 'Gynecology',
-      referredBy: 'Self',
-      symptoms: 'Regular checkup',
-      allergies: 'None',
-      patientType: 'OP',
-      status: 'OP',
-      statusText: 'Consultation',
-      statusColor: '#34C759',
-      registrationDate: '2024-01-10',
-      registrationTime: '11:15 AM',
-      medicalReports: [],
-      editHistory: [{
-        action: 'created',
-        timestamp: '2024-01-10T11:15:00Z',
-        details: 'Patient registered for consultation',
-      }],
-    },
-    {
-      id: 'KBR-IP-2024-002',
-      name: 'Amit Patel',
-      age: 55,
-      gender: 'Male',
-      bloodGroup: 'O+',
-      phone: '+91 98765 43230',
-      emergencyContact: '+91 98765 43231',
-      address: 'Begumpet, Hyderabad',
-      doctor: 'Dr. Mahesh Kumar',
-      department: 'Orthopedics',
-      referredBy: 'Dr. Ravi (Apollo Hospital)',
-      symptoms: 'Knee joint pain and stiffness',
-      allergies: 'Aspirin',
-      patientType: 'IP',
-      status: 'IP',
-      statusText: 'Under Treatment',
-      statusColor: '#FF9500',
-      room: '305',
-      bedNo: 'B2',
-      admissionDate: '2024-01-08',
-      registrationDate: '2024-01-08',
-      registrationTime: '02:45 PM',
-      medicalReports: [],
-      editHistory: [{
-        action: 'created',
-        timestamp: '2024-01-08T14:45:00Z',
-        details: 'Patient registered and admitted for orthopedic treatment',
-      }],
-    },
-  ],
-  registeredUsers: 3,
+  // User Management (will be loaded from Firebase)
+  patients: [],
+  registeredUsers: 0,
 
-  // Room Management (Hospital Rooms)
-  rooms: [
-    {
-      id: 'R001',
-      roomNumber: '101',
-      floor: 1,
-      type: 'General Ward',
-      category: 'AC',
-      status: 'Occupied',
-      statusColor: '#EF4444',
-      patientName: 'Rajesh Kumar',
-      patientId: 'KBR-IP-2024-001',
-      admissionDate: '2024-01-10',
-      dailyRate: 2500,
-      amenities: ['AC', 'TV', 'WiFi', 'Bathroom'],
-      bed: 'A',
-      totalBeds: 4,
-      description: 'General ward room with AC and basic amenities',
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'R002',
-      roomNumber: '102',
-      floor: 1,
-      type: 'General Ward',
-      category: 'Non-AC',
-      status: 'Available',
-      statusColor: '#10B981',
-      patientName: null,
-      patientId: null,
-      admissionDate: null,
-      dailyRate: 1500,
-      amenities: ['Fan', 'TV', 'Bathroom'],
-      bed: null,
-      totalBeds: 6,
-      description: 'Non-AC general ward with fan and basic facilities',
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'R003',
-      roomNumber: '201',
-      floor: 2,
-      type: 'Private Room',
-      category: 'Deluxe',
-      status: 'Occupied',
-      statusColor: '#EF4444',
-      patientName: 'Priya Sharma',
-      patientId: 'KBR-IP-2024-002',
-      admissionDate: '2024-01-12',
-      dailyRate: 4500,
-      amenities: ['AC', 'TV', 'WiFi', 'Fridge', 'Sofa', 'Bathroom'],
-      bed: 'Single',
-      totalBeds: 1,
-      description: 'Deluxe private room with premium amenities',
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: 'R004',
-      roomNumber: '301',
-      floor: 3,
-      type: 'ICU',
-      category: 'Critical Care',
-      status: 'Under Maintenance',
-      statusColor: '#F59E0B',
-      patientName: null,
-      patientId: null,
-      admissionDate: null,
-      dailyRate: 8000,
-      amenities: ['Ventilator', 'Monitor', 'AC', 'Oxygen'],
-      bed: 'ICU Bed',
-      totalBeds: 1,
-      description: 'ICU room with critical care equipment',
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-  ],
+  // Room Management (Hospital Rooms) - Real-time data from Firebase
+  rooms: [],
+};
+
+// Helper function to remove duplicates by ID
+const removeDuplicatesById = (items, type) => {
+  const uniqueItems = [];
+  const seenIds = new Set();
+  
+  for (const item of items) {
+    if (!seenIds.has(item.id)) {
+      uniqueItems.push(item);
+      seenIds.add(item.id);
+    }
+  }
+  
+  if (items.length !== uniqueItems.length) {
+    console.warn(`⚠️ Removed ${items.length - uniqueItems.length} duplicate ${type}`);
+  }
+  
+  return uniqueItems;
 };
 
 export const AppProvider = ({ children }) => {
@@ -600,7 +462,10 @@ export const AppProvider = ({ children }) => {
   const [useBackend, setUseBackend] = useState(true); // Firebase backend integration
   const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize data from Firebase - only when user is authenticated
+  // Real-time listeners cleanup functions
+  const [unsubscribeFunctions, setUnsubscribeFunctions] = useState({});
+
+  // Initialize data from Firebase - handle both authenticated and unauthenticated access
   const initializeFirebaseData = async () => {
     if (!useBackend) return;
     
@@ -608,46 +473,89 @@ export const AppProvider = ({ children }) => {
     const { auth } = require('../config/firebase.config');
     const currentUser = auth.currentUser;
     
-    // For development/debugging purposes, allow loading data even if not authenticated
-    // This is a temporary fix for the issue with payment not showing after adding
-    const skipAuthCheck = true;
-    
-    if (!currentUser && !skipAuthCheck) {
-      console.log('🔒 Skipping Firebase data initialization - user not authenticated');
-      setIsLoading(false);
-      return;
-    }
-    
     setIsLoading(true);
-    console.log('📊 Loading Firebase data...' + (currentUser ? ' (authenticated)' : ' (UNAUTHENTICATED - DEV MODE)'));
+    console.log('📊 Loading Firebase data...' + (currentUser ? ' (authenticated)' : ' (unauthenticated - public data only)'));
     
     try {
-      // Load all data from Firebase in parallel but handle partial failures.
+      // Clean up existing real-time listeners first
+      Object.values(unsubscribeFunctions).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+
+      // Only set up real-time listeners if user is authenticated
+      const newUnsubscribeFunctions = {};
+      
+      if (currentUser) {
+        console.log('🔄 Setting up real-time listeners for authenticated user...');
+        
+        // Real-time rooms listener
+        console.log('🔄 Setting up rooms real-time listener...');
+        const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
+          if (result.success) {
+            console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
+            setAppState(prev => ({
+              ...prev,
+              rooms: removeDuplicatesById(result.data, 'rooms')
+            }));
+          }
+        });
+        if (roomsUnsubscribe) newUnsubscribeFunctions.rooms = roomsUnsubscribe;
+
+        // Real-time patients listener  
+        console.log('🔄 Setting up patients real-time listener...');
+        const patientsUnsubscribe = FirebasePatientService.subscribeToPatients((result) => {
+          if (result.success) {
+            console.log(`👥 Real-time patients update: ${result.data.length} patients`);
+            setAppState(prev => ({
+              ...prev,
+              patients: removeDuplicatesById(result.data, 'patients')
+            }));
+          }
+        });
+        if (patientsUnsubscribe) newUnsubscribeFunctions.patients = patientsUnsubscribe;
+
+        // Store unsubscribe functions
+        setUnsubscribeFunctions(newUnsubscribeFunctions);
+      } else {
+        console.log('👤 User not authenticated - skipping real-time listeners, using one-time fetch');
+      }
+
+      // Load other data that doesn't need real-time updates (one-time fetch)
       const results = await Promise.allSettled([
-        RoomService.getAllRooms(),
-        InvoiceService.getAllInvoices(),
+        InvoiceService.getAllInvoices(), 
         PaymentService.getAllPayments(),
         ReportService.getAllReports(),
         SimpleBookingService.getAllAppointments()
       ]);
 
-      // Map results to variables with safe fallbacks
+      // Map results to variables with safe fallbacks and better error logging
+      const serviceNames = ['invoices', 'payments', 'reports', 'appointments'];
       const mapResult = (index) => {
         const res = results[index];
-        if (res && res.status === 'fulfilled') return res.value;
-        console.warn(`⚠️ Service at index ${index} failed to load:`, res && res.reason ? res.reason : 'unknown');
-        return null;
+        const serviceName = serviceNames[index];
+        
+        if (res && res.status === 'fulfilled') {
+          const data = res.value?.data || res.value || [];
+          console.log(`✅ ${serviceName}: loaded ${Array.isArray(data) ? data.length : 'N/A'} items`);
+          return data;
+        } else {
+          const errorMessage = res?.reason?.message || res?.reason || 'Unknown error';
+          console.warn(`⚠️ Service ${serviceName} failed to load: ${errorMessage}`);
+          return [];
+        }
       };
 
-      const rooms = mapResult(0);
-      const invoices = mapResult(1);
-      const payments = mapResult(2);
-      const reports = mapResult(3);
-      const appointments = mapResult(4);
+      const invoices = mapResult(0);
+      const payments = mapResult(1);
+      const reports = mapResult(2);
+      const appointments = mapResult(3);
 
+      // Update state with non-real-time data
       setAppState(prev => ({
         ...prev,
-        rooms: rooms || prev.rooms,
+        // rooms and patients are handled by real-time listeners above
         invoices: invoices || prev.invoices,
         payments: payments || prev.payments,
         reports: reports || prev.reports,
@@ -658,12 +566,66 @@ export const AppProvider = ({ children }) => {
       console.log(`📋 Loaded ${appointments?.length || 0} appointments`);
     } catch (error) {
       if (error.message.includes('Authentication required')) {
-        console.log('🔐 Firebase data loading skipped - authentication required');
+        console.log('🔐 Firebase data loading completed with authentication limitations');
       } else {
-        console.error('❌ Error loading Firebase data:', error.message);
+        console.error('❌ Error during Firebase data loading:', error.message);
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Set up real-time listeners after authentication
+  const setupRealTimeListeners = () => {
+    const { auth } = require('../config/firebase.config');
+    const currentUser = auth.currentUser;
+    
+    if (!useBackend || !currentUser) return;
+    
+    console.log('🔄 Setting up real-time listeners for authenticated user...');
+    
+    try {
+      // Clean up existing listeners first
+      Object.values(unsubscribeFunctions).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+
+      const newUnsubscribeFunctions = {};
+
+      // Real-time rooms listener
+      console.log('🔄 Setting up rooms real-time listener...');
+      const roomsUnsubscribe = RoomService.subscribeToRooms((result) => {
+        if (result.success) {
+          console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
+          setAppState(prev => ({
+            ...prev,
+            rooms: removeDuplicatesById(result.data, 'rooms')
+          }));
+        }
+      });
+      if (roomsUnsubscribe) newUnsubscribeFunctions.rooms = roomsUnsubscribe;
+
+      // Real-time patients listener  
+      console.log('🔄 Setting up patients real-time listener...');
+      const patientsUnsubscribe = FirebasePatientService.subscribeToPatients((result) => {
+        if (result.success) {
+          console.log(`👥 Real-time patients update: ${result.data.length} patients`);
+          setAppState(prev => ({
+            ...prev,
+            patients: removeDuplicatesById(result.data, 'patients')
+          }));
+        }
+      });
+      if (patientsUnsubscribe) newUnsubscribeFunctions.patients = patientsUnsubscribe;
+
+      // Store unsubscribe functions
+      setUnsubscribeFunctions(newUnsubscribeFunctions);
+      
+      console.log('✅ Real-time listeners setup complete');
+    } catch (error) {
+      console.error('❌ Error setting up real-time listeners:', error);
     }
   };
 
@@ -672,6 +634,16 @@ export const AppProvider = ({ children }) => {
     if (useBackend) {
       initializeFirebaseData();
     }
+    
+    // Cleanup listeners on unmount
+    return () => {
+      console.log('🧹 Cleaning up real-time listeners...');
+      Object.values(unsubscribeFunctions).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+    };
   }, [useBackend]);
 
   // Calculate real-time admin stats from actual data
@@ -773,7 +745,10 @@ export const AppProvider = ({ children }) => {
   const loadAppointments = async () => {
     try {
       console.log('📋 Loading appointments from database...');
-      const appointments = await SimpleBookingService.getAllAppointments();
+      
+      // Use FirebaseAppointmentService for consistency with the management screen
+      const result = await FirebaseAppointmentService.getAppointments();
+      const appointments = result.success ? result.data : [];
       
       setAppState(prev => ({
         ...prev,
@@ -790,6 +765,12 @@ export const AppProvider = ({ children }) => {
 
   const refreshAppointmentData = async () => {
     console.log('🔄 Refreshing appointment data...');
+    await loadAppointments();
+  };
+
+  // Force refresh global appointments (called when appointments are added/updated)
+  const forceRefreshAppointments = async () => {
+    console.log('🔥 Force refreshing global appointment data...');
     await loadAppointments();
   };
 
@@ -839,132 +820,68 @@ export const AppProvider = ({ children }) => {
 
   // ==== ROOM MANAGEMENT ====
   const addRoom = async (roomData) => {
-    if (useBackend) {
-      try {
-        const newRoom = await RoomService.createRoom(roomData);
-        setAppState(prev => ({
-          ...prev,
-          rooms: [...prev.rooms, newRoom]
-        }));
-        return newRoom;
-      } catch (error) {
-        console.error('Error adding room:', error);
-        throw error;
+    try {
+      const result = await FirebaseRoomService.addRoom(roomData);
+      if (result.success) {
+        console.log('✅ Room added successfully:', result.data.id);
+        // Real-time listener will automatically update the state
+        return result.data;
+      } else {
+        throw new Error(result.error || 'Failed to add room');
       }
-    } else {
-      // Fallback to local state
-      const newRoom = {
-        id: `R${Date.now()}`,
-        status: 'Available',
-        statusColor: '#10B981',
-        patientName: null,
-        patientId: null,
-        admissionDate: null,
-        createdAt: new Date().toISOString(),
-        ...roomData
-      };
-
-      setAppState(prev => ({
-        ...prev,
-        rooms: [...prev.rooms, newRoom]
-      }));
-
-      return newRoom;
+    } catch (error) {
+      console.error('Error adding room:', error);
+      throw error;
     }
   };
 
   const updateRoom = async (roomId, updatedData) => {
-    if (useBackend) {
-      try {
-        await RoomService.updateRoom(roomId, updatedData);
-        setAppState(prev => ({
-          ...prev,
-          rooms: prev.rooms.map(room =>
-            room.id === roomId ? { 
-              ...room, 
-              ...updatedData, 
-              updatedAt: new Date().toISOString() 
-            } : room
-          )
-        }));
-      } catch (error) {
-        console.error('Error updating room:', error);
-        throw error;
+    try {
+      const result = await FirebaseRoomService.updateRoom(roomId, updatedData);
+      if (result.success) {
+        console.log('✅ Room updated successfully:', roomId);
+        // Real-time listener will automatically update the state
+        return result.data;
+      } else {
+        throw new Error(result.error || 'Failed to update room');
       }
-    } else {
-      // Fallback to local state
-      setAppState(prev => ({
-        ...prev,
-        rooms: prev.rooms.map(room =>
-          room.id === roomId ? { 
-            ...room, 
-            ...updatedData, 
-            updatedAt: new Date().toISOString() 
-          } : room
-        )
-      }));
+    } catch (error) {
+      console.error('Error updating room:', error);
+      throw error;
     }
   };
 
   const deleteRoom = async (roomId) => {
-    if (useBackend) {
-      try {
-        await RoomService.deleteRoom(roomId);
-        setAppState(prev => ({
-          ...prev,
-          rooms: prev.rooms.filter(room => room.id !== roomId)
-        }));
-      } catch (error) {
-        console.error('Error deleting room:', error);
-        throw error;
+    try {
+      const result = await FirebaseRoomService.deleteRoom(roomId);
+      if (result.success) {
+        console.log('✅ Room deleted successfully:', roomId);
+        // Real-time listener will automatically update the state
+        return true;
+      } else {
+        throw new Error(result.error || 'Failed to delete room');
       }
-    } else {
-      // Fallback to local state
-      setAppState(prev => ({
-        ...prev,
-        rooms: prev.rooms.filter(room => room.id !== roomId)
-      }));
+    } catch (error) {
+      console.error('Error deleting room:', error);
+      throw error;
     }
   };
+      // Fallback to local state
+
 
   const dischargePatient = async (roomId) => {
-    if (useBackend) {
-      try {
-        await RoomService.dischargePatient(roomId);
-        setAppState(prev => ({
-          ...prev,
-          rooms: prev.rooms.map(room =>
-            room.id === roomId ? {
-              ...room,
-              status: 'Available',
-              statusColor: '#10B981',
-              patientName: null,
-              patientId: null,
-              admissionDate: null,
-              dischargedAt: new Date().toISOString()
-            } : room
-          )
-        }));
-      } catch (error) {
-        console.error('Error discharging patient:', error);
-        throw error;
+    try {
+      const result = await FirebaseRoomService.dischargePatient(roomId);
+      if (result.success) {
+        console.log('✅ Patient discharged successfully from room:', roomId);
+        // Real-time listener will automatically update the state
+        return true;
+      } else {
+        throw new Error(result.error || 'Failed to discharge patient');
       }
-    } else {
-      // Fallback to local state
-      setAppState(prev => ({
-        ...prev,
-        rooms: prev.rooms.map(room =>
-          room.id === roomId ? {
-            ...room,
-            status: 'Available',
-            statusColor: '#10B981',
-            patientName: null,
-            patientId: null,
-            admissionDate: null,
-            dischargedAt: new Date().toISOString()
-          } : room
-        )
-      }));
+    } catch (error) {
+      console.error('Error discharging patient:', error);
+      throw error;
     }
   };
 
@@ -1007,6 +924,231 @@ export const AppProvider = ({ children }) => {
         )
       }));
     }
+  };
+
+  // ==== BED MANAGEMENT ====
+  // Generate bed labels for a room based on totalBeds and room type
+  const generateBedLabels = (totalBeds, roomType, roomNumber) => {
+    const labels = [];
+    
+    if (roomType === 'ICU') {
+      for (let i = 1; i <= totalBeds; i++) {
+        labels.push(`ICU-${i}`);
+      }
+    } else if (roomType === 'Private Room') {
+      labels.push('Single');
+    } else {
+      // General Ward - use room number prefix
+      const prefix = roomNumber.charAt(0); // Get first character of room number (1 for 101, 2 for 201)
+      for (let i = 1; i <= totalBeds; i++) {
+        labels.push(`${prefix}${i}`);
+      }
+    }
+    
+    return labels;
+  };
+
+  // Get available beds for a room
+  const getAvailableBeds = (roomId) => {
+    const room = appState.rooms.find(r => r.id === roomId);
+    if (!room) return [];
+    
+    // If room is under maintenance, no beds available
+    if (room.status === 'Under Maintenance' || room.status === 'Out of Order') {
+      return [];
+    }
+    
+    return room.availableBeds || [];
+  };
+
+  // Get occupied beds for a room
+  const getOccupiedBeds = (roomId) => {
+    const room = appState.rooms.find(r => r.id === roomId);
+    return room?.occupiedBeds || [];
+  };
+
+  // Assign a patient to a specific bed
+  const assignPatientToBed = async (roomId, bedNumber, patientData) => {
+    if (useBackend) {
+      try {
+        // Update Firebase with bed assignment
+        await RoomService.assignPatientToBed(roomId, bedNumber, patientData);
+        
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.map(room => {
+            if (room.id === roomId) {
+              const newOccupiedBeds = [...(room.occupiedBeds || []), {
+                bedNumber,
+                patientName: patientData.name,
+                patientId: patientData.id,
+                admissionDate: new Date().toISOString().split('T')[0]
+              }];
+              
+              const newAvailableBeds = (room.availableBeds || []).filter(bed => bed !== bedNumber);
+              
+              // Update room status based on bed occupancy
+              let newStatus = 'Available';
+              let newStatusColor = '#10B981';
+              
+              if (newOccupiedBeds.length === room.totalBeds) {
+                newStatus = 'Occupied';
+                newStatusColor = '#EF4444';
+              } else if (newOccupiedBeds.length > 0) {
+                newStatus = 'Partially Occupied';
+                newStatusColor = '#F59E0B';
+              }
+              
+              return {
+                ...room,
+                occupiedBeds: newOccupiedBeds,
+                availableBeds: newAvailableBeds,
+                status: newStatus,
+                statusColor: newStatusColor
+              };
+            }
+            return room;
+          })
+        }));
+        
+      } catch (error) {
+        console.error('Error assigning patient to bed:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(room => {
+          if (room.id === roomId) {
+            const newOccupiedBeds = [...(room.occupiedBeds || []), {
+              bedNumber,
+              patientName: patientData.name,
+              patientId: patientData.id,
+              admissionDate: new Date().toISOString().split('T')[0]
+            }];
+            
+            const newAvailableBeds = (room.availableBeds || []).filter(bed => bed !== bedNumber);
+            
+            // Update room status based on bed occupancy
+            let newStatus = 'Available';
+            let newStatusColor = '#10B981';
+            
+            if (newOccupiedBeds.length === room.totalBeds) {
+              newStatus = 'Occupied';
+              newStatusColor = '#EF4444';
+            } else if (newOccupiedBeds.length > 0) {
+              newStatus = 'Partially Occupied';
+              newStatusColor = '#F59E0B';
+            }
+            
+            return {
+              ...room,
+              occupiedBeds: newOccupiedBeds,
+              availableBeds: newAvailableBeds,
+              status: newStatus,
+              statusColor: newStatusColor
+            };
+          }
+          return room;
+        })
+      }));
+    }
+  };
+
+  // Release a patient from a specific bed (for discharge)
+  const releasePatientFromBed = async (roomId, bedNumber, patientId) => {
+    if (useBackend) {
+      try {
+        await RoomService.releasePatientFromBed(roomId, bedNumber, patientId);
+        
+        setAppState(prev => ({
+          ...prev,
+          rooms: prev.rooms.map(room => {
+            if (room.id === roomId) {
+              const newOccupiedBeds = (room.occupiedBeds || []).filter(
+                bed => bed.bedNumber !== bedNumber || bed.patientId !== patientId
+              );
+              
+              const newAvailableBeds = [...(room.availableBeds || []), bedNumber];
+              
+              // Update room status based on bed occupancy
+              let newStatus = 'Available';
+              let newStatusColor = '#10B981';
+              
+              if (newOccupiedBeds.length === room.totalBeds) {
+                newStatus = 'Occupied';
+                newStatusColor = '#EF4444';
+              } else if (newOccupiedBeds.length > 0) {
+                newStatus = 'Partially Occupied';
+                newStatusColor = '#F59E0B';
+              }
+              
+              return {
+                ...room,
+                occupiedBeds: newOccupiedBeds,
+                availableBeds: newAvailableBeds,
+                status: newStatus,
+                statusColor: newStatusColor
+              };
+            }
+            return room;
+          })
+        }));
+        
+      } catch (error) {
+        console.error('Error releasing patient from bed:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(room => {
+          if (room.id === roomId) {
+            const newOccupiedBeds = (room.occupiedBeds || []).filter(
+              bed => bed.bedNumber !== bedNumber || bed.patientId !== patientId
+            );
+            
+            const newAvailableBeds = [...(room.availableBeds || []), bedNumber];
+            
+            // Update room status based on bed occupancy
+            let newStatus = 'Available';
+            let newStatusColor = '#10B981';
+            
+            if (newOccupiedBeds.length === room.totalBeds) {
+              newStatus = 'Occupied';
+              newStatusColor = '#EF4444';
+            } else if (newOccupiedBeds.length > 0) {
+              newStatus = 'Partially Occupied';
+              newStatusColor = '#F59E0B';
+            }
+            
+            return {
+              ...room,
+              occupiedBeds: newOccupiedBeds,
+              availableBeds: newAvailableBeds,
+              status: newStatus,
+              statusColor: newStatusColor
+            };
+          }
+          return room;
+        })
+      }));
+    }
+  };
+
+  // Get rooms with available beds (for patient registration)
+  const getAvailableRooms = () => {
+    return appState.rooms.filter(room => {
+      // Exclude rooms under maintenance or out of order
+      if (room.status === 'Under Maintenance' || room.status === 'Out of Order') {
+        return false;
+      }
+      
+      // Include rooms that have available beds
+      return (room.availableBeds || []).length > 0;
+    });
   };
 
   // ==== PAYMENT MANAGEMENT ====
@@ -1292,52 +1434,166 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==== PATIENT MANAGEMENT ====
-  const registerPatient = (patientData) => {
-    const newPatient = {
-      id: `patient-${Date.now()}`,
-      registeredAt: new Date().toISOString(),
-      ...patientData
-    };
+  const registerPatient = async (patientData) => {
+    if (useBackend) {
+      try {
+        const result = await FirebasePatientService.createPatient(patientData);
+        if (result.success) {
+          const newPatient = result.data;
+          setAppState(prev => {
+            // Check if patient already exists to prevent duplicates
+            const existsIndex = prev.patients.findIndex(p => p.id === newPatient.id);
+            if (existsIndex >= 0) {
+              // Update existing patient
+              console.log('✅ Patient updated in context:', newPatient.id);
+              return {
+                ...prev,
+                patients: prev.patients.map((p, i) => i === existsIndex ? newPatient : p)
+              };
+            } else {
+              // Add new patient
+              console.log('✅ Patient registered in Firebase:', newPatient.id);
+              return {
+                ...prev,
+                patients: [...prev.patients, newPatient],
+                registeredUsers: prev.registeredUsers + 1
+              };
+            }
+          });
+          return newPatient;
+        } else {
+          throw new Error(result.message || 'Failed to register patient');
+        }
+      } catch (error) {
+        console.error('❌ Error registering patient:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      const newPatient = {
+        id: `patient-${Date.now()}`,
+        registeredAt: new Date().toISOString(),
+        ...patientData
+      };
 
-    setAppState(prev => ({
-      ...prev,
-      patients: [...prev.patients, newPatient],
-      registeredUsers: prev.registeredUsers + 1
-    }));
+      setAppState(prev => ({
+        ...prev,
+        patients: [...prev.patients, newPatient],
+        registeredUsers: prev.registeredUsers + 1
+      }));
 
-    return newPatient;
+      return newPatient;
+    }
   };
 
   const addPatient = (patientData) => {
-    const newPatient = {
-      ...patientData,
-      registeredAt: new Date().toISOString(),
-    };
-
-    setAppState(prev => ({
-      ...prev,
-      patients: [...prev.patients, newPatient],
-      registeredUsers: prev.registeredUsers + 1
-    }));
-
-    return newPatient;
+    // This method will delegate to registerPatient for Firebase integration
+    return registerPatient(patientData);
   };
 
-  const updatePatient = (patientId, updatedData) => {
-    setAppState(prev => ({
-      ...prev,
-      patients: prev.patients.map(patient =>
-        patient.id === patientId ? { ...patient, ...updatedData } : patient
-      )
-    }));
+  const updatePatient = async (patientId, updatedData) => {
+    if (useBackend) {
+      try {
+        const result = await FirebasePatientService.updateProfile(patientId, updatedData);
+        if (result.success) {
+          setAppState(prev => ({
+            ...prev,
+            patients: prev.patients.map(patient =>
+              patient.id === patientId ? { ...patient, ...updatedData, updatedAt: new Date().toISOString() } : patient
+            )
+          }));
+          console.log('✅ Patient updated in Firebase:', patientId);
+        } else {
+          throw new Error(result.message || 'Failed to update patient');
+        }
+      } catch (error) {
+        console.error('❌ Error updating patient:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        patients: prev.patients.map(patient =>
+          patient.id === patientId ? { ...patient, ...updatedData } : patient
+        )
+      }));
+    }
   };
 
-  const deletePatient = (patientId) => {
-    setAppState(prev => ({
-      ...prev,
-      patients: prev.patients.filter(patient => patient.id !== patientId),
-      registeredUsers: prev.registeredUsers - 1
-    }));
+  const deletePatient = async (patientId) => {
+    if (useBackend) {
+      try {
+        // Note: Add delete method to FirebasePatientService if needed
+        console.log('🗑️ Deleting patient from Firebase:', patientId);
+        setAppState(prev => ({
+          ...prev,
+          patients: prev.patients.filter(patient => patient.id !== patientId),
+          registeredUsers: prev.registeredUsers - 1
+        }));
+        console.log('✅ Patient deleted from local state:', patientId);
+      } catch (error) {
+        console.error('❌ Error deleting patient:', error);
+        throw error;
+      }
+    } else {
+      // Fallback to local state
+      setAppState(prev => ({
+        ...prev,
+        patients: prev.patients.filter(patient => patient.id !== patientId),
+        registeredUsers: prev.registeredUsers - 1
+      }));
+    }
+  };
+
+  // Load patients from Firebase
+  const loadPatients = async () => {
+    if (!useBackend) return [];
+    
+    try {
+      console.log('👥 Loading patients from Firebase...');
+      const result = await FirebasePatientService.getAllPatients();
+      
+      if (result.success) {
+        const rawPatients = result.data || [];
+        // Deduplicate patients by ID to prevent duplicate key errors
+        const uniquePatients = rawPatients.filter((patient, index, self) => 
+          index === self.findIndex(p => p.id === patient.id)
+        );
+        
+        setAppState(prev => {
+          // Additional check to ensure no duplicates when updating state
+          const finalUniquePatients = uniquePatients.filter((patient, index, self) => 
+            index === self.findIndex(p => p.id === patient.id && p.name === patient.name)
+          );
+          
+          return {
+            ...prev,
+            patients: finalUniquePatients,
+            registeredUsers: finalUniquePatients.length
+          };
+        });
+        
+        if (rawPatients.length !== uniquePatients.length) {
+          console.warn(`⚠️ Removed ${rawPatients.length - uniquePatients.length} duplicate patients`);
+        }
+        
+        console.log(`✅ Loaded ${uniquePatients.length} patients from Firebase`);
+        return uniquePatients;
+      } else {
+        console.warn('⚠️ Failed to load patients:', result.message);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error loading patients:', error);
+      return [];
+    }
+  };
+
+  // Refresh patient data
+  const refreshPatientData = async () => {
+    console.log('🔄 Refreshing patient data...');
+    await loadPatients();
   };
 
   // ==== DISCHARGE MANAGEMENT ====
@@ -1407,20 +1663,67 @@ export const AppProvider = ({ children }) => {
   const processPatientDischarge = async (patientId, dischargeDetails) => {
     if (useBackend) {
       try {
+        // First, find the patient to get room and bed information
+        const patient = appState.patients.find(p => p.id === patientId);
+        
         await DischargeService.processDischarge(patientId, dischargeDetails);
-        // Also update room status
-        if (dischargeDetails.roomId) {
+        
+        // Release the specific bed if patient has room and bed assigned
+        if (patient && patient.roomId && patient.bedNo) {
+          console.log(`🏥 Releasing bed ${patient.bedNo} in room ${patient.room} for discharged patient ${patient.name}`);
+          await releasePatientFromBed(patient.roomId, patient.bedNo, patientId);
+        } else if (dischargeDetails.roomId) {
+          // Fallback to old discharge method
           await dischargePatient(dischargeDetails.roomId);
         }
+        
+        // Update patient status in local state
+        setAppState(prev => ({
+          ...prev,
+          patients: prev.patients.map(p => 
+            p.id === patientId ? {
+              ...p,
+              status: 'Discharged',
+              statusText: 'Discharged',
+              statusColor: '#6B7280',
+              dischargeDate: dischargeDetails.dischargeDate || new Date().toISOString(),
+              room: null,
+              bedNo: null,
+              roomId: null
+            } : p
+          )
+        }));
+        
       } catch (error) {
         console.error('Error processing patient discharge:', error);
         throw error;
       }
     } else {
-      // Fallback - just discharge from room
-      if (dischargeDetails.roomId) {
+      // Fallback - find patient and release bed
+      const patient = appState.patients.find(p => p.id === patientId);
+      
+      if (patient && patient.roomId && patient.bedNo) {
+        await releasePatientFromBed(patient.roomId, patient.bedNo, patientId);
+      } else if (dischargeDetails.roomId) {
         await dischargePatient(dischargeDetails.roomId);
       }
+      
+      // Update patient status in local state
+      setAppState(prev => ({
+        ...prev,
+        patients: prev.patients.map(p => 
+          p.id === patientId ? {
+            ...p,
+            status: 'Discharged',
+            statusText: 'Discharged',
+            statusColor: '#6B7280',
+            dischargeDate: dischargeDetails.dischargeDate || new Date().toISOString(),
+            room: null,
+            bedNo: null,
+            roomId: null
+          } : p
+        )
+      }));
     }
   };
 
@@ -1809,6 +2112,7 @@ export const AppProvider = ({ children }) => {
     useBackend,
     setUseBackend,
     setAppState, // Exposing setAppState to allow direct updates
+    refreshData: initializeFirebaseData, // Expose function to reinitialize real-time listeners
     
     // Admin Stats (real-time calculated)
     adminStats: appState.adminStats,
@@ -1842,6 +2146,14 @@ export const AppProvider = ({ children }) => {
     dischargePatient,
     assignPatientToRoom,
 
+    // Bed Management Methods
+    generateBedLabels,
+    getAvailableBeds,
+    getOccupiedBeds,
+    assignPatientToBed,
+    releasePatientFromBed,
+    getAvailableRooms,
+
     // Payment Methods
     addPayment,
     updatePaymentStatus,
@@ -1866,6 +2178,8 @@ export const AppProvider = ({ children }) => {
     addPatient,
     updatePatient,
     deletePatient,
+    loadPatients,
+    refreshPatientData,
 
     // Patient Payment Methods
     addPatientPayment,
@@ -1898,8 +2212,10 @@ export const AppProvider = ({ children }) => {
     // Utility Methods
     calculateAdminStats,
     initializeFirebaseData,
+    setupRealTimeListeners,
     loadAppointments,
     refreshAppointmentData,
+    forceRefreshAppointments,
   };
 
   return (

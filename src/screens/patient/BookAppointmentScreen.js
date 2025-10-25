@@ -2041,23 +2041,27 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                   
                   {showGenderDropdown && (
-                    <View style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      backgroundColor: 'white',
-                      borderWidth: 1,
-                      borderColor: '#D1D5DB',
-                      borderRadius: 8,
-                      marginTop: 4,
-                      zIndex: 1000,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 4,
-                      elevation: 5,
-                    }}>
+                    <View 
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: 'white',
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        borderRadius: 8,
+                        marginTop: 4,
+                        zIndex: 1000,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 5,
+                      }}
+                      onStartShouldSetResponder={() => true}
+                      onMoveShouldSetResponder={() => true}
+                    >
                       {genderOptions.map((option, index) => (
                         <TouchableOpacity
                           key={option}

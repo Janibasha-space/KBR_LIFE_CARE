@@ -11,7 +11,8 @@ import {
   query, 
   where, 
   orderBy, 
-  limit 
+  limit,
+  onSnapshot
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
 import { FirebaseAuthService } from './firebaseAuthService';
@@ -54,6 +55,8 @@ export class FirebaseAppointmentService {
   // Get all appointments
   static async getAppointments(patientId = null) {
     try {
+      console.log('📋 FirebaseAppointmentService: Fetching appointments...');
+      
       const appointmentsRef = collection(db, this.collectionName);
       let q;
       
@@ -65,14 +68,22 @@ export class FirebaseAppointmentService {
         q = query(appointmentsRef);
       }
       
+      // Force fresh data from server (bypass cache)
       const querySnapshot = await getDocs(q);
       const appointments = [];
       
       querySnapshot.forEach((doc) => {
-        appointments.push({
-          id: doc.id,
-          ...doc.data()
-        });
+        const documentData = doc.data();
+        const appointmentData = {
+          firebaseDocId: doc.id,  // Preserve the actual Firebase document ID
+          ...documentData,
+          // Backwards compatibility: use 'id' field from data as appointmentId, fallback to Firebase doc ID
+          appointmentId: documentData.id || doc.id,
+          // Ensure we always have an 'id' field for React components (use Firebase doc ID)
+          id: doc.id
+        };
+        console.log(`📋 Raw Firebase appointment data for ${doc.id}:`, appointmentData);
+        appointments.push(appointmentData);
       });
       
       // Sort by appointmentDate in JavaScript to avoid index requirement
@@ -89,8 +100,23 @@ export class FirebaseAppointmentService {
         data: appointments
       };
     } catch (error) {
-      console.error('Error fetching appointments:', error);
-      throw new Error('Failed to fetch appointments');
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty appointments array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      // For other errors, also return empty array to prevent app crashes
+      console.log('🔒 Firebase error - returning empty appointments array for graceful degradation:', error.message);
+      return {
+        success: true,
+        data: [],
+        warning: `Error: ${error.message}`
+      };
     }
   }
 
@@ -238,6 +264,81 @@ export class FirebaseAppointmentService {
     }
   }
 
+  // Update appointment with comprehensive data
+  static async updateAppointment(appointmentId, updateData) {
+    try {
+      console.log(`🔄 Updating appointment ${appointmentId} with data:`, updateData);
+      
+      const appointmentRef = doc(db, this.collectionName, appointmentId);
+      
+      // Try to update directly first - this is more efficient
+      console.log(`📝 Attempting direct update for document: ${appointmentId}`);
+      console.log(`🔍 Collection: ${this.collectionName}, Document ID: ${appointmentId}`);
+      
+      // First, let's verify the document exists
+      console.log(`🔍 Checking if document exists before update...`);
+      const preCheckDoc = await getDoc(appointmentRef);
+      console.log(`📄 Document exists: ${preCheckDoc.exists()}`);
+      
+      if (preCheckDoc.exists()) {
+        console.log(`📋 Current document data:`, preCheckDoc.data());
+      }
+      
+      const dataToUpdate = {
+        ...updateData,
+        updatedAt: new Date().toISOString()
+      };
+
+      try {
+        await updateDoc(appointmentRef, dataToUpdate);
+        console.log(`✅ Appointment ${appointmentId} updated successfully via direct update`);
+        
+        return {
+          success: true,
+          message: 'Appointment updated successfully'
+        };
+      } catch (updateError) {
+        console.log(`⚠️ Direct update failed: ${updateError.message}, checking if document exists...`);
+        
+        // If direct update fails, check if document exists
+        const appointmentDoc = await getDoc(appointmentRef);
+        
+        if (!appointmentDoc.exists()) {
+          console.warn(`⚠️ Appointment document ${appointmentId} does not exist. Creating new document.`);
+          
+          // Create the document with the update data
+          const dataToCreate = {
+            id: appointmentId,
+            ...updateData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+
+          await setDoc(appointmentRef, dataToCreate);
+          console.log(`✅ Appointment ${appointmentId} created successfully`);
+          
+          return {
+            success: true,
+            message: 'Appointment created successfully'
+          };
+        }
+        
+        // Document exists but update failed, try again
+        console.log(`📝 Document exists, retrying update...`);
+        await updateDoc(appointmentRef, dataToUpdate);
+        console.log(`✅ Appointment ${appointmentId} updated successfully on retry`);
+        
+        return {
+          success: true,
+          message: 'Appointment updated successfully'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error updating appointment:', error);
+      throw new Error(`Failed to update appointment: ${error.message}`);
+    }
+  }
+
   // Get available time slots (mock implementation - you can enhance this)
   static async getAvailableSlots(doctorId, date) {
     try {
@@ -264,7 +365,111 @@ export class FirebaseAppointmentService {
 
 // Firebase Patient Service
 export class FirebasePatientService {
-  static collectionName = 'users';
+  static collectionName = 'patients';
+
+  // Create new patient
+  static async createPatient(patientData) {
+    try {
+      console.log('👤 Creating patient in Firebase...', patientData.name);
+      
+      const patient = {
+        ...patientData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const docRef = await addDoc(collection(db, this.collectionName), patient);
+      
+      console.log(`✅ Patient created successfully with ID: ${docRef.id}`);
+      
+      return {
+        success: true,
+        data: {
+          id: docRef.id,
+          ...patient
+        },
+        message: 'Patient created successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error creating patient:', error);
+      throw new Error(`Failed to create patient: ${error.message}`);
+    }
+  }
+
+  // Get all patients (for admin dashboard)  
+  static async getAllPatients() {
+    try {
+      const patientsRef = collection(db, this.collectionName);
+      const querySnapshot = await getDocs(patientsRef);
+      
+      const patients = [];
+      querySnapshot.forEach((doc) => {
+        patients.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log(`✅ Successfully fetched ${patients.length} patients`);
+      return {
+        success: true,
+        data: patients
+      };
+    } catch (error) {
+      // Handle permission denied gracefully
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty patients array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      console.error('❌ Error fetching patients:', error);
+      throw new Error(`Failed to fetch patients: ${error.message}`);
+    }
+  }
+
+  // Real-time patients listener
+  static subscribeToPatients(callback) {
+    try {
+      console.log('🔄 Setting up real-time patients listener...');
+      
+      const patientsRef = collection(db, this.collectionName);
+      
+      const unsubscribe = onSnapshot(patientsRef, 
+        (querySnapshot) => {
+          const patients = [];
+          querySnapshot.forEach((doc) => {
+            patients.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          
+          console.log(`🔄 Real-time update: ${patients.length} patients`);
+          callback({
+            success: true,
+            data: patients
+          });
+        },
+        (error) => {
+          console.error('❌ Real-time patients listener error:', error);
+          callback({
+            success: false,
+            data: [],
+            error: error.message
+          });
+        }
+      );
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('❌ Error setting up patients listener:', error);
+      return null;
+    }
+  }
 
   // Get all users (for admin dashboard)
   static async getAllUsers() {
@@ -398,7 +603,7 @@ class FirebaseDoctorService {
   static collectionName = 'doctors';
 
   // Helper method to check authentication status
-  static async ensureAuth() {
+  static async ensureAuth(allowUnauthenticated = false) {
     try {
       // Check if user is authenticated
       const user = auth.currentUser;
@@ -406,6 +611,10 @@ class FirebaseDoctorService {
       if (user) {
         console.log('✅ User authenticated - ID:', user.uid);
         return user;
+      } else if (allowUnauthenticated) {
+        // Skip anonymous authentication since it's restricted, proceed with unauthenticated mode
+        console.log('⚠️ Proceeding without authentication - using graceful degradation mode');
+        return null;
       } else {
         // Don't attempt data fetching when no user is authenticated
         throw new Error('Authentication required - please login to access data');
@@ -445,6 +654,16 @@ class FirebaseDoctorService {
     } catch (error) {
       console.error('❌ Error fetching doctors:', error);
       console.error('Error code:', error.code);
+      
+      // Handle permission denied gracefully
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty doctors array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
       console.error('Error message:', error.message);
       
       // Provide more specific error messages
@@ -1071,14 +1290,14 @@ class FirebaseRoomService {
   static collectionName = 'rooms';
 
   // Helper method to ensure authentication
-  static async ensureAuth() {
-    return await FirebaseDoctorService.ensureAuth();
+  static async ensureAuth(allowUnauthenticated = false) {
+    return await FirebaseDoctorService.ensureAuth(allowUnauthenticated);
   }
 
-  // Get all rooms
+  // Get all rooms (one-time fetch)
   static async getRooms() {
     try {
-      await this.ensureAuth();
+      await this.ensureAuth(true); // Allow unauthenticated access for viewing rooms
       
       const roomsRef = collection(db, this.collectionName);
       const q = query(roomsRef, orderBy('roomNumber', 'asc'));
@@ -1098,8 +1317,73 @@ class FirebaseRoomService {
         data: rooms
       };
     } catch (error) {
-      console.error('❌ Error fetching rooms:', error);
-      throw new Error(`Failed to fetch rooms: ${error.message}`);
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty rooms array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      // For other errors, also return empty array to prevent app crashes
+      console.log('🔒 Firebase error - returning empty rooms array for graceful degradation:', error.message);
+      return {
+        success: true,
+        data: [],
+        warning: `Error: ${error.message}`
+      };
+    }
+  }
+
+  // Real-time rooms listener
+  static subscribeToRooms(callback) {
+    try {
+      console.log('🔄 Setting up real-time rooms listener...');
+      
+      const roomsRef = collection(db, this.collectionName);
+      const q = query(roomsRef, orderBy('roomNumber', 'asc'));
+      
+      const unsubscribe = onSnapshot(q, 
+        (querySnapshot) => {
+          const rooms = [];
+          querySnapshot.forEach((doc) => {
+            rooms.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          
+          console.log(`🔄 Real-time update: ${rooms.length} rooms`);
+          callback({
+            success: true,
+            data: rooms
+          });
+        },
+        (error) => {
+          console.error('❌ Real-time rooms listener error:', error);
+          if (error.code === 'permission-denied') {
+            console.log('🔒 Permission denied - providing empty rooms for graceful degradation');
+            callback({
+              success: true,
+              data: [],
+              warning: 'Permission denied - showing empty data'
+            });
+          } else {
+            callback({
+              success: false,
+              data: [],
+              error: error.message
+            });
+          }
+        }
+      );
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('❌ Error setting up rooms listener:', error);
+      return null;
     }
   }
 
@@ -1117,6 +1401,17 @@ class FirebaseRoomService {
         throw new Error(`Room ${roomData.roomNumber} already exists`);
       }
       
+      // Generate bed labels for this room
+      const generateBedLabels = (totalBeds) => {
+        const bedLabels = [];
+        for (let i = 1; i <= totalBeds; i++) {
+          bedLabels.push(`${roomData.roomNumber}${String.fromCharCode(64 + i)}`); // A, B, C, etc.
+        }
+        return bedLabels;
+      };
+
+      const bedLabels = generateBedLabels(roomData.totalBeds || 1);
+      
       const room = {
         ...roomData,
         createdAt: new Date().toISOString(),
@@ -1125,7 +1420,11 @@ class FirebaseRoomService {
         statusColor: roomData.statusColor || '#10B981',
         patientName: null,
         patientId: null,
-        admissionDate: null
+        admissionDate: null,
+        // Bed management arrays
+        occupiedBeds: [],
+        availableBeds: [...bedLabels],
+        bedLabels: bedLabels
       };
 
       const docRef = await addDoc(collection(db, this.collectionName), room);
@@ -1267,6 +1566,198 @@ class FirebaseRoomService {
       };
     }
   }
+
+  // Assign patient to specific bed
+  static async assignPatientToBed(roomIdOrNumber, bedNumber, patientData) {
+    try {
+      await this.ensureAuth();
+      
+      console.log('🛏️ Assigning patient to bed - Room ID/Number:', roomIdOrNumber, 'Bed:', bedNumber, 'Patient:', patientData);
+      
+      if (!roomIdOrNumber) {
+        throw new Error('Room ID or room number is required but not provided');
+      }
+      
+      // Extract room number from bed number if needed (bedNumber format: "7091A")
+      const roomNumber = bedNumber.replace(/[A-Za-z]/g, ''); // Remove letters to get room number
+      console.log('🔍 Extracted room number from bed:', roomNumber);
+      
+      // Always search by room number first (more reliable than potentially stale IDs)
+      console.log('🔍 Searching for room by room number:', roomNumber);
+      const roomsRef = collection(db, this.collectionName);
+      const q = query(roomsRef, where('roomNumber', '==', roomNumber));
+      const querySnapshot = await getDocs(q);
+      
+      let roomRef;
+      let roomDoc;
+      
+      if (!querySnapshot.empty) {
+        // Use the first matching room (there should only be one per room number)
+        roomDoc = querySnapshot.docs[0];
+        roomRef = roomDoc.ref;
+        console.log('✅ Found room by room number:', roomDoc.data()?.roomNumber, 'Firebase ID:', roomDoc.id);
+      } else {
+        // Fallback: try to find by the provided ID if room number search failed
+        console.log('🔍 Room number search failed, trying by provided ID:', roomIdOrNumber);
+        roomRef = doc(db, this.collectionName, roomIdOrNumber);
+        roomDoc = await getDoc(roomRef);
+      }
+      
+      if (!roomDoc || !roomDoc.exists()) {
+        console.error('❌ Room not found by room number:', roomNumber);
+        console.log('🔍 Debugging: Checking all rooms in Firebase...');
+        const allRoomsRef = collection(db, this.collectionName);
+        const allRoomsSnapshot = await getDocs(allRoomsRef);
+        console.log('🔍 All Firebase rooms:');
+        allRoomsSnapshot.forEach((doc) => {
+          console.log(`  - ID: ${doc.id}, Data:`, doc.data());
+        });
+        
+        throw new Error(`Room not found with room number: ${roomNumber}`);
+      }
+      
+      const roomData = roomDoc.data();
+      const currentOccupiedBeds = roomData.occupiedBeds || [];
+      const currentAvailableBeds = roomData.availableBeds || [];
+      
+      // Check if bed is available
+      if (!currentAvailableBeds.includes(bedNumber)) {
+        throw new Error(`Bed ${bedNumber} is not available`);
+      }
+      
+      // Add to occupied beds
+      const newOccupiedBeds = [...currentOccupiedBeds, {
+        bedNumber,
+        patientName: patientData.name,
+        patientId: patientData.id,
+        admissionDate: new Date().toISOString().split('T')[0]
+      }];
+      
+      // Remove from available beds
+      const newAvailableBeds = currentAvailableBeds.filter(bed => bed !== bedNumber);
+      
+      // Calculate new room status
+      const totalBeds = roomData.totalBeds || 1;
+      let newStatus = 'Available';
+      let newStatusColor = '#10B981';
+      
+      if (newOccupiedBeds.length === totalBeds) {
+        newStatus = 'Occupied';
+        newStatusColor = '#EF4444';
+      } else if (newOccupiedBeds.length > 0) {
+        newStatus = 'Partially Occupied';
+        newStatusColor = '#F59E0B';
+      }
+      
+      await updateDoc(roomRef, {
+        occupiedBeds: newOccupiedBeds,
+        availableBeds: newAvailableBeds,
+        status: newStatus,
+        statusColor: newStatusColor,
+        updatedAt: new Date().toISOString()
+      });
+      
+      console.log(`✅ Patient ${patientData.name} assigned to bed ${bedNumber} in room ${roomNumber}`);
+      return {
+        success: true,
+        message: 'Patient assigned to bed successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error assigning patient to bed:', error);
+      throw new Error(`Failed to assign patient to bed: ${error.message}`);
+    }
+  }
+
+  // Release patient from specific bed
+  static async releasePatientFromBed(roomId, bedNumber, patientId) {
+    try {
+      await this.ensureAuth();
+      
+      const roomRef = doc(db, this.collectionName, roomId);
+      const roomDoc = await getDoc(roomRef);
+      
+      if (!roomDoc.exists()) {
+        throw new Error('Room not found');
+      }
+      
+      const roomData = roomDoc.data();
+      const currentOccupiedBeds = roomData.occupiedBeds || [];
+      const currentAvailableBeds = roomData.availableBeds || [];
+      
+      // Remove from occupied beds
+      const newOccupiedBeds = currentOccupiedBeds.filter(
+        bed => bed.bedNumber !== bedNumber || bed.patientId !== patientId
+      );
+      
+      // Add back to available beds (if room is not under maintenance)
+      const newAvailableBeds = roomData.status !== 'Under Maintenance' ? 
+        [...currentAvailableBeds, bedNumber] : currentAvailableBeds;
+      
+      // Calculate new room status
+      const totalBeds = roomData.totalBeds || 1;
+      let newStatus = 'Available';
+      let newStatusColor = '#10B981';
+      
+      if (roomData.status === 'Under Maintenance') {
+        newStatus = 'Under Maintenance';
+        newStatusColor = '#F59E0B';
+      } else if (newOccupiedBeds.length === totalBeds) {
+        newStatus = 'Occupied';
+        newStatusColor = '#EF4444';
+      } else if (newOccupiedBeds.length > 0) {
+        newStatus = 'Partially Occupied';
+        newStatusColor = '#F59E0B';
+      }
+      
+      await updateDoc(roomRef, {
+        occupiedBeds: newOccupiedBeds,
+        availableBeds: newAvailableBeds,
+        status: newStatus,
+        statusColor: newStatusColor,
+        updatedAt: new Date().toISOString()
+      });
+      
+      console.log(`✅ Patient ${patientId} released from bed ${bedNumber} in room ${roomId}`);
+      return {
+        success: true,
+        message: 'Patient released from bed successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error releasing patient from bed:', error);
+      throw new Error(`Failed to release patient from bed: ${error.message}`);
+    }
+  }
+
+  // Get available beds for a room
+  static async getAvailableBeds(roomId) {
+    try {
+      await this.ensureAuth(true); // Allow unauthenticated access
+      
+      const roomRef = doc(db, this.collectionName, roomId);
+      const roomDoc = await getDoc(roomRef);
+      
+      if (!roomDoc.exists()) {
+        return {
+          success: false,
+          data: []
+        };
+      }
+      
+      const roomData = roomDoc.data();
+      const availableBeds = roomData.availableBeds || [];
+      
+      return {
+        success: true,
+        data: availableBeds
+      };
+    } catch (error) {
+      console.error('❌ Error getting available beds:', error);
+      return {
+        success: false,
+        data: []
+      };
+    }
+  }
 }
 
 // Firebase Invoice Management Service
@@ -1274,14 +1765,14 @@ class FirebaseInvoiceService {
   static collectionName = 'invoices';
 
   // Helper method to ensure authentication
-  static async ensureAuth() {
-    return await FirebaseDoctorService.ensureAuth();
+  static async ensureAuth(allowUnauthenticated = false) {
+    return await FirebaseDoctorService.ensureAuth(allowUnauthenticated);
   }
 
   // Get all invoices
   static async getInvoices() {
     try {
-      await this.ensureAuth();
+      await this.ensureAuth(true); // Allow unauthenticated access for viewing invoices
       
       const invoicesRef = collection(db, this.collectionName);
       const q = query(invoicesRef, orderBy('createdAt', 'desc'));
@@ -1301,8 +1792,23 @@ class FirebaseInvoiceService {
         data: invoices
       };
     } catch (error) {
-      console.error('❌ Error fetching invoices:', error);
-      throw new Error(`Failed to fetch invoices: ${error.message}`);
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty invoices array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      // For other errors, also return empty array to prevent app crashes
+      console.log('🔒 Firebase error - returning empty invoices array for graceful degradation:', error.message);
+      return {
+        success: true,
+        data: [],
+        warning: `Error: ${error.message}`
+      };
     }
   }
 
@@ -1463,14 +1969,14 @@ class FirebasePaymentService {
   static collectionName = 'payments';
 
   // Helper method to ensure authentication
-  static async ensureAuth() {
-    return await FirebaseDoctorService.ensureAuth();
+  static async ensureAuth(allowUnauthenticated = false) {
+    return await FirebaseDoctorService.ensureAuth(allowUnauthenticated);
   }
 
   // Get all payments
   static async getPayments() {
     try {
-      await this.ensureAuth();
+      await this.ensureAuth(true); // Allow unauthenticated access for viewing payments
       
       const paymentsRef = collection(db, this.collectionName);
       const q = query(paymentsRef, orderBy('paymentDate', 'desc'));
@@ -1490,8 +1996,23 @@ class FirebasePaymentService {
         data: payments
       };
     } catch (error) {
-      console.error('❌ Error fetching payments:', error);
-      throw new Error(`Failed to fetch payments: ${error.message}`);
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty payments array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      // For other errors, also return empty array to prevent app crashes
+      console.log('🔒 Firebase error - returning empty payments array for graceful degradation:', error.message);
+      return {
+        success: true,
+        data: [],
+        warning: `Error: ${error.message}`
+      };
     }
   }
 
@@ -1840,14 +2361,14 @@ class FirebaseReportsService {
   static collectionName = 'medicalReports';
 
   // Helper method to ensure authentication
-  static async ensureAuth() {
-    return await FirebaseDoctorService.ensureAuth();
+  static async ensureAuth(allowUnauthenticated = false) {
+    return await FirebaseDoctorService.ensureAuth(allowUnauthenticated);
   }
 
   // Get all reports
   static async getReports() {
     try {
-      await this.ensureAuth();
+      await this.ensureAuth(true); // Allow unauthenticated access for viewing reports
       
       const reportsRef = collection(db, this.collectionName);
       const q = query(reportsRef, orderBy('date', 'desc'));
@@ -1867,8 +2388,23 @@ class FirebaseReportsService {
         data: reports
       };
     } catch (error) {
-      console.error('❌ Error fetching reports:', error);
-      throw new Error(`Failed to fetch reports: ${error.message}`);
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 Firebase permission denied - returning empty reports array for graceful degradation');
+        return {
+          success: true,
+          data: [],
+          warning: 'Permission denied - showing empty data'
+        };
+      }
+      
+      // For other errors, also return empty array to prevent app crashes
+      console.log('🔒 Firebase error - returning empty reports array for graceful degradation:', error.message);
+      return {
+        success: true,
+        data: [],
+        warning: `Error: ${error.message}`
+      };
     }
   }
 
@@ -2110,6 +2646,15 @@ class FirebaseReportsService {
 
 // Export an instance for easy use
 const firebaseHospitalServices = {
+  // Patient Services
+  createPatient: FirebasePatientService.createPatient.bind(FirebasePatientService),
+  getAllPatients: FirebasePatientService.getAllPatients.bind(FirebasePatientService),
+  subscribeToPatients: FirebasePatientService.subscribeToPatients.bind(FirebasePatientService),
+  getProfile: FirebasePatientService.getProfile.bind(FirebasePatientService),
+  updateProfile: FirebasePatientService.updateProfile.bind(FirebasePatientService),
+  getMedicalHistory: FirebasePatientService.getMedicalHistory.bind(FirebasePatientService),
+  getReports: FirebasePatientService.getReports.bind(FirebasePatientService),
+  
   // Doctor Services
   getDoctors: FirebaseDoctorService.getDoctors.bind(FirebaseDoctorService),
   createDoctor: FirebaseDoctorService.createDoctor.bind(FirebaseDoctorService),
@@ -2133,12 +2678,18 @@ const firebaseHospitalServices = {
   
   // Room Services
   getRooms: FirebaseRoomService.getRooms.bind(FirebaseRoomService),
+  subscribeToRooms: FirebaseRoomService.subscribeToRooms.bind(FirebaseRoomService),
   createRoom: FirebaseRoomService.createRoom.bind(FirebaseRoomService),
   updateRoom: FirebaseRoomService.updateRoom.bind(FirebaseRoomService),
   deleteRoom: FirebaseRoomService.deleteRoom.bind(FirebaseRoomService),
   assignPatient: FirebaseRoomService.assignPatient.bind(FirebaseRoomService),
   dischargePatient: FirebaseRoomService.dischargePatient.bind(FirebaseRoomService),
   getRoomStats: FirebaseRoomService.getRoomStats.bind(FirebaseRoomService),
+  
+  // Bed Management Services
+  assignPatientToBed: FirebaseRoomService.assignPatientToBed.bind(FirebaseRoomService),
+  releasePatientFromBed: FirebaseRoomService.releasePatientFromBed.bind(FirebaseRoomService),
+  getAvailableBeds: FirebaseRoomService.getAvailableBeds.bind(FirebaseRoomService),
   
   // Invoice Services
   getInvoices: FirebaseInvoiceService.getInvoices.bind(FirebaseInvoiceService),

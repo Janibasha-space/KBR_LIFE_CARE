@@ -211,6 +211,17 @@ export class RoomService {
     return await this.getRooms();
   }
 
+  // Subscribe to real-time rooms updates
+  static subscribeToRooms(callback) {
+    if (ApiService.useFirebase) {
+      return FirebaseRoomService.subscribeToRooms(callback);
+    }
+    
+    // For non-Firebase fallback, we could set up polling or return null
+    console.warn('Real-time rooms subscription only available with Firebase');
+    return null;
+  }
+
   // Create new room
   static async createRoom(roomData) {
     if (ApiService.useFirebase) {
@@ -265,6 +276,34 @@ export class RoomService {
     }
     
     return ApiService.get('/rooms/stats');
+  }
+
+  // Assign patient to specific bed
+  static async assignPatientToBed(roomId, bedNumber, patientData) {
+    if (ApiService.useFirebase) {
+      return await FirebaseRoomService.assignPatientToBed(roomId, bedNumber, patientData);
+    }
+    
+    return ApiService.post(`/rooms/${roomId}/beds/${bedNumber}/assign`, patientData);
+  }
+
+  // Release patient from specific bed
+  static async releasePatientFromBed(roomId, bedNumber, patientId) {
+    if (ApiService.useFirebase) {
+      return await FirebaseRoomService.releasePatientFromBed(roomId, bedNumber, patientId);
+    }
+    
+    return ApiService.post(`/rooms/${roomId}/beds/${bedNumber}/release`, { patientId });
+  }
+
+  // Get available beds for a room
+  static async getAvailableBeds(roomId) {
+    if (ApiService.useFirebase) {
+      const result = await FirebaseRoomService.getAvailableBeds(roomId);
+      return result.data;
+    }
+    
+    return ApiService.get(`/rooms/${roomId}/beds/available`);
   }
 }
 

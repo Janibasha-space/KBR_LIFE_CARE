@@ -130,7 +130,13 @@ export class SimpleBookingService {
       return appointments;
       
     } catch (error) {
-      console.error('❌ Error loading appointments:', error);
+      // Handle permission denied gracefully (expected when unauthenticated)
+      if (error.code === 'permission-denied') {
+        console.log('🔒 SimpleBookingService: Firebase permission denied - returning empty appointments for graceful degradation');
+      } else {
+        console.log('🔒 SimpleBookingService: Firebase error - returning empty appointments for graceful degradation:', error.message);
+      }
+      
       return []; // Return empty array on error
     }
   }

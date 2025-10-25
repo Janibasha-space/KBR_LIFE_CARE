@@ -366,7 +366,7 @@ const PatientPaymentInvoicesScreen = ({ route, navigation }) => {
       {/* Payments List */}
       <FlatList
         data={allPayments || []}
-        keyExtractor={(item) => item.id || item.index || Math.random().toString()}
+        keyExtractor={(item, index) => item.id || item.index || `payment-invoice-${index}-${Math.random().toString(36).substr(2, 9)}`}
         renderItem={({ item }) => <PaymentCard payment={item} />}
         contentContainerStyle={styles.paymentsList}
         showsVerticalScrollIndicator={false}

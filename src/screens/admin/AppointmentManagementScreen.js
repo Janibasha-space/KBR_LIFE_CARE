@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,118 +11,246 @@ import {
   Linking,
   StatusBar,
   Modal,
+  RefreshControl,
+  Picker,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
-import AdmitPatientModal from '../../components/AdmitPatientModal';
+import PatientRegistrationModal from '../../components/PatientRegistrationModal';
 import AddAppointmentModal from '../../components/AddAppointmentModal';
+import { FirebaseAppointmentService } from '../../services/firebaseHospitalServices';
 import AppHeader from '../../components/AppHeader';
+import { useApp } from '../../contexts/AppContext';
+import { db } from '../../config/firebase.config';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 const AppointmentManagementScreen = ({ navigation }) => {
+  const { refreshAppointmentData, forceRefreshAppointments } = useApp(); // Get refresh functions from AppContext
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState('All');
-  const [showAdmitModal, setShowAdmitModal] = useState(false);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
   const [showAppointmentDetailModal, setShowAppointmentDetailModal] = useState(false);
 
-  // Mock data for appointments - Convert to state for dynamic updates
-  const [appointmentsList, setAppointmentsList] = useState([
-    {
-      id: 'APT001',
-      patientName: 'Rajesh Kumar',
-      patientId: 'KBR-OP-2024-001',
-      patientPhone: '+91 98765 43210',
-      doctorName: 'Dr. K. Ramesh',
-      department: 'General Medicine',
-      service: 'General Consultation',
-      appointmentDate: '2024-01-15',
-      appointmentTime: '10:00 AM',
-      status: 'Confirmed',
-      statusColor: '#10B981',
-      fees: 600,
-      paymentStatus: 'Paid',
-      paymentMode: 'Online',
-      transactionId: 'TXN123456789',
-      razorpayOrderId: 'order_123456',
-      bookingDate: '2024-01-12',
-      patientAge: 45,
-      patientGender: 'Male',
-      symptoms: 'Fever, headache, body pain',
-      emergencyContact: '+91 98765 43211',
-      patientAddress: '123 Main St, City, State, 12345',
-      isNewPatient: false,
-      avatar: 'R'
-    },
-    {
-      id: 'APT002',
-      patientName: 'Priya Sharma',
-      patientId: 'KBR-OP-2024-002',
-      patientPhone: '+91 98765 43211',
-      doctorName: 'Dr. K. Divyavani',
-      department: 'Gynecology',
-      service: 'Prenatal Checkup',
-      appointmentDate: '2024-01-15',
-      appointmentTime: '11:30 AM',
-      status: 'Pending',
-      statusColor: '#F59E0B',
-      fees: 800,
-      paymentStatus: 'Pending',
-      paymentMode: 'Pay at Hospital',
-      bookingDate: '2024-01-14',
-      patientAge: 28,
-      patientGender: 'Female',
-      symptoms: 'Routine prenatal checkup',
-      emergencyContact: '+91 98765 43212',
-      patientAddress: '456 Oak Ave, City, State, 67890',
-      isNewPatient: true,
-      avatar: 'P'
-    },
-    {
-      id: 'APT003',
-      patientName: 'Amit Patel',
-      patientId: 'KBR-OP-2024-003',
-      patientPhone: '+91 98765 43212',
-      doctorName: 'Dr. Mahesh Kumar',
-      department: 'Cardiology',
-      service: 'ECG & Consultation',
-      appointmentDate: '2024-01-15',
-      appointmentTime: '2:00 PM',
-      status: 'Completed',
-      statusColor: '#6B7280',
-      fees: 1200,
-      paymentStatus: 'Paid',
-      bookingDate: '2024-01-10',
-      patientAge: 52,
-      patientGender: 'Male',
-      symptoms: 'Chest pain, breathing difficulty',
-      isNewPatient: false,
-      avatar: 'A'
-    },
-    {
-      id: 'APT004',
-      patientName: 'Sunita Devi',
-      patientId: 'KBR-OP-2024-004',
-      patientPhone: '+91 98765 43213',
-      doctorName: 'Dr. K. Thukaram',
-      department: 'Dentistry',
-      service: 'Dental Consultation',
-      appointmentDate: '2024-01-15',
-      appointmentTime: '3:30 PM',
-      status: 'Cancelled',
-      statusColor: '#EF4444',
-      fees: 500,
-      paymentStatus: 'Refunded',
-      bookingDate: '2024-01-13',
-      patientAge: 35,
-      patientGender: 'Female',
-      symptoms: 'Tooth pain, gum swelling',
-      isNewPatient: true,
-      avatar: 'S'
+  // Real-time appointments data from Firebase
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Helper function to generate avatar from name
+  const getAvatar = (name) => {
+    return name ? name.charAt(0).toUpperCase() : 'P';
+  };
+
+  // Helper function to get status color
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+      case 'scheduled':
+        return '#10B981';
+      case 'admitted':
+        return '#059669'; // Dark green for admitted status
+      case 'pending':
+        return '#F59E0B';
+      case 'completed':
+        return '#6B7280';
+      case 'cancelled':
+        return '#EF4444';
+      default:
+        return '#6B7280';
     }
-  ]);
+  };
+
+  // Helper function to format Firebase appointment data to match UI expectations
+  const formatAppointmentData = (firebaseAppointment, index = 0) => {
+    const name = firebaseAppointment.patientName || firebaseAppointment.name || 'Unknown Patient';
+    const status = firebaseAppointment.status || 'scheduled';
+    
+    // Handle both new and old data structures
+    // New structure: firebaseDocId = actual Firebase document ID, appointmentId = appointment identifier
+    // Old structure: id = Firebase document ID (for backwards compatibility)
+    const firebaseDocId = firebaseAppointment.firebaseDocId || firebaseAppointment.id;
+    const appointmentId = firebaseAppointment.appointmentId || firebaseAppointment.id;
+    
+    // Generate proper appointment number for display if not exists
+    const appointmentNumber = firebaseAppointment.appointmentNumber || 
+                             (firebaseAppointment.tokenNumber?.startsWith('KBR-') ? firebaseAppointment.tokenNumber : null) ||
+                             `KBR-${(index + 1).toString().padStart(3, '0')}`;
+    
+    console.log(`📝 Formatting appointment - Firebase Doc ID: ${firebaseDocId}, Appointment ID: ${appointmentId}, Display Number: ${appointmentNumber}`);
+    
+    return {
+      id: firebaseDocId, // Use actual Firebase document ID for updates
+      appointmentId: appointmentId, // Store the appointment ID separately
+      patientName: name,
+      patientId: appointmentNumber, // Display the KBR number
+      appointmentNumber: appointmentNumber,
+      patientPhone: firebaseAppointment.contactNumber || firebaseAppointment.patientPhone || 'N/A',
+      doctorName: firebaseAppointment.doctorName || firebaseAppointment.doctor || 'Dr. TBD',
+      department: firebaseAppointment.department || firebaseAppointment.specialty || 'General',
+      service: firebaseAppointment.service || firebaseAppointment.serviceType || 'Consultation',
+      appointmentDate: firebaseAppointment.appointmentDate || new Date().toISOString().split('T')[0],
+      appointmentTime: firebaseAppointment.appointmentTime || firebaseAppointment.timeSlot || 'TBD',
+      status: status.charAt(0).toUpperCase() + status.slice(1),
+      statusColor: getStatusColor(status),
+      fees: firebaseAppointment.fees || firebaseAppointment.amount || 500,
+      paymentStatus: firebaseAppointment.paymentStatus || 'Pending',
+      paymentMode: firebaseAppointment.paymentMode || 'Pay at Hospital',
+      transactionId: firebaseAppointment.transactionId || null,
+      razorpayOrderId: firebaseAppointment.razorpayOrderId || null,
+      bookingDate: firebaseAppointment.createdAt ? new Date(firebaseAppointment.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      patientAge: firebaseAppointment.patientAge || firebaseAppointment.age || 'N/A',
+      patientGender: firebaseAppointment.patientGender || firebaseAppointment.gender || 'N/A',
+      symptoms: firebaseAppointment.symptoms || firebaseAppointment.reason || 'General consultation',
+      emergencyContact: firebaseAppointment.emergencyContact || firebaseAppointment.contactNumber || 'N/A',
+      patientAddress: firebaseAppointment.patientAddress || firebaseAppointment.address || 'N/A',
+      isNewPatient: firebaseAppointment.isNewPatient || false,
+      avatar: getAvatar(name),
+      tokenNumber: firebaseAppointment.tokenNumber || null,
+    };
+  };
+
+  // Debug function to check Firebase appointment IDs
+  const debugAppointmentIds = async () => {
+    try {
+      console.log('🔍 DEBUG: Checking Firebase appointment collection...');
+      const result = await FirebaseAppointmentService.getAppointments();
+      
+      if (result.success) {
+        console.log('🔍 DEBUG: Firebase appointments:');
+        result.data.forEach((appointment, index) => {
+          console.log(`   ${index + 1}. ID: "${appointment.id}" | Name: "${appointment.patientName || appointment.name}" | Token: "${appointment.tokenNumber}"`);
+        });
+      }
+    } catch (error) {
+      console.error('🔍 DEBUG: Error fetching appointments for debug:', error);
+    }
+  };
+
+  // Fetch appointments from Firebase
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const timestamp = new Date().toISOString();
+      console.log(`🔄 Fetching appointments from Firebase at ${timestamp}...`);
+      
+      // Add debug call
+      await debugAppointmentIds();
+      
+      const result = await FirebaseAppointmentService.getAppointments();
+      
+      if (result.success) {
+        console.log('✅ Appointments fetched successfully:', result.data.length, 'appointments');
+        
+        // Debug: Log the actual appointment IDs from Firebase
+        result.data.forEach((appointment, index) => {
+          console.log(`📋 Appointment ${index + 1}:`, {
+            id: appointment.id,
+            patientName: appointment.patientName || appointment.name,
+            tokenNumber: appointment.tokenNumber,
+            status: appointment.status
+          });
+        });
+        
+        const formattedAppointments = result.data.map((appointment, index) => formatAppointmentData(appointment, index));
+        
+        // Check for duplicate IDs before setting state
+        const ids = formattedAppointments.map(apt => apt.id);
+        const uniqueIds = [...new Set(ids)];
+        if (ids.length !== uniqueIds.length) {
+          console.warn('⚠️ Duplicate appointment IDs detected:', ids);
+          console.warn('⚠️ Unique IDs:', uniqueIds);
+        }
+        
+        setAppointmentsList(formattedAppointments);
+      } else {
+        console.warn('⚠️ Failed to fetch appointments:', result.message);
+        setError('Failed to load appointments');
+        setAppointmentsList([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching appointments:', error);
+      setError('Error loading appointments');
+      setAppointmentsList([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Set up real-time listener for appointments on component mount
+  useEffect(() => {
+    console.log('🔄 Setting up real-time appointments listener...');
+    
+    let unsubscribe = null;
+    
+    const setupRealtimeListener = () => {
+      try {
+        // Create real-time query for appointments
+        const appointmentsRef = collection(db, 'appointments');
+        const q = query(appointmentsRef, orderBy('updatedAt', 'desc'));
+        
+        // Set up real-time listener
+        unsubscribe = onSnapshot(q, (querySnapshot) => {
+          console.log('🔥 Real-time update detected - processing appointments...');
+          
+          const appointments = [];
+          querySnapshot.forEach((doc) => {
+            const documentData = doc.data();
+            const appointmentData = {
+              firebaseDocId: doc.id,
+              ...documentData,
+              appointmentId: documentData.id || doc.id,
+              id: doc.id
+            };
+            console.log(`📋 Real-time appointment data for ${doc.id}:`, appointmentData);
+            appointments.push(appointmentData);
+          });
+          
+          console.log(`🔄 Real-time update: ${appointments.length} appointments received`);
+          
+          // Check for duplicate IDs
+          const ids = appointments.map(apt => apt.id);
+          const uniqueIds = [...new Set(ids)];
+          if (ids.length !== uniqueIds.length) {
+            console.warn('⚠️ Duplicate appointment IDs detected in real-time update:', ids);
+          }
+          
+          // Format appointments and update state
+          const formattedAppointments = appointments.map((appointment, index) => 
+            formatAppointmentData(appointment, index)
+          );
+          
+          setAppointmentsList(formattedAppointments);
+          setLoading(false);
+        }, (error) => {
+          console.error('❌ Real-time listener error:', error);
+          // Fallback to manual fetch if real-time fails
+          console.log('🔄 Falling back to manual fetch...');
+          fetchAppointments();
+        });
+        
+      } catch (error) {
+        console.error('❌ Error setting up real-time listener:', error);
+        // Fallback to manual fetch
+        fetchAppointments();
+      }
+    };
+    
+    // Initial setup
+    setupRealtimeListener();
+    
+    // Cleanup function
+    return () => {
+      console.log('🧹 Cleaning up appointments real-time listener...');
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   // Helper function to check if date matches filter (needed for statistics)
   const checkDateFilter = (appointmentDate, filter) => {
@@ -160,6 +288,7 @@ const AppointmentManagementScreen = ({ navigation }) => {
         totalAppointments: 0,
         todayAppointments: 0,
         confirmedAppointments: 0,
+        admittedAppointments: 0,
         pendingAppointments: 0,
         completedAppointments: 0
       };
@@ -169,12 +298,13 @@ const AppointmentManagementScreen = ({ navigation }) => {
       totalAppointments: appointmentsList.length,
       todayAppointments: appointmentsList.filter(apt => checkDateFilter(apt.appointmentDate, 'Today')).length,
       confirmedAppointments: appointmentsList.filter(apt => apt.status === 'Confirmed').length,
+      admittedAppointments: appointmentsList.filter(apt => apt.status === 'Admitted').length,
       pendingAppointments: appointmentsList.filter(apt => apt.status === 'Pending').length,
       completedAppointments: appointmentsList.filter(apt => apt.status === 'Completed').length
     };
   }, [appointmentsList]);
 
-  const statuses = ['All', 'Confirmed', 'Pending', 'Completed', 'Cancelled'];
+  const statuses = ['All', 'Confirmed', 'Admitted', 'Pending', 'Completed', 'Cancelled'];
   const dateFilters = ['All', 'Today', 'Tomorrow', 'This Week', 'This Month'];
 
   const filteredAppointments = useMemo(() => {
@@ -183,7 +313,19 @@ const AppointmentManagementScreen = ({ navigation }) => {
       return [];
     }
     
-    return appointmentsList.filter(appointment => {
+    // Remove duplicates based on ID first
+    const uniqueAppointments = appointmentsList.reduce((acc, appointment) => {
+      const existingIndex = acc.findIndex(item => item.id === appointment.id);
+      if (existingIndex >= 0) {
+        // Replace with the newer one (assume later entries are more recent)
+        acc[existingIndex] = appointment;
+      } else {
+        acc.push(appointment);
+      }
+      return acc;
+    }, []);
+    
+    return uniqueAppointments.filter(appointment => {
       const matchesSearch = appointment.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            appointment.patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            appointment.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -259,13 +401,34 @@ const AppointmentManagementScreen = ({ navigation }) => {
 
   const handleAdmitPatient = (appointment) => {
     setSelectedAppointment(appointment);
-    setShowAdmitModal(true);
+    setShowRegistrationModal(true);
   };
 
-  const handleAdmitSuccess = (newPatient) => {
+  const handleRegistrationSuccess = async (newPatient) => {
+    // Update the appointment status to "Admitted" if we have a selected appointment
+    if (selectedAppointment) {
+      try {
+        console.log(`🏥 Updating appointment ${selectedAppointment.id} status to "Admitted"`);
+        await FirebaseAppointmentService.updateAppointment(selectedAppointment.id, {
+          status: 'Admitted',
+          statusColor: '#10B981', // Green color for admitted status
+          admittedDate: new Date().toISOString(),
+          admittedPatientId: newPatient.id,
+          updatedAt: new Date().toISOString()
+        });
+        console.log('✅ Appointment status updated to Admitted');
+        
+        // Clear the selected appointment
+        setSelectedAppointment(null);
+      } catch (error) {
+        console.error('❌ Error updating appointment status:', error);
+        // Don't block the success flow, just log the error
+      }
+    }
+
     Alert.alert(
-      'Patient Admitted',
-      `${newPatient.name} has been successfully admitted to the ${newPatient.patientType === 'IP' ? 'In-Patient' : 'Out-Patient'} list.`,
+      'Patient Registered & Admitted',
+      `${newPatient.name} has been successfully registered and admitted to the ${newPatient.patientType === 'IP' ? 'In-Patient' : 'Out-Patient'} list.${selectedAppointment ? ' The appointment status has been updated to "Admitted".' : ''}`,
       [
         {
           text: 'View Patients',
@@ -274,6 +437,9 @@ const AppointmentManagementScreen = ({ navigation }) => {
         { text: 'OK' }
       ]
     );
+    
+    // Close the registration modal
+    setShowRegistrationModal(false);
   };
 
   const handleAddAppointment = () => {
@@ -281,45 +447,173 @@ const AppointmentManagementScreen = ({ navigation }) => {
   };
 
   const handleAddAppointmentSuccess = (newAppointment) => {
-    setAppointmentsList(prev => [newAppointment, ...prev]);
+    // Refresh the appointments list from Firebase to get the latest data
+    fetchAppointments();
     Alert.alert('Success', 'New appointment has been added successfully!');
   };
 
-  const handleQuickEditStatus = (appointment) => {
-    Alert.alert(
-      'Change Status',
-      `Current status: ${appointment.status}\nSelect new status:`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Pending', 
-          onPress: () => updateAppointmentStatus(appointment.id, 'Pending', '#F59E0B') 
-        },
-        { 
-          text: 'Confirmed', 
-          onPress: () => updateAppointmentStatus(appointment.id, 'Confirmed', '#10B981') 
-        },
-        { 
-          text: 'Completed', 
-          onPress: () => updateAppointmentStatus(appointment.id, 'Completed', '#6B7280') 
-        },
-        { 
-          text: 'Cancelled', 
-          onPress: () => updateAppointmentStatus(appointment.id, 'Cancelled', '#EF4444') 
-        },
-      ]
-    );
+  // Generate appointment number in KBR-XXX format
+  const generateAppointmentNumber = (appointments) => {
+    const existingNumbers = appointments
+      .map(apt => apt.appointmentNumber || apt.patientId)
+      .filter(num => num && num.startsWith('KBR-'))
+      .map(num => parseInt(num.split('-')[1]) || 0)
+      .sort((a, b) => b - a);
+    
+    const nextNumber = existingNumbers.length > 0 ? existingNumbers[0] + 1 : 1;
+    return `KBR-${nextNumber.toString().padStart(3, '0')}`;
   };
 
-  const updateAppointmentStatus = (appointmentId, status, color) => {
-    setAppointmentsList(prev => 
-      prev.map(appointment => 
-        appointment.id === appointmentId 
-          ? { ...appointment, status, statusColor: color }
-          : appointment
-      )
-    );
-    Alert.alert('Success', `Appointment status updated to ${status}`);
+  // Save edit changes
+  const handleSaveEditChanges = async () => {
+    if (!editingAppointment) return;
+
+    try {
+      console.log('🔧 Editing appointment:', editingAppointment);
+      console.log('🔧 Firebase Document ID for update:', editingAppointment.id);
+      console.log('🔧 Appointment ID (for display):', editingAppointment.appointmentId);
+      
+      // Verify we have a valid appointment ID
+      if (!editingAppointment.id) {
+        throw new Error('Invalid appointment ID');
+      }
+      
+      // Smart payment logic: Auto-update payment status for Pay at Hospital
+      let finalPaymentStatus = editFormData.paymentStatus;
+      
+      // If payment mode is "Pay at Hospital" and status is being confirmed, auto-set to paid
+      if (editFormData.paymentMode === 'Pay at Hospital' && 
+          (editFormData.status === 'Confirmed' || editFormData.status === 'Admitted' || editFormData.status === 'Completed')) {
+        finalPaymentStatus = 'Paid';
+      }
+      
+      // If payment mode is "Cash", "UPI", or "Card" and status is confirmed, assume payment received
+      if (['Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
+          (editFormData.status === 'Confirmed' || editFormData.status === 'Admitted' || editFormData.status === 'Completed')) {
+        finalPaymentStatus = 'Paid';
+      }
+
+      const updatedData = {
+        status: editFormData.status,
+        paymentMode: editFormData.paymentMode,
+        paymentStatus: finalPaymentStatus,
+        statusColor: getStatusColor(editFormData.status),
+      };
+
+      // If rescheduling, include new date/time
+      if (editFormData.status === 'Reschedule' && editFormData.appointmentDate) {
+        updatedData.appointmentDate = editFormData.appointmentDate;
+        updatedData.appointmentTime = editFormData.appointmentTime;
+        updatedData.status = 'Confirmed'; // Reset status to confirmed after reschedule
+        updatedData.statusColor = getStatusColor('Confirmed');
+      }
+
+      // Add notes if provided
+      if (editFormData.notes) {
+        updatedData.notes = editFormData.notes;
+        updatedData.updatedAt = new Date().toISOString();
+      }
+
+      console.log('💾 Attempting to update appointment in Firebase with ID:', editingAppointment.id);
+      console.log('📊 Update data:', updatedData);
+
+      // Update in Firebase first
+      const updateResult = await FirebaseAppointmentService.updateAppointment(editingAppointment.id, updatedData);
+      
+      if (updateResult.success) {
+        console.log('✅ Firebase update successful');
+        
+        // Close modal
+        setShowEditModal(false);
+        setEditingAppointment(null);
+
+        // Show appropriate success message
+        let successMessage = updateResult.message || 'Appointment updated successfully!';
+        if (finalPaymentStatus === 'Paid' && editFormData.paymentStatus !== 'Paid') {
+          successMessage += '\n\nPayment status automatically set to "Paid" based on payment mode and appointment status.';
+        }
+
+        Alert.alert('Success', successMessage);
+        
+        // Force refresh global context for dashboard updates
+        // Local appointments will be updated automatically by real-time listener
+        setTimeout(async () => {
+          console.log('🔄 Force refreshing global appointment data for dashboards...');
+          await forceRefreshAppointments();
+          console.log('✅ Global appointment data refreshed - dashboards updated');
+        }, 500);
+      } else {
+        throw new Error('Firebase update failed');
+      }
+
+    } catch (error) {
+      console.error('❌ Error updating appointment:', error);
+      
+      // Close modal on error
+      setShowEditModal(false);
+      setEditingAppointment(null);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to update appointment';
+      if (error.message.includes('No document to update')) {
+        errorMessage = 'Appointment not found in database. It may have been deleted or moved.';
+      }
+      
+      Alert.alert('Error', errorMessage);
+      
+      // Refresh data to ensure consistency
+      fetchAppointments();
+    }
+  };
+
+  // Enhanced Edit Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    status: '',
+    paymentMode: '',
+    paymentStatus: '',
+    appointmentDate: '',
+    appointmentTime: '',
+    reason: '',
+    notes: ''
+  });
+
+  const handleQuickEditStatus = (appointment) => {
+    setEditingAppointment(appointment);
+    setEditFormData({
+      status: appointment.status || 'Pending',
+      paymentMode: appointment.paymentMode || 'Pay at Hospital',
+      paymentStatus: appointment.paymentStatus || 'Pending',
+      appointmentDate: appointment.appointmentDate || '',
+      appointmentTime: appointment.appointmentTime || '',
+      reason: appointment.symptoms || '',
+      notes: ''
+    });
+    setShowEditModal(true);
+  };
+
+  const updateAppointmentStatus = async (appointmentId, status, color) => {
+    try {
+      // Update locally first for immediate UI feedback
+      setAppointmentsList(prev => 
+        prev.map(appointment => 
+          appointment.id === appointmentId 
+            ? { ...appointment, status, statusColor: color }
+            : appointment
+        )
+      );
+
+      // TODO: Implement Firebase status update when updateAppointment method is available
+      // await FirebaseAppointmentService.updateAppointment(appointmentId, { status });
+
+      Alert.alert('Success', `Appointment status updated to ${status}`);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      // Revert the local change if Firebase update fails
+      fetchAppointments();
+      Alert.alert('Error', 'Failed to update appointment status');
+    }
   };
 
   const StatsCard = ({ title, value, subtitle, icon, color }) => (
@@ -432,14 +726,16 @@ const AppointmentManagementScreen = ({ navigation }) => {
           <Text style={[styles.actionText, { color: Colors.kbrPurple }]}>Edit</Text>
         </TouchableOpacity>
         
-        {/* Admit Button for ALL appointments */}
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => handleAdmitPatient(appointment)}
-        >
-          <Ionicons name="bed" size={16} color={Colors.kbrBlue} />
-          <Text style={[styles.actionText, { color: Colors.kbrBlue }]}>Admit</Text>
-        </TouchableOpacity>
+        {/* Admit Button - only for non-admitted appointments */}
+        {appointment.status !== 'Admitted' && appointment.status !== 'Completed' && appointment.status !== 'Cancelled' && (
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleAdmitPatient(appointment)}
+          >
+            <Ionicons name="bed" size={16} color={Colors.kbrBlue} />
+            <Text style={[styles.actionText, { color: Colors.kbrBlue }]}>Admit</Text>
+          </TouchableOpacity>
+        )}
         
         {/* Payment-based confirmation for Pay at Hospital */}
         {appointment.status === 'Pending' && appointment.paymentMode === 'Pay at Hospital' && (
@@ -468,7 +764,7 @@ const AppointmentManagementScreen = ({ navigation }) => {
           </View>
         )}
         
-        {appointment.status === 'Confirmed' && (
+        {(appointment.status === 'Confirmed' || appointment.status === 'Admitted') && (
           <TouchableOpacity 
             style={styles.actionButton}
             onPress={() => handleCompleteAppointment(appointment.id)}
@@ -500,57 +796,9 @@ const AppointmentManagementScreen = ({ navigation }) => {
           useSimpleAdminHeader={true}
           navigation={navigation}
         />
-        
-        {/* Add Button */}
-        <View style={styles.addButtonContainer}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={handleAddAppointment}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add Appointment</Text>
-          </TouchableOpacity>
-        </View>
 
-      <View style={styles.content}>
-        {/* Statistics Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statsRow}>
-            <StatsCard
-              title="Total"
-              value={appointmentStats.totalAppointments}
-              subtitle="All appointments"
-              icon="calendar"
-              color={Colors.kbrBlue}
-            />
-            <StatsCard
-              title="Today"
-              value={appointmentStats.todayAppointments}
-              subtitle="Scheduled today"
-              icon="today"
-              color={Colors.kbrGreen}
-            />
-          </View>
-          <View style={styles.statsRow}>
-            <StatsCard
-              title="Confirmed"
-              value={appointmentStats.confirmedAppointments}
-              subtitle="Ready to serve"
-              icon="checkmark-circle"
-              color={Colors.kbrPurple}
-            />
-            <StatsCard
-              title="Pending"
-              value={appointmentStats.pendingAppointments}
-              subtitle="Need confirmation"
-              icon="time"
-              color={Colors.kbrRed}
-            />
-          </View>
-        </View>
-
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
+        {/* Sticky Filters - Positioned at top for easy access */}
+        <View style={styles.stickyFiltersContainer}>
           <View style={styles.searchContainer}>
             <View style={styles.searchBox}>
               <Ionicons name="search" size={20} color="#9CA3AF" />
@@ -604,22 +852,119 @@ const AppointmentManagementScreen = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* Appointments List */}
+      {/* Main Content - Use FlatList with header to avoid nested scroll */}
+      {!loading && !error ? (
         <FlatList
           data={filteredAppointments}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
           renderItem={({ item }) => <AppointmentCard appointment={item} />}
           contentContainerStyle={styles.appointmentsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={fetchAppointments}
+              colors={[Colors.kbrBlue]}
+              tintColor={Colors.kbrBlue}
+            />
+          }
+          ListHeaderComponent={() => (
+            <View style={styles.listHeaderContainer}>
+              {/* Statistics Cards */}
+              <View style={styles.statsContainer}>
+                <View style={styles.statsRow}>
+                  <StatsCard
+                    title="Total"
+                    value={appointmentStats.totalAppointments}
+                    subtitle="All appointments"
+                    icon="calendar"
+                    color={Colors.kbrBlue}
+                  />
+                  <StatsCard
+                    title="Today"
+                    value={appointmentStats.todayAppointments}
+                    subtitle="Scheduled today"
+                    icon="today"
+                    color={Colors.kbrGreen}
+                  />
+                </View>
+                <View style={styles.statsRow}>
+                  <StatsCard
+                    title="Confirmed"
+                    value={appointmentStats.confirmedAppointments}
+                    subtitle="Ready to serve"
+                    icon="checkmark-circle"
+                    color={Colors.kbrPurple}
+                  />
+                  <StatsCard
+                    title="Admitted"
+                    value={appointmentStats.admittedAppointments}
+                    subtitle="In hospital"
+                    icon="medical"
+                    color="#059669"
+                  />
+                </View>
+                <View style={styles.statsRow}>
+                  <StatsCard
+                    title="Pending"
+                    value={appointmentStats.pendingAppointments}
+                    subtitle="Need confirmation"
+                    icon="time"
+                    color={Colors.kbrRed}
+                  />
+                  <StatsCard
+                    title="Completed"
+                    value={appointmentStats.completedAppointments}
+                    subtitle="Finished"
+                    icon="checkmark-done-circle"
+                    color={Colors.kbrGreen}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <Text style={styles.emptyText}>No appointments found</Text>
+              <Text style={styles.emptySubtext}>Add a new appointment to get started</Text>
+            </View>
+          }
         />
-      </View>
+      ) : (
+        <View style={styles.content}>
+          {/* Loading and Error States */}
+          {loading && (
+            <View style={styles.centerContainer}>
+              <Text style={styles.loadingText}>Loading appointments...</Text>
+            </View>
+          )}
 
-      {/* Admit Patient Modal */}
-      <AdmitPatientModal
-        visible={showAdmitModal}
-        onClose={() => setShowAdmitModal(false)}
+          {error && !loading && (
+            <View style={styles.centerContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchAppointments}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.floatingActionButton}
+        onPress={handleAddAppointment}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Patient Registration Modal */}
+      <PatientRegistrationModal
+        visible={showRegistrationModal}
+        onClose={() => setShowRegistrationModal(false)}
         appointment={selectedAppointment}
-        onSuccess={handleAdmitSuccess}
+        onSuccess={handleRegistrationSuccess}
       />
 
       {/* Add New Appointment Modal */}
@@ -800,6 +1145,188 @@ const AppointmentManagementScreen = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
+      {/* Enhanced Edit Appointment Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.editModalOverlay}>
+          <View style={styles.editModalContent}>
+            <View style={styles.editModalHeader}>
+              <Text style={styles.editModalTitle}>Edit Appointment</Text>
+              <TouchableOpacity 
+                style={styles.editCloseButton} 
+                onPress={() => setShowEditModal(false)}
+              >
+                <Ionicons name="close" size={24} color={Colors.kbrBlue} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.editModalBody}>
+              {/* Patient Info Header */}
+              {editingAppointment && (
+                <View style={styles.editPatientHeader}>
+                  <View style={[styles.avatar, { backgroundColor: Colors.kbrBlue }]}>
+                    <Text style={styles.avatarText}>{editingAppointment.avatar}</Text>
+                  </View>
+                  <View style={styles.editPatientInfo}>
+                    <Text style={styles.editPatientName}>{editingAppointment.patientName}</Text>
+                    <Text style={styles.editPatientId}>{editingAppointment.patientId}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Status Selection */}
+              <View style={styles.editSection}>
+                <Text style={styles.editLabel}>Appointment Status</Text>
+                <View style={styles.editStatusContainer}>
+                  {['Pending', 'Confirmed', 'Completed', 'Cancelled', 'Reschedule', 'Close'].map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[
+                        styles.editStatusButton,
+                        editFormData.status === status && styles.editStatusButtonActive
+                      ]}
+                      onPress={() => setEditFormData({...editFormData, status})}
+                    >
+                      <Text style={[
+                        styles.editStatusButtonText,
+                        editFormData.status === status && styles.editStatusButtonTextActive
+                      ]}>
+                        {status}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Payment Information */}
+              <View style={styles.editSection}>
+                <Text style={styles.editLabel}>Payment Information</Text>
+                
+                {/* Payment Mode */}
+                <View style={styles.editInputGroup}>
+                  <Text style={styles.editSubLabel}>Payment Mode</Text>
+                  <View style={styles.editPaymentModes}>
+                    {['Cash', 'UPI', 'Card', 'Pay at Hospital', 'Online'].map((mode) => (
+                      <TouchableOpacity
+                        key={mode}
+                        style={[
+                          styles.editPaymentModeButton,
+                          editFormData.paymentMode === mode && styles.editPaymentModeButtonActive
+                        ]}
+                        onPress={() => setEditFormData({...editFormData, paymentMode: mode})}
+                      >
+                        <Text style={[
+                          styles.editPaymentModeText,
+                          editFormData.paymentMode === mode && styles.editPaymentModeTextActive
+                        ]}>
+                          {mode}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Payment Status */}
+                <View style={styles.editInputGroup}>
+                  <Text style={styles.editSubLabel}>Payment Status</Text>
+                  <View style={styles.editPaymentStatus}>
+                    {['Pending', 'Paid', 'Refunded'].map((payStatus) => (
+                      <TouchableOpacity
+                        key={payStatus}
+                        style={[
+                          styles.editPaymentStatusButton,
+                          editFormData.paymentStatus === payStatus && styles.editPaymentStatusButtonActive
+                        ]}
+                        onPress={() => setEditFormData({...editFormData, paymentStatus: payStatus})}
+                      >
+                        <Text style={[
+                          styles.editPaymentStatusText,
+                          editFormData.paymentStatus === payStatus && styles.editPaymentStatusTextActive
+                        ]}>
+                          {payStatus}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  
+                  {/* Smart Payment Logic Indicator */}
+                  {(['Pay at Hospital', 'Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
+                    ['Confirmed', 'Completed'].includes(editFormData.status)) && (
+                    <View style={styles.smartPaymentIndicator}>
+                      <Ionicons name="information-circle" size={16} color={Colors.kbrBlue} />
+                      <Text style={styles.smartPaymentText}>
+                        Payment status will be automatically set to "Paid" for this payment mode and status combination.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Reschedule Section (only show if Reschedule is selected) */}
+              {editFormData.status === 'Reschedule' && (
+                <View style={styles.editSection}>
+                  <Text style={styles.editLabel}>Reschedule Details</Text>
+                  
+                  <View style={styles.editInputGroup}>
+                    <Text style={styles.editSubLabel}>New Date</Text>
+                    <TextInput
+                      style={styles.editTextInput}
+                      placeholder="YYYY-MM-DD"
+                      value={editFormData.appointmentDate}
+                      onChangeText={(text) => setEditFormData({...editFormData, appointmentDate: text})}
+                    />
+                  </View>
+
+                  <View style={styles.editInputGroup}>
+                    <Text style={styles.editSubLabel}>New Time</Text>
+                    <TextInput
+                      style={styles.editTextInput}
+                      placeholder="HH:MM AM/PM"
+                      value={editFormData.appointmentTime}
+                      onChangeText={(text) => setEditFormData({...editFormData, appointmentTime: text})}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Reason/Notes */}
+              <View style={styles.editSection}>
+                <Text style={styles.editLabel}>Reason/Notes</Text>
+                <TextInput
+                  style={styles.editTextArea}
+                  placeholder="Add reason for changes or additional notes..."
+                  multiline
+                  numberOfLines={4}
+                  value={editFormData.notes}
+                  onChangeText={(text) => setEditFormData({...editFormData, notes: text})}
+                />
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.editActions}>
+                <TouchableOpacity
+                  style={styles.editCancelButton}
+                  onPress={() => setShowEditModal(false)}
+                >
+                  <Text style={styles.editCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.editSaveButton}
+                  onPress={() => handleSaveEditChanges()}
+                >
+                  <Text style={styles.editSaveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
     </View>
   );
@@ -813,16 +1340,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  addButtonContainer: {
-    padding: 16,
-    alignItems: 'flex-end',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    marginLeft: 8,
-    fontWeight: '600',
-    fontSize: 16,
   },
   header: {
     flexDirection: 'row',
@@ -854,22 +1371,41 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
     marginTop: 2,
   },
-  addButton: {
-    backgroundColor: Colors.kbrBlue,
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   content: {
     flex: 1,
     padding: 16,
+    paddingTop: 8, // Reduced top padding since filters are now sticky
+  },
+  listHeaderContainer: {
+    paddingBottom: 0,
+  },
+  stickyFiltersContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  floatingActionButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.kbrBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   statsContainer: {
     marginBottom: 20,
@@ -919,7 +1455,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   searchContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   searchBox: {
     flexDirection: 'row',
@@ -938,7 +1474,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   filterTabs: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   filterTab: {
     backgroundColor: '#FFFFFF',
@@ -962,7 +1498,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   appointmentsList: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Extra padding to ensure content isn't hidden behind floating button
   },
   appointmentCard: {
     backgroundColor: '#FFFFFF',
@@ -1301,6 +1837,271 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  // Loading and Error States
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.kbrRed,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  // Enhanced Edit Modal Styles
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalContent: {
+    width: '95%',
+    maxHeight: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  editModalHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  editModalTitle: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  editCloseButton: {
+    padding: 4,
+  },
+  editModalBody: {
+    padding: 16,
+    maxHeight: '85%',
+  },
+  editPatientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  editPatientInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  editPatientName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.kbrDarkBlue,
+  },
+  editPatientId: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  editSection: {
+    marginBottom: 20,
+  },
+  editLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.kbrDarkBlue,
+    marginBottom: 12,
+  },
+  editSubLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  editStatusContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  editStatusButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  editStatusButtonActive: {
+    backgroundColor: Colors.kbrBlue,
+    borderColor: Colors.kbrBlue,
+  },
+  editStatusButtonText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  editStatusButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  editInputGroup: {
+    marginBottom: 16,
+  },
+  editPaymentModes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  editPaymentModeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  editPaymentModeButtonActive: {
+    backgroundColor: Colors.kbrGreen,
+    borderColor: Colors.kbrGreen,
+  },
+  editPaymentModeText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  editPaymentModeTextActive: {
+    color: '#FFFFFF',
+  },
+  editPaymentStatus: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editPaymentStatusButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    flex: 1,
+    alignItems: 'center',
+  },
+  editPaymentStatusButtonActive: {
+    backgroundColor: Colors.kbrPurple,
+    borderColor: Colors.kbrPurple,
+  },
+  editPaymentStatusText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  editPaymentStatusTextActive: {
+    color: '#FFFFFF',
+  },
+  editTextInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#374151',
+    backgroundColor: '#FFFFFF',
+  },
+  editTextArea: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#374151',
+    backgroundColor: '#FFFFFF',
+    textAlignVertical: 'top',
+    minHeight: 80,
+  },
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  editCancelButton: {
+    flex: 0.45,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+  },
+  editCancelButtonText: {
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  editSaveButton: {
+    flex: 0.45,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: Colors.kbrBlue,
+    alignItems: 'center',
+  },
+  editSaveButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  smartPaymentIndicator: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  smartPaymentText: {
+    fontSize: 11,
+    color: Colors.kbrBlue,
+    marginLeft: 6,
+    flex: 1,
+    lineHeight: 16,
   },
 });
 

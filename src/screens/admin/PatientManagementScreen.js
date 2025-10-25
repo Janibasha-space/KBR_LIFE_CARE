@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,8 @@ import {
   FlatList,
   Alert,
   Linking,
-  StatusBar
+  StatusBar,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,11 +20,18 @@ import PatientRegistrationModal from '../../components/PatientRegistrationModal'
 import AppHeader from '../../components/AppHeader';
 
 const PatientManagementScreen = ({ navigation }) => {
-  const { patients, deletePatient } = useApp();
+  const { 
+    patients, 
+    deletePatient, 
+    refreshPatientData, 
+    loadPatients,
+    isLoading 
+  } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Calculate stats from real patient data
   const stats = {
@@ -39,13 +47,36 @@ const PatientManagementScreen = ({ navigation }) => {
     { label: 'OP Only', value: 'OP' },
   ];
 
-  const filteredPatients = patients.filter(patient => {
-    const matchesSearch = patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         patient.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         patient.phone.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === 'All' || patient.patientType === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredPatients = React.useMemo(() => {
+    // First, deduplicate patients by ID to prevent duplicate keys
+    const uniquePatients = patients.filter((patient, index, self) => 
+      index === self.findIndex(p => p.id === patient.id)
+    );
+    
+    if (patients.length !== uniquePatients.length) {
+      console.log(`🔄 PatientManagement: Removed ${patients.length - uniquePatients.length} duplicate patients from ${patients.length} total`);
+    }
+    
+    // Then apply search and filter logic
+    const filtered = uniquePatients.filter(patient => {
+      const matchesSearch = patient.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           patient.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           patient.phone?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = selectedFilter === 'All' || patient.patientType === selectedFilter;
+      return matchesSearch && matchesFilter;
+    });
+    
+    console.log(`📋 PatientManagement: Displaying ${filtered.length} patients after filtering`);
+    
+    // Debug: Log all patient IDs to identify duplicates
+    const patientIds = filtered.map(p => p.id);
+    const duplicateIds = patientIds.filter((id, index) => patientIds.indexOf(id) !== index);
+    if (duplicateIds.length > 0) {
+      console.warn(`🚨 DUPLICATE PATIENT IDs DETECTED: ${duplicateIds.join(', ')}`);
+    }
+    
+    return filtered;
+  }, [patients, searchQuery, selectedFilter]);
 
   const handleViewDetails = (patient) => {
     navigation.navigate('PatientDetails', { patient });
@@ -55,9 +86,28 @@ const PatientManagementScreen = ({ navigation }) => {
     setShowRegistrationModal(true);
   };
 
-  const handleRegistrationSuccess = (newPatient) => {
+  const handleRegistrationSuccess = async (newPatient) => {
     Alert.alert('Success', `Patient ${newPatient.name} registered successfully!`);
+    // Refresh patient data to show the new patient
+    await handleRefresh();
   };
+
+  // Note: Patients are automatically loaded by AppContext initialization
+  // No need for separate useEffect to load patients
+
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshPatientData();
+      console.log('✅ Patient data refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing patient data:', error);
+      Alert.alert('Error', 'Failed to refresh patient data. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshPatientData]);
 
   const handleCall = (patient) => {
     const phoneNumber = patient.phone.replace(/\s/g, '');
@@ -91,9 +141,16 @@ const PatientManagementScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            deletePatient(patient.id);
-            Alert.alert('Success', 'Patient deleted successfully');
+          onPress: async () => {
+            try {
+              await deletePatient(patient.id);
+              Alert.alert('Success', 'Patient deleted successfully');
+              // Refresh the list to reflect the deletion
+              await handleRefresh();
+            } catch (error) {
+              console.error('❌ Error deleting patient:', error);
+              Alert.alert('Error', 'Failed to delete patient. Please try again.');
+            }
           },
         },
       ]
@@ -280,33 +337,70 @@ const PatientManagementScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Register Button */}
-        <TouchableOpacity 
-          style={styles.registerButton}
-          onPress={handleRegisterNewPatient}
-        >
-          <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.registerButtonText}>Register New Patient</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.registerButton}
+            onPress={handleRegisterNewPatient}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.registerButtonText}>Register New Patient</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            <Ionicons 
+              name={refreshing ? "sync" : "refresh"} 
+              size={20} 
+              color="#DC2626"
+              style={refreshing ? styles.spinning : {}}
+            />
+            <Text style={styles.refreshButtonText}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Patient List */}
         <FlatList
           data={filteredPatients}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => {
+            // Create an absolutely unique key using multiple properties
+            const firebaseId = item.firebaseDocId || item._id || item.docId || '';
+            const patientId = item.id || `temp-${index}`;
+            const nameHash = item.name?.replace(/\s/g, '').toLowerCase() || 'unnamed';
+            const uniqueKey = `patient-${firebaseId}-${patientId}-${nameHash}-${index}`;
+            return uniqueKey;
+          }}
           renderItem={({ item }) => <PatientCard patient={item} />}
           contentContainerStyle={styles.patientList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#DC2626']}
+              tintColor="#DC2626"
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Patients Found</Text>
+              <Text style={styles.emptyTitle}>
+                {isLoading ? 'Loading Patients...' : 'No Patients Found'}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                {searchQuery 
-                  ? `No patients match "${searchQuery}"`
-                  : 'Register your first patient to get started'
+                {isLoading 
+                  ? 'Please wait while we load patient data from the database'
+                  : searchQuery 
+                    ? `No patients match "${searchQuery}"`
+                    : 'Register your first patient to get started or pull down to refresh'
                 }
               </Text>
-              {!searchQuery && (
+              {!searchQuery && !isLoading && (
                 <TouchableOpacity 
                   style={styles.emptyActionButton}
                   onPress={handleRegisterNewPatient}
@@ -432,19 +526,43 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginRight: 4,
   },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
+  },
   registerButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#DC2626',
     paddingVertical: 12,
     borderRadius: 8,
-    marginBottom: 16,
   },
   registerButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
     marginLeft: 8,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+  },
+  refreshButtonText: {
+    color: '#DC2626',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  spinning: {
+    transform: [{ rotate: '180deg' }],
   },
   patientList: {
     paddingBottom: 20,

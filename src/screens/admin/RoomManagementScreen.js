@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
@@ -27,6 +28,7 @@ const RoomManagementScreen = ({ navigation }) => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Room form state
   const [roomForm, setRoomForm] = useState({
@@ -48,6 +50,19 @@ const RoomManagementScreen = ({ navigation }) => {
     'Wardrobe', 'Study Table', 'Microwave', 'Balcony', 'Ventilator',
     'Monitor', 'Oxygen', 'Suction', 'Defibrillator', 'ECG Machine'
   ];
+
+  // Refresh function
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // The real-time listeners will automatically update the data
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay for UX
+    } catch (error) {
+      console.error('Error refreshing rooms:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const resetForm = () => {
     setRoomForm({
@@ -84,7 +99,7 @@ const RoomManagementScreen = ({ navigation }) => {
       setLoading(true);
       
       const newRoom = {
-        id: `R${Date.now()}`,
+        id: `R${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         roomNumber: roomForm.roomNumber,
         floor: roomForm.floor,
         type: roomForm.type,
@@ -223,82 +238,34 @@ const RoomManagementScreen = ({ navigation }) => {
     setShowViewModal(true);
   };
 
-  // Mock data for room statistics
-  const roomStats = {
-    totalRooms: 120,
-    occupiedRooms: 85,
-    availableRooms: 35,
-    underMaintenance: 5,
-    occupancyRate: 71
-  };
+  // Real-time statistics calculated from Firebase data
+  const roomStats = useMemo(() => {
+    if (!rooms || !Array.isArray(rooms)) {
+      return {
+        totalRooms: 0,
+        occupiedRooms: 0,
+        availableRooms: 0,
+        underMaintenance: 0,
+        occupancyRate: 0
+      };
+    }
 
-  // Mock data for rooms (will be replaced with context data)
-  const mockRooms = [
-    {
-      id: 'R001',
-      roomNumber: '101',
-      floor: 1,
-      type: 'General Ward',
-      category: 'AC',
-      status: 'Occupied',
-      statusColor: '#EF4444',
-      patientName: 'Rajesh Kumar',
-      patientId: 'KBR-IP-2024-001',
-      admissionDate: '2024-01-10',
-      dailyRate: 2500,
-      amenities: ['AC', 'TV', 'WiFi', 'Bathroom'],
-      bed: 'A',
-      totalBeds: 4
-    },
-    {
-      id: 'R002',
-      roomNumber: '102',
-      floor: 1,
-      type: 'General Ward',
-      category: 'Non-AC',
-      status: 'Available',
-      statusColor: '#10B981',
-      patientName: null,
-      patientId: null,
-      admissionDate: null,
-      dailyRate: 1500,
-      amenities: ['Fan', 'TV', 'Bathroom'],
-      bed: null,
-      totalBeds: 6
-    },
-    {
-      id: 'R003',
-      roomNumber: '201',
-      floor: 2,
-      type: 'Private Room',
-      category: 'Deluxe',
-      status: 'Occupied',
-      statusColor: '#EF4444',
-      patientName: 'Priya Sharma',
-      patientId: 'KBR-IP-2024-002',
-      admissionDate: '2024-01-12',
-      dailyRate: 4500,
-      amenities: ['AC', 'TV', 'WiFi', 'Fridge', 'Sofa', 'Bathroom'],
-      bed: 'Single',
-      totalBeds: 1
-    },
-    {
-      id: 'R004',
-      roomNumber: '301',
-      floor: 3,
-      type: 'ICU',
-      category: 'Critical Care',
-      status: 'Under Maintenance',
-      statusColor: '#F59E0B',
-      patientName: null,
-      patientId: null,
-      admissionDate: null,
-      dailyRate: 8000,
-      amenities: ['Ventilator', 'Monitor', 'AC', 'Oxygen'],
-      bed: 'ICU Bed',
-      totalBeds: 1
-    },
-  ];
+    const totalRooms = rooms.length;
+    const occupiedRooms = rooms.filter(room => 
+      room.status === 'Occupied' || room.status === 'Partially Occupied'
+    ).length;
+    const availableRooms = rooms.filter(room => room.status === 'Available').length;
+    const underMaintenance = rooms.filter(room => room.status === 'Under Maintenance').length;
+    const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+
+    return {
+      totalRooms,
+      occupiedRooms,
+      availableRooms,
+      underMaintenance,
+      occupancyRate
+    };
+  }, [rooms]);
 
   // Filter options
   const statusFilters = [
@@ -313,8 +280,23 @@ const RoomManagementScreen = ({ navigation }) => {
   const floors = ['All', '1st Floor', '2nd Floor', '3rd Floor'];
   const roomTypes = ['All', 'General Ward', 'Private Room', 'ICU', 'VIP Suite'];
 
-  // Use context rooms if available, otherwise fallback to mock data
-  const allRooms = (rooms && rooms.length > 0) ? rooms : mockRooms;
+  // Use Firebase real-time room data
+  const allRooms = useMemo(() => {
+    if (!rooms || !Array.isArray(rooms)) {
+      return [];
+    }
+    
+    // Ensure rooms are unique to prevent duplicate key errors
+    const uniqueRooms = rooms.filter((room, index, self) => 
+      index === self.findIndex(r => r.id === room.id)
+    );
+    
+    if (rooms.length !== uniqueRooms.length) {
+      console.log(`🔄 RoomManagement: Removed ${rooms.length - uniqueRooms.length} duplicate rooms from ${rooms.length} total`);
+    }
+    
+    return uniqueRooms;
+  }, [rooms]);
 
   // Apply filters
   const filteredRooms = allRooms.filter(room => {
@@ -371,7 +353,39 @@ const RoomManagementScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.roomContent}>
-        {room.patientName ? (
+        {/* Bed Occupancy Information */}
+        {(room.occupiedBeds && room.occupiedBeds.length > 0) ? (
+          <View style={styles.patientInfo}>
+            <View style={styles.patientHeader}>
+              <Ionicons name="bed" size={16} color={Colors.textSecondary} />
+              <Text style={styles.patientLabel}>
+                Occupied Beds ({room.occupiedBeds.length}/{room.totalBeds})
+              </Text>
+            </View>
+            {room.occupiedBeds.map((bed, index) => (
+              <View key={`${room.id}-occupied-${bed.bedNumber}-${index}`} style={styles.bedInfoRow}>
+                <View style={styles.bedInfo}>
+                  <Text style={styles.bedNumber}>Bed {bed.bedNumber}</Text>
+                  <Text style={styles.patientName}>{bed.patientName}</Text>
+                  <Text style={styles.patientId}>ID: {bed.patientId}</Text>
+                </View>
+                <Text style={styles.admissionDate}>
+                  {new Date(bed.admissionDate).toLocaleDateString()}
+                </Text>
+              </View>
+            ))}
+            
+            {/* Available Beds */}
+            {(room.availableBeds && room.availableBeds.length > 0) && (
+              <View style={styles.availableBedsSection}>
+                <Text style={styles.availableBedsLabel}>
+                  Available: {room.availableBeds.join(', ')}
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : room.patientName ? (
+          // Legacy support for old room format
           <View style={styles.patientInfo}>
             <View style={styles.patientHeader}>
               <Ionicons name="person" size={16} color={Colors.textSecondary} />
@@ -405,7 +419,7 @@ const RoomManagementScreen = ({ navigation }) => {
 
         <View style={styles.amenitiesList}>
           {room.amenities.slice(0, 3).map((amenity, index) => (
-            <View key={index} style={styles.amenityTag}>
+            <View key={`${room.id}-amenity-${amenity}-${index}`} style={styles.amenityTag}>
               <Text style={styles.amenityText}>{amenity}</Text>
             </View>
           ))}
@@ -560,8 +574,19 @@ const RoomManagementScreen = ({ navigation }) => {
       </View>
 
       {/* Main Scrollable Content - Everything else scrolls together */}
-      <ScrollView style={styles.mainScrollView} showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContentContainer}>
+      <ScrollView 
+        style={styles.mainScrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.kbrBlue]}
+            tintColor={Colors.kbrBlue}
+          />
+        }
+      >
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
@@ -599,9 +624,33 @@ const RoomManagementScreen = ({ navigation }) => {
 
         {/* Rooms List */}
         <View style={styles.contentContainer}>
-          {filteredRooms.map((room) => (
-            <RoomCard key={room.id} room={room} />
-          ))}
+          {filteredRooms.length > 0 ? (
+            filteredRooms.map((room) => (
+              <RoomCard key={room.id} room={room} />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="bed-outline" size={64} color="#9CA3AF" />
+              <Text style={styles.emptyStateTitle}>
+                {allRooms.length === 0 ? 'No Rooms Available' : 'No Matching Rooms'}
+              </Text>
+              <Text style={styles.emptyStateText}>
+                {allRooms.length === 0 
+                  ? 'Add your first room to get started with room management.'
+                  : 'Try adjusting your search or filter criteria.'
+                }
+              </Text>
+              {allRooms.length === 0 && (
+                <TouchableOpacity 
+                  style={styles.emptyStateButton}
+                  onPress={() => setShowAddRoomModal(true)}
+                >
+                  <Ionicons name="add" size={20} color="#FFF" />
+                  <Text style={styles.emptyStateButtonText}>Add First Room</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -1505,6 +1554,38 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  bedInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginVertical: 2,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  bedInfo: {
+    flex: 1,
+  },
+  bedNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F59E0B',
+    marginBottom: 2,
+  },
+  availableBedsSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  availableBedsLabel: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '500',
+  },
   availableInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1952,6 +2033,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
+  },
+
+  // Empty State Styles
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  emptyStateButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

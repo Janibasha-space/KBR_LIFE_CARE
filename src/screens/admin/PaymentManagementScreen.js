@@ -1071,64 +1071,23 @@ Search: "${searchQuery || 'none'}"`,
         )}
       />
       <SafeAreaView style={[styles.safeArea]} edges={['left', 'right']}>
-        {/* Main Container with fixed header and scrollable content */}
-        <View style={{flex: 1}}>
-          {/* Fixed Header Container */}
-          <View style={styles.fixedHeader}>
-            {/* Revenue Statistics */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statsRow}>
-                <View style={[styles.statsCard, { backgroundColor: '#E8F5E8' }]}>
-                  <Text style={styles.statsTitle}>Total Revenue</Text>
-                  <Text style={[styles.statsAmount, { color: '#22C55E' }]}>
-                    ₹{paymentStats.totalRevenue.toLocaleString()}
-                  </Text>
-                  <Text style={styles.statsSubtitle}>{paymentStats.fullyPaidCount} fully paid</Text>
-                </View>
-                
-                <View style={[styles.statsCard, { backgroundColor: '#FFF3CD' }]}>
-                  <Text style={styles.statsTitle}>Pending Dues</Text>
-                  <Text style={[styles.statsAmount, { color: '#EF4444' }]}>
-                    ₹{paymentStats.totalPending.toLocaleString()}
-                  </Text>
-                  <Text style={styles.statsSubtitle}>{paymentStats.pendingCount} pending</Text>
-                </View>
-              </View>
-              
-              <View style={styles.statsRow}>
-                <View style={[styles.statsCard, { backgroundColor: '#E0E7FF' }]}>
-                  <Text style={styles.statsTitle}>Partially Paid</Text>
-                  <Text style={[styles.statsAmount, { color: '#8B5CF6' }]}>
-                    {paymentStats.partiallyPaidCount}
-                  </Text>
-                  <Text style={styles.statsSubtitle}>patients</Text>
-                </View>
-                
-                <View style={[styles.statsCard, { backgroundColor: '#F3F4F6' }]}>
-                  <Text style={styles.statsTitle}>Total Patients</Text>
-                  <Text style={[styles.statsAmount, { color: '#4A90E2' }]}>
-                    {paymentStats.totalPatients}
-                  </Text>
-                  <Text style={styles.statsSubtitle}>with payments</Text>
-                </View>
-              </View>
+        {/* Sticky Filters - Positioned at top for easy access */}
+        <View style={styles.stickyFiltersContainer}>
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={20} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by patient, invoice, or date"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              <TouchableOpacity style={styles.filterIcon}>
+                <Ionicons name="funnel" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
             </View>
-
-            {/* Search and Filter */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={20} color="#9CA3AF" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search by patient, invoice, or date"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-                <TouchableOpacity style={styles.filterIcon}>
-                  <Ionicons name="funnel" size={20} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-              
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabsScrollView}>
               <View style={styles.filterTabs}>
                 {['All', 'Fully Paid', 'Partially Paid', 'Pending'].map((filter) => (
                   <TouchableOpacity
@@ -1148,12 +1107,11 @@ Search: "${searchQuery || 'none'}"`,
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </ScrollView>
           </View>
-          {/* End Fixed Header */}
+        </View>
 
-          {/* Scrollable Content Container - Full remaining height */}
-          <View style={styles.scrollableContent}>
+        {/* Main Content - Use FlatList for everything to avoid nested scroll */}
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <View style={styles.loadingCard}>
@@ -1231,19 +1189,18 @@ Search: "${searchQuery || 'none'}"`,
             ref={flatListRef}
             data={filteredPayments || []}
             keyExtractor={(item, index) => {
-              // Use the pre-generated unique ID or create a fallback with timestamp to guarantee uniqueness
-              return item?.id || `payment-fallback-${index}-${Date.now()}`;
+              // Use the pre-generated unique ID or create a fallback with index and random string to guarantee uniqueness
+              return item?.id || `payment-fallback-${index}-${Math.random().toString(36).substr(2, 9)}`;
             }}
             extraData={[payments?.length || 0, filteredPayments?.length || 0, selectedFilter, searchQuery]}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 12 }}
-            style={{ flex: 1, backgroundColor: '#F5F5F5' }}
+            style={{ backgroundColor: '#F5F5F5', flex: 1 }}
             initialNumToRender={8}
             maxToRenderPerBatch={8}
             windowSize={10}
-            removeClippedSubviews={false} // Disable this option to prevent key-related rendering issues
+            removeClippedSubviews={false}
             scrollEventThrottle={16}
-            // Scroll listener removed
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1253,8 +1210,45 @@ Search: "${searchQuery || 'none'}"`,
               />
             }
             ListHeaderComponent={() => (
-              <View style={styles.listHeader}>
-                {/* Header content removed as requested */}
+              <View style={styles.listHeaderContainer}>
+                {/* Revenue Statistics */}
+                <View style={styles.statsContainer}>
+                  <View style={styles.statsRow}>
+                    <View style={[styles.statsCard, { backgroundColor: '#E8F5E8' }]}>
+                      <Text style={styles.statsTitle}>Total Revenue</Text>
+                      <Text style={[styles.statsAmount, { color: '#22C55E' }]}>
+                        ₹{paymentStats.totalRevenue.toLocaleString()}
+                      </Text>
+                      <Text style={styles.statsSubtitle}>{paymentStats.fullyPaidCount} fully paid</Text>
+                    </View>
+                    
+                    <View style={[styles.statsCard, { backgroundColor: '#FFF3CD' }]}>
+                      <Text style={styles.statsTitle}>Pending Dues</Text>
+                      <Text style={[styles.statsAmount, { color: '#EF4444' }]}>
+                        ₹{paymentStats.totalPending.toLocaleString()}
+                      </Text>
+                      <Text style={styles.statsSubtitle}>{paymentStats.pendingCount} pending</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.statsRow}>
+                    <View style={[styles.statsCard, { backgroundColor: '#E0E7FF' }]}>
+                      <Text style={styles.statsTitle}>Partially Paid</Text>
+                      <Text style={[styles.statsAmount, { color: '#8B5CF6' }]}>
+                        {paymentStats.partiallyPaidCount}
+                      </Text>
+                      <Text style={styles.statsSubtitle}>patients</Text>
+                    </View>
+                    
+                    <View style={[styles.statsCard, { backgroundColor: '#F3F4F6' }]}>
+                      <Text style={styles.statsTitle}>Total Patients</Text>
+                      <Text style={[styles.statsAmount, { color: '#4A90E2' }]}>
+                        {paymentStats.totalPatients}
+                      </Text>
+                      <Text style={styles.statsSubtitle}>with payments</Text>
+                    </View>
+                  </View>
+                </View>
               </View>
             )}
             renderItem={({ item, index }) => {
@@ -1499,41 +1493,36 @@ Search: "${searchQuery || 'none'}"`,
             }}
           />
         )}
-        </View>
-        {/* End Scrollable Content */}
-      </View>
 
-      {/* Floating Action Button for adding payment */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowAddModal(true)}
-      >
-        <Ionicons name="add" size={24} color="#FFF" />
-      </TouchableOpacity>
+        {/* Floating Action Button for adding payment */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setShowAddModal(true)}
+        >
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
 
-      {/* Scroll to top button removed as requested */}
-
-      {/* Add Payment Modal */}
-      <AddPaymentModal
-        visible={showAddModal}
-        onClose={() => {
-          console.log('Closing payment modal');
-          setShowAddModal(false);
-          // Reset form data when modal is closed
-          setFormData({
-            patientId: '',
-            patientName: '',
-            amount: '',
-            type: 'consultation',
-            paymentMethod: 'cash',
-            description: '',
-            transactionId: '',
-          });
-        }}
-        onSave={handleAddPayment}
-        patients={patients}
-        initialFormData={formData}
-      />
+        {/* Add Payment Modal */}
+        <AddPaymentModal
+          visible={showAddModal}
+          onClose={() => {
+            console.log('Closing payment modal');
+            setShowAddModal(false);
+            // Reset form data when modal is closed
+            setFormData({
+              patientId: '',
+              patientName: '',
+              amount: '',
+              type: 'consultation',
+              paymentMethod: 'cash',
+              description: '',
+              transactionId: '',
+            });
+          }}
+          onSave={handleAddPayment}
+          patients={patients}
+          initialFormData={formData}
+        />
       </SafeAreaView>
     </View>
   );
@@ -1548,6 +1537,32 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background || '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+    paddingTop: 8,
+  },
+  stickyFiltersContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paymentsContent: {
+    flex: 1,
+  },
+  listHeaderContainer: {
+    paddingBottom: 0,
+  },
+  filterTabsScrollView: {
+    marginTop: 8,
   },
   fab: {
     position: 'absolute',

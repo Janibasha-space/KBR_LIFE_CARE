@@ -145,19 +145,37 @@ const AddPatientPaymentModal = ({ visible, onClose, patient, onSuccess }) => {
       </TouchableOpacity>
       
       {showDropdowns[field] && (
-        <View style={styles.dropdownOptions}>
-          {options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.dropdownOption}
-              onPress={() => {
-                setFormData(prev => ({ ...prev, [field]: option }));
-                setShowDropdowns(prev => ({ ...prev, [field]: false }));
-              }}
-            >
-              <Text style={styles.dropdownOptionText}>{option}</Text>
-            </TouchableOpacity>
-          ))}
+        <View 
+          style={styles.dropdownOptions}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+        >
+          <ScrollView 
+            style={styles.dropdownScrollView}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled={true}
+            scrollEnabled={true}
+            bounces={true}
+          >
+            {options && options.length > 0 ? 
+              options.map((option, index) => (
+                <TouchableOpacity
+                  key={`${field}-${index}-${option}`}
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, [field]: option }));
+                    setShowDropdowns(prev => ({ ...prev, [field]: false }));
+                  }}
+                >
+                  <Text style={styles.dropdownOptionText}>{option}</Text>
+                </TouchableOpacity>
+              )) :
+              <View style={styles.emptyDropdownOption}>
+                <Text style={styles.emptyDropdownText}>No options available</Text>
+              </View>
+            }
+          </ScrollView>
         </View>
       )}
     </View>
@@ -182,7 +200,12 @@ const AddPatientPaymentModal = ({ visible, onClose, patient, onSuccess }) => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!Object.values(showDropdowns).some(isOpen => isOpen)}
+          keyboardShouldPersistTaps="always"
+        >
           {/* Patient Payment Summary */}
           {patient.paymentDetails && (
             <View style={styles.summaryCard}>
@@ -550,6 +573,18 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
+    minHeight: 100,
+  },
+  emptyDropdownOption: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  emptyDropdownText: {
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
 

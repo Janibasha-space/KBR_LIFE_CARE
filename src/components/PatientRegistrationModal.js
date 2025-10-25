@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,23 +13,32 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../contexts/AppContext';
+import { FirebasePatientService, FirebaseDoctorService, FirebaseRoomService } from '../services/firebaseHospitalServices';
+import { Colors } from '../constants/theme';
+import ModalDropdown from './ModalDropdown';
 
-const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
-  const { addPatient, doctors = [] } = useApp();
+const PatientRegistrationModal = ({ visible, onClose, onSuccess, appointment }) => {
+  const { addPatient } = useApp();
+  
+  // State for backend data
+  const [doctors, setDoctors] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     patientType: 'OP',
-    fullName: '',
-    age: '',
-    gender: 'Male',
+    fullName: appointment?.patientName || '',
+    age: appointment?.patientAge?.toString() || '',
+    gender: appointment?.patientGender || 'Male',
     bloodGroup: '',
-    phoneNumber: '',
+    phoneNumber: appointment?.patientPhone || appointment?.contactNumber || '',
     emergencyContact: '',
     address: '',
-    doctor: '',
-    department: '',
+    doctor: appointment?.doctorName || '',
+    department: appointment?.department || appointment?.serviceName || '',
     referredBy: '',
-    symptoms: '',
+    symptoms: appointment?.symptoms || appointment?.notes || '',
     allergies: '',
     roomNumber: '',
     bedNumber: '',
@@ -37,17 +46,16 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
     initialPayment: '',
     paymentMethod: 'Cash',
     paymentType: 'Registration Fee',
+    testOption: '',
   });
 
-  const [showDropdowns, setShowDropdowns] = useState({
-    patientType: false,
-    gender: false,
-    doctor: false,
-    department: false,
-    roomNumber: false,
-    bedNumber: false,
-    paymentMethod: false,
-    paymentType: false,
+  const [modalDropdownData, setModalDropdownData] = useState({
+    visible: false,
+    field: '',
+    options: [],
+    title: '',
+    valueKey: 'value',
+    labelKey: 'label'
   });
 
   const patientTypes = [
@@ -59,15 +67,55 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
   
   const departments = [
     'General Medicine',
-    'Cardiology',
+    'Cardiology', 
     'Orthopedics',
     'Gynecology',
     'Pediatrics',
     'Dermatology',
     'ENT',
-    'Ophthalmology',
+    'Ophthalmology', 
     'Dentistry',
     'Emergency',
+    'Neurology',
+    'Psychiatry',
+    'Radiology',
+    'Pathology',
+    'Anesthesiology',
+    'Surgery',
+    'Oncology',
+    'Nephrology',
+    'Gastroenterology',
+    'Pulmonology',
+    'Urology',
+    'Endocrinology',
+    'Rheumatology',
+    'Hematology',
+    'Immunology',
+    'Infectious Diseases',
+    'Physical Medicine',
+    'Rehabilitation',
+    'Preventive Medicine',
+    'Sports Medicine',
+    'Occupational Medicine',
+    'Geriatrics',
+    'Palliative Care',
+    'Critical Care',
+    'Plastic Surgery',
+    'Vascular Surgery',
+    'Thoracic Surgery',
+    'Neurosurgery',
+    'Oral Surgery',
+    'Interventional Radiology',
+  ];
+
+  // Combined test dropdown with many options
+  const testManyOptions = [
+    'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Option 5',
+    'Option 6', 'Option 7', 'Option 8', 'Option 9', 'Option 10',
+    'Option 11', 'Option 12', 'Option 13', 'Option 14', 'Option 15',
+    'Option 16', 'Option 17', 'Option 18', 'Option 19', 'Option 20',
+    'Option 21', 'Option 22', 'Option 23', 'Option 24', 'Option 25',
+    'Option 26', 'Option 27', 'Option 28', 'Option 29', 'Option 30',
   ];
 
   const paymentMethods = ['Cash', 'Card', 'Online', 'UPI', 'Bank Transfer', 'Cheque'];
@@ -84,22 +132,110 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
     'Other',
   ];
 
-  // Available rooms data
-  const availableRooms = [
-    { number: '101', type: 'General', beds: ['A1', 'A2', 'B1', 'B2'] },
-    { number: '102', type: 'General', beds: ['A1', 'A2'] },
-    { number: '103', type: 'General', beds: ['A1', 'B1', 'B2'] },
-    { number: '201', type: 'Private', beds: ['A1'] },
-    { number: '202', type: 'Private', beds: ['A1'] },
-    { number: '203', type: 'Private', beds: ['A1'] },
-    { number: '301', type: 'ICU', beds: ['ICU1', 'ICU2', 'ICU3'] },
-    { number: '302', type: 'ICU', beds: ['ICU1', 'ICU2'] },
-    { number: '401', type: 'Emergency', beds: ['E1', 'E2', 'E3', 'E4'] },
-  ];
+  // Fetch doctors and rooms from backend
+  const fetchBackendData = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Fetching doctors and rooms from Firebase...');
+      
+      // Fetch doctors
+      const doctorsResult = await FirebaseDoctorService.getDoctors();
+      if (doctorsResult.success) {
+        console.log(`✅ Fetched ${doctorsResult.data.length} doctors from Firebase`);
+        setDoctors(doctorsResult.data);
+      } else {
+        console.warn('⚠️ Failed to fetch doctors:', doctorsResult.warning || 'Unknown error');
+        setDoctors([]);
+      }
 
+      // Fetch rooms with available beds
+      const roomsResult = await FirebaseRoomService.getRooms();
+      if (roomsResult.success) {
+        console.log(`✅ Fetched ${roomsResult.data.length} rooms from Firebase`);
+        // Filter only rooms with available beds (available for admission)
+        console.log('🏥 Raw rooms data from Firebase:', roomsResult.data.map(r => ({ id: r.id, roomNumber: r.roomNumber, status: r.status, availableBeds: r.availableBeds })));
+        
+        const availableRooms = roomsResult.data.filter(room => {
+          // Exclude rooms under maintenance or out of order
+          if (room.status === 'Under Maintenance' || room.status === 'Out of Order') {
+            return false;
+          }
+          // Include rooms that have available beds
+          return (room.availableBeds || []).length > 0;
+        }).map(room => ({
+          ...room,
+          // Ensure bed data is properly formatted
+          beds: room.availableBeds || [],
+          bedLabels: room.bedLabels || []
+        }));
+        
+        setRooms(availableRooms);
+        console.log(`✅ ${availableRooms.length} rooms available with beds`);
+        console.log('🏥 Processed available rooms:', availableRooms.map(r => ({ id: r.id, roomNumber: r.roomNumber, availableBeds: r.availableBeds })));
+      } else {
+        console.warn('⚠️ Failed to fetch rooms:', roomsResult.warning || 'Unknown error');
+        // Fallback to empty rooms array if Firebase fails
+        setRooms([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching backend data:', error);
+      // Set empty fallback data
+      setDoctors([]);
+      setRooms([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data when modal opens
+  useEffect(() => {
+    if (visible) {
+      fetchBackendData();
+    }
+  }, [visible]);
+
+  // Update form data when appointment changes
+  useEffect(() => {
+    if (appointment) {
+      setFormData(prevData => ({
+        ...prevData,
+        fullName: appointment.patientName || '',
+        age: appointment.patientAge?.toString() || '',
+        gender: appointment.patientGender || 'Male',
+        phoneNumber: appointment.patientPhone || appointment.contactNumber || '',
+        doctor: appointment.doctorName || '',
+        department: appointment.department || appointment.serviceName || '',
+        symptoms: appointment.symptoms || appointment.notes || '',
+      }));
+    }
+  }, [appointment]);
+
+  // Get available beds for selected room
   const getAvailableBeds = () => {
-    const selectedRoom = availableRooms.find(room => room.number === formData.roomNumber);
-    return selectedRoom ? selectedRoom.beds : [];
+    if (!formData.roomNumber) {
+      console.log('🛏️ No room selected for beds');
+      return [];
+    }
+    
+    const selectedRoom = rooms.find(room => 
+      room.roomNumber === formData.roomNumber || room.roomNumber === formData.roomNumber.toString()
+    );
+    
+    if (!selectedRoom) {
+      console.log('🛏️ Room not found:', formData.roomNumber);
+      return [];
+    }
+    
+    console.log('🛏️ Selected room:', selectedRoom.roomNumber, 'Available beds:', selectedRoom.availableBeds);
+    
+    // Return available beds as string array for dropdown
+    const availableBeds = selectedRoom.availableBeds || selectedRoom.beds || [];
+    
+    // Ensure we return an array of strings for the dropdown
+    const bedOptions = availableBeds.map(bed => typeof bed === 'string' ? bed : bed.bedNumber || bed);
+    
+    console.log('🛏️ Bed options for dropdown:', bedOptions);
+    return bedOptions;
   };
 
   const validateForm = () => {
@@ -149,12 +285,19 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
+    if (saving) return; // Prevent double submission
     if (!validateForm()) return;
 
+    setSaving(true);
     try {
+      // Generate highly unique patient ID to prevent collisions
+      const timestamp = Date.now();
+      const randomPart1 = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const randomPart2 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const uniqueId = `${timestamp}${randomPart1}${randomPart2}`.slice(-10); // Take last 10 digits
       const patientId = formData.patientType === 'IP' 
-        ? `KBR-IP-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`
-        : `KBR-OP-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+        ? `KBR-IP-${new Date().getFullYear()}-${uniqueId}`
+        : `KBR-OP-${new Date().getFullYear()}-${uniqueId}`;
 
       const totalAmount = parseFloat(formData.totalAmount);
       const initialPayment = parseFloat(formData.initialPayment) || 0;
@@ -204,16 +347,76 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
         }],
       };
 
-      // Add room and bed details for IP patients
-      if (formData.patientType === 'IP') {
+      // Add room and bed details for patients (both IP and OP as requested)
+      if (formData.roomNumber && formData.bedNumber) {
         newPatient.room = formData.roomNumber;
         newPatient.bedNo = formData.bedNumber;
         newPatient.admissionDate = newPatient.registrationDate;
-        const selectedRoom = availableRooms.find(room => room.number === formData.roomNumber);
-        newPatient.roomType = selectedRoom?.type || 'General';
+        const selectedRoom = rooms.find(room => 
+          room.roomNumber === formData.roomNumber || room.roomNumber === formData.roomNumber.toString()
+        );
+        console.log('🏥 Selected room data:', JSON.stringify(selectedRoom, null, 2));
+        console.log('🏥 Available rooms:', rooms.map(r => ({ 
+          id: r.id, 
+          roomNumber: r.roomNumber, 
+          hasId: !!r.id, 
+          idType: typeof r.id 
+        })));
+        
+        if (!selectedRoom) {
+          console.error('❌ Room not found. Looking for:', formData.roomNumber);
+          console.error('❌ Available room numbers:', rooms.map(r => r.roomNumber));
+          throw new Error(`Room ${formData.roomNumber} not found in available rooms`);
+        }
+        
+        if (!selectedRoom.id) {
+          console.error('❌ Selected room has no ID:', selectedRoom);
+          throw new Error(`Room ${formData.roomNumber} does not have a valid Firebase ID`);
+        }
+        
+        newPatient.roomType = selectedRoom?.type || selectedRoom?.roomType || 'General';
+        newPatient.roomId = selectedRoom.id;
+        
+        console.log('🆔 Room ID assigned:', newPatient.roomId, 'Type:', typeof newPatient.roomId);
       }
 
-      await addPatient(newPatient);
+      console.log('💾 Saving patient to Firebase...', newPatient.name);
+      
+      // Save patient to Firebase first
+      const firebaseResult = await FirebasePatientService.createPatient(newPatient);
+      
+      if (!firebaseResult.success) {
+        throw new Error('Failed to save patient to Firebase database');
+      }
+      
+      console.log('✅ Patient saved to Firebase successfully');
+
+      // If room and bed are assigned, update the room's bed occupancy
+      if (formData.roomNumber && formData.bedNumber && newPatient.roomId) {
+        try {
+          console.log(`🛏️ Assigning bed ${formData.bedNumber} in room ${formData.roomNumber} to patient ${newPatient.name}`);
+          
+          // Use the new bed assignment system
+          await FirebaseRoomService.assignPatientToBed(
+            newPatient.roomId, 
+            formData.bedNumber, 
+            {
+              id: patientId,
+              name: newPatient.name
+            }
+          );
+          
+          console.log('✅ Bed assigned successfully');
+        } catch (bedError) {
+          console.error('❌ Error assigning bed:', bedError);
+          // Don't fail the registration if bed assignment fails
+          Alert.alert(
+            'Warning',
+            `Patient registered successfully but bed assignment failed: ${bedError.message}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
       
       const paymentMessage = initialPayment > 0 
         ? `\nTotal: ₹${totalAmount} | Paid: ₹${initialPayment} | Due: ₹${totalAmount - initialPayment}` 
@@ -237,24 +440,27 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to register patient. Please try again.');
+      console.error('❌ Error registering patient:', error);
+      Alert.alert('Error', `Failed to register patient: ${error.message}\nPlease try again.`);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleClose = () => {
     setFormData({
       patientType: 'OP',
-      fullName: '',
-      age: '',
-      gender: 'Male',
+      fullName: appointment?.patientName || '',
+      age: appointment?.patientAge?.toString() || '',
+      gender: appointment?.patientGender || 'Male',
       bloodGroup: '',
-      phoneNumber: '',
+      phoneNumber: appointment?.patientPhone || appointment?.contactNumber || '',
       emergencyContact: '',
       address: '',
-      doctor: '',
-      department: '',
+      doctor: appointment?.doctorName || '',
+      department: appointment?.department || appointment?.serviceName || '',
       referredBy: '',
-      symptoms: '',
+      symptoms: appointment?.symptoms || appointment?.notes || '',
       allergies: '',
       roomNumber: '',
       bedNumber: '',
@@ -263,66 +469,61 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
       paymentMethod: 'Cash',
       paymentType: 'Registration Fee',
     });
-    setShowDropdowns({
-      patientType: false,
-      gender: false,
-      doctor: false,
-      department: false,
-      roomNumber: false,
-      bedNumber: false,
-      paymentMethod: false,
-      paymentType: false,
+    setModalDropdownData({
+      visible: false,
+      field: '',
+      options: [],
+      title: '',
+      valueKey: 'value',
+      labelKey: 'label'
     });
+    // Reset backend data
+    setDoctors([]);
+    setRooms([]);
+    setLoading(false);
+    setSaving(false);
     onClose();
+  };
+
+  const openDropdown = (field, options, valueKey = 'value', labelKey = 'label') => {
+    const title = `Select ${field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}`;
+    setModalDropdownData({
+      visible: true,
+      field,
+      options: options && Array.isArray(options) ? options : [],
+      title,
+      valueKey,
+      labelKey
+    });
+  };
+
+  const handleDropdownSelect = (option) => {
+    const { field, valueKey, labelKey } = modalDropdownData;
+    const value = typeof option === 'object' ? option[valueKey] : option;
+    const label = typeof option === 'object' ? option[labelKey] : option;
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      [field]: field === 'doctor' ? label : value,
+      ...(field === 'roomNumber' ? { bedNumber: '' } : {})
+    }));
   };
 
   const renderDropdown = (field, options, valueKey = 'value', labelKey = 'label') => (
     <View style={styles.dropdownContainer}>
       <TouchableOpacity
         style={styles.dropdownButton}
-        onPress={() => setShowDropdowns(prev => ({ ...prev, [field]: !prev[field] }))}
+        onPress={() => openDropdown(field, options, valueKey, labelKey)}
       >
         <Text style={[styles.dropdownText, !formData[field] && styles.placeholderText]}>
-          {formData[field] || `Select ${field}`}
+          {formData[field] || `Select ${field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}`}
         </Text>
         <Ionicons 
-          name={showDropdowns[field] ? "chevron-up" : "chevron-down"} 
+          name="chevron-down" 
           size={16} 
           color="#666" 
         />
       </TouchableOpacity>
-      
-      {showDropdowns[field] && (
-        <View style={styles.dropdownOptions}>
-          {options && Array.isArray(options) && options.map((option, index) => {
-            const value = typeof option === 'object' ? option[valueKey] : option;
-            const label = typeof option === 'object' ? option[labelKey] : option;
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                style={styles.dropdownOption}
-                onPress={() => {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    [field]: value,
-                    // Reset bed number if room changes
-                    ...(field === 'roomNumber' ? { bedNumber: '' } : {})
-                  }));
-                  setShowDropdowns(prev => ({ ...prev, [field]: false }));
-                }}
-              >
-                <Text style={styles.dropdownOptionText}>
-                  {field === 'roomNumber' ? `Room ${value} (${option.type})` : label}
-                </Text>
-                {option.description && (
-                  <Text style={styles.dropdownOptionDescription}>{option.description}</Text>
-                )}
-              </TouchableOpacity>
-            );
-          }) || null}
-        </View>
-      )}
     </View>
   );
 
@@ -335,14 +536,30 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Register New Patient</Text>
+            <Text style={styles.headerTitle}>
+              {appointment ? 'Admit Patient from Appointment' : 'Register New Patient'}
+            </Text>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
             <Ionicons name="close" size={24} color="#666" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+        >
+          {/* Appointment Info Message */}
+          {appointment && (
+            <View style={styles.appointmentInfo}>
+              <Ionicons name="information-circle" size={20} color={Colors.kbrBlue} />
+              <Text style={styles.appointmentInfoText}>
+                Pre-filled with appointment details for {appointment.patientName}
+              </Text>
+            </View>
+          )}
+
           {/* Patient Type */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
@@ -414,6 +631,15 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
             />
           </View>
 
+          {/* Test Dropdown with Many Options */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>
+              Test Dropdown (Scroll Test)
+            </Text>
+            {renderDropdown('testOption', testManyOptions)}
+            <Text style={styles.helpText}>This dropdown has 30 options - test scrolling</Text>
+          </View>
+
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Emergency Contact</Text>
             <TextInput
@@ -443,43 +669,73 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
               <Text style={styles.sectionLabel}>
                 Doctor <Text style={styles.required}>*</Text>
               </Text>
-              {renderDropdown('doctor', doctors, 'name', 'name')}
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading doctors...</Text>
+                </View>
+              ) : (
+                renderDropdown('doctor', doctors, 'id', 'name')
+              )}
+              <Text style={styles.helpText}>
+                {doctors.length === 0 ? 'No doctors available' : `${doctors.length} doctors available`}
+              </Text>
             </View>
             
             <View style={[styles.section, styles.flex1, styles.marginLeft]}>
               <Text style={styles.sectionLabel}>
                 Department <Text style={styles.required}>*</Text>
               </Text>
-              {renderDropdown('department', departments)}
+              <TextInput
+                style={styles.input}
+                placeholder="Enter department (e.g., Cardiology)"
+                value={formData.department}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, department: text }))}
+              />
+              <Text style={styles.helpText}>Manually enter the department name</Text>
             </View>
           </View>
 
-          {/* Room Assignment (IP only) */}
-          {formData.patientType === 'IP' && (
-            <>
-              <View style={styles.row}>
-                <View style={[styles.section, styles.flex1]}>
-                  <Text style={styles.sectionLabel}>
-                    Room Number <Text style={styles.required}>*</Text>
-                  </Text>
-                  {renderDropdown('roomNumber', availableRooms, 'number', 'number')}
-                  <Text style={styles.helpText}>Available rooms with beds</Text>
-                </View>
-                
-                <View style={[styles.section, styles.flex1, styles.marginLeft]}>
-                  <Text style={styles.sectionLabel}>
-                    Bed Number <Text style={styles.required}>*</Text>
-                  </Text>
-                  {renderDropdown('bedNumber', getAvailableBeds())}
-                  {formData.roomNumber && (
-                    <Text style={styles.helpText}>
-                      Available beds in Room {formData.roomNumber}
-                    </Text>
-                  )}
-                </View>
+          {/* Room Assignment (Available for all patient types) */}
+          <View style={styles.roomAssignmentSection}>
+            <Text style={styles.roomSectionTitle}>
+              <Ionicons name="bed" size={18} color="#4A90E2" /> Room & Bed Assignment
+            </Text>
+            <Text style={styles.roomSectionSubtitle}>
+              {formData.patientType === 'IP' 
+                ? 'Required for admitted patients' 
+                : 'Optional for outpatient consultations'}
+            </Text>
+            
+            <View style={styles.row}>
+              <View style={[styles.section, styles.flex1]}>
+                <Text style={styles.sectionLabel}>
+                  Room Number {formData.patientType === 'IP' && <Text style={styles.required}>*</Text>}
+                </Text>
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Loading rooms...</Text>
+                  </View>
+                ) : (
+                  renderDropdown('roomNumber', rooms, 'roomNumber', 'roomNumber')
+                )}
+                <Text style={styles.helpText}>
+                  {rooms.length === 0 ? 'No available rooms' : `${rooms.length} available rooms`}
+                </Text>
               </View>
-            </>
-          )}
+              
+              <View style={[styles.section, styles.flex1, styles.marginLeft]}>
+                <Text style={styles.sectionLabel}>
+                  Bed Number {formData.patientType === 'IP' && <Text style={styles.required}>*</Text>}
+                </Text>
+                {renderDropdown('bedNumber', getAvailableBeds())}
+                {formData.roomNumber && (
+                  <Text style={styles.helpText}>
+                    Available beds in Room {formData.roomNumber}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Referred By</Text>
@@ -584,14 +840,31 @@ const PatientRegistrationModal = ({ visible, onClose, onSuccess }) => {
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Ionicons name="person-add" size={20} color="#FFF" />
-            <Text style={styles.submitButtonText}>Register Patient</Text>
+          <TouchableOpacity 
+            style={[styles.submitButton, saving && styles.submitButtonDisabled]} 
+            onPress={handleSubmit}
+            disabled={saving}
+          >
+            <Ionicons name={saving ? "hourglass" : "person-add"} size={20} color="#FFF" />
+            <Text style={styles.submitButtonText}>
+              {saving ? 'Saving to Database...' : appointment ? 'Admit Patient' : 'Register Patient'}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal Dropdown */}
+      <ModalDropdown
+        visible={modalDropdownData.visible}
+        onClose={() => setModalDropdownData(prev => ({ ...prev, visible: false }))}
+        options={modalDropdownData.options}
+        onSelect={handleDropdownSelect}
+        title={modalDropdownData.title}
+        valueKey={modalDropdownData.valueKey}
+        labelKey={modalDropdownData.labelKey}
+      />
     </Modal>
   );
 };
@@ -696,22 +969,48 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 4,
     maxHeight: 200,
-    zIndex: 1000,
-    elevation: 5,
+    zIndex: 9999,
+    elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
+    minHeight: 100,
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9998,
   },
   dropdownOption: {
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+  },
+  lastDropdownOption: {
+    borderBottomWidth: 0,
   },
   dropdownOptionText: {
     fontSize: 16,
     color: '#1F2937',
+  },
+  emptyDropdownOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  emptyDropdownText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   dropdownOptionDescription: {
     fontSize: 12,
@@ -800,6 +1099,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#EF4444',
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  roomAssignmentSection: {
+    backgroundColor: '#F0F9FF',
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  roomSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roomSectionSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  appointmentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EBF4FF',
+    padding: 12,
+    marginBottom: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  appointmentInfoText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#1E40AF',
+    flex: 1,
   },
 });
 

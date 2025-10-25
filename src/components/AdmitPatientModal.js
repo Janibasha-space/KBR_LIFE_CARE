@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../contexts/AppContext';
 import { Colors } from '../constants/theme';
+import { FirebaseDoctorService, FirebaseRoomService } from '../services/firebaseHospitalServices';
 
 const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
-  const { addPatient, doctors = [] } = useApp();
+  const { addPatient } = useApp();
+  
+  // State for backend data
+  const [doctors, setDoctors] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(false);
   
   // Pre-populate form with appointment data if available
   const [formData, setFormData] = useState({
@@ -41,23 +47,66 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
     patientType: false,
     gender: false,
     doctor: false,
-    department: false,
     roomNumber: false,
     bedNumber: false,
   });
 
-  // Available rooms data
-  const availableRooms = [
-    { number: '101', type: 'General', beds: ['A1', 'A2', 'B1', 'B2'] },
-    { number: '102', type: 'General', beds: ['A1', 'A2'] },
-    { number: '103', type: 'General', beds: ['A1', 'B1', 'B2'] },
-    { number: '201', type: 'Private', beds: ['A1'] },
-    { number: '202', type: 'Private', beds: ['A1'] },
-    { number: '203', type: 'Private', beds: ['A1'] },
-    { number: '301', type: 'ICU', beds: ['ICU1', 'ICU2', 'ICU3'] },
-    { number: '302', type: 'ICU', beds: ['ICU1', 'ICU2'] },
-    { number: '401', type: 'Emergency', beds: ['E1', 'E2', 'E3', 'E4'] },
-  ];
+  // Fetch doctors and rooms from backend
+  const fetchBackendData = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Fetching doctors and rooms from Firebase...');
+      
+      // Fetch doctors
+      const doctorsResult = await FirebaseDoctorService.getDoctors();
+      if (doctorsResult.success) {
+        console.log(`✅ Fetched ${doctorsResult.data.length} doctors from Firebase`);
+        setDoctors(doctorsResult.data);
+      } else {
+        console.warn('⚠️ Failed to fetch doctors:', doctorsResult.warning || 'Unknown error');
+        setDoctors([]);
+      }
+
+      // Fetch rooms
+      const roomsResult = await FirebaseRoomService.getRooms();
+      if (roomsResult.success) {
+        console.log(`✅ Fetched ${roomsResult.data.length} rooms from Firebase`);
+        // Filter only available rooms for admission
+        const availableRooms = roomsResult.data.filter(room => 
+          room.status === 'Available' || room.status === 'available'
+        );
+        setRooms(availableRooms);
+      } else {
+        console.warn('⚠️ Failed to fetch rooms:', roomsResult.warning || 'Unknown error');
+        // Fallback to static rooms if Firebase fails
+        setRooms([
+          { id: '1', roomNumber: '101', roomType: 'General', status: 'Available', beds: ['A1', 'A2', 'B1', 'B2'] },
+          { id: '2', roomNumber: '102', roomType: 'General', status: 'Available', beds: ['A1', 'A2'] },
+          { id: '3', roomNumber: '201', roomType: 'Private', status: 'Available', beds: ['A1'] },
+          { id: '4', roomNumber: '301', roomType: 'ICU', status: 'Available', beds: ['ICU1', 'ICU2'] },
+        ]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching backend data:', error);
+      // Set fallback data
+      setDoctors([]);
+      setRooms([
+        { id: '1', roomNumber: '101', roomType: 'General', status: 'Available', beds: ['A1', 'A2', 'B1', 'B2'] },
+        { id: '2', roomNumber: '102', roomType: 'General', status: 'Available', beds: ['A1', 'A2'] },
+        { id: '3', roomNumber: '201', roomType: 'Private', status: 'Available', beds: ['A1'] },
+        { id: '4', roomNumber: '301', roomType: 'ICU', status: 'Available', beds: ['ICU1', 'ICU2'] },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data when modal opens
+  useEffect(() => {
+    if (visible) {
+      fetchBackendData();
+    }
+  }, [visible]);
 
   const patientTypes = [
     { label: 'Out-Patient (OP)', value: 'OP', description: 'OP: Outpatient consultations' },
@@ -65,23 +114,12 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
   ];
 
   const genders = ['Male', 'Female', 'Other'];
-  
-  const departments = [
-    'General Medicine',
-    'Cardiology',
-    'Orthopedics',
-    'Gynecology',
-    'Pediatrics',
-    'Dermatology',
-    'ENT',
-    'Ophthalmology',
-    'Dentistry',
-    'Emergency',
-  ];
 
   const getAvailableBeds = () => {
-    const selectedRoom = availableRooms.find(room => room.number === formData.roomNumber);
-    return selectedRoom ? selectedRoom.beds : [];
+    const selectedRoom = rooms.find(room => 
+      (room.roomNumber || room.number) === formData.roomNumber
+    );
+    return selectedRoom ? (selectedRoom.beds || []) : [];
   };
 
   const validateForm = () => {
@@ -159,8 +197,10 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
         newPatient.room = formData.roomNumber;
         newPatient.bedNo = formData.bedNumber;
         newPatient.admissionDate = newPatient.registrationDate;
-        const selectedRoom = availableRooms.find(room => room.number === formData.roomNumber);
-        newPatient.roomType = selectedRoom?.type || 'General';
+        const selectedRoom = rooms.find(room => 
+          (room.roomNumber || room.number) === formData.roomNumber
+        );
+        newPatient.roomType = selectedRoom?.roomType || selectedRoom?.type || 'General';
       }
 
       await addPatient(newPatient);
@@ -209,10 +249,13 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
       patientType: false,
       gender: false,
       doctor: false,
-      department: false,
       roomNumber: false,
       bedNumber: false,
     });
+    // Reset backend data
+    setDoctors([]);
+    setRooms([]);
+    setLoading(false);
     onClose();
   };
 
@@ -233,34 +276,56 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
       </TouchableOpacity>
       
       {showDropdowns[field] && (
-        <View style={styles.dropdownOptions}>
-          {options && Array.isArray(options) && options.map((option, index) => {
-            const value = typeof option === 'object' ? option[valueKey] : option;
-            const label = typeof option === 'object' ? option[labelKey] : option;
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                style={styles.dropdownOption}
-                onPress={() => {
-                  setFormData(prev => ({ 
-                    ...prev, 
-                    [field]: value,
-                    // Reset bed number if room changes
-                    ...(field === 'roomNumber' ? { bedNumber: '' } : {})
-                  }));
-                  setShowDropdowns(prev => ({ ...prev, [field]: false }));
-                }}
-              >
-                <Text style={styles.dropdownOptionText}>
-                  {field === 'roomNumber' ? `Room ${value} (${option.type})` : label}
-                </Text>
-                {option.description && (
-                  <Text style={styles.dropdownOptionDescription}>{option.description}</Text>
-                )}
-              </TouchableOpacity>
-            );
-          }) || null}
+        <View 
+          style={styles.dropdownOptions}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+        >
+          <ScrollView 
+            style={styles.dropdownScrollView}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled={true}
+            scrollEnabled={true}
+            bounces={true}
+          >
+            {options && Array.isArray(options) && options.length > 0 ? 
+              options.map((option, index) => {
+                const value = typeof option === 'object' ? option[valueKey] : option;
+                const label = typeof option === 'object' ? option[labelKey] : option;
+                
+                return (
+                  <TouchableOpacity
+                    key={`${field}-${index}-${value}`}
+                    style={styles.dropdownOption}
+                    onPress={() => {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        [field]: field === 'doctor' ? label : value,
+                        ...(field === 'roomNumber' ? { bedNumber: '' } : {})
+                      }));
+                      setShowDropdowns(prev => ({ ...prev, [field]: false }));
+                    }}
+                  >
+                    <Text style={styles.dropdownOptionText}>
+                      {field === 'roomNumber' ? 
+                        `Room ${value} (${option.roomType || option.type || 'General'})` : 
+                        field === 'doctor' ?
+                          `${label} - ${option.specialty || option.department || 'General'}` :
+                          label
+                      }
+                    </Text>
+                    {option.description && (
+                      <Text style={styles.dropdownOptionDescription}>{option.description}</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              }) :
+              <View style={styles.emptyDropdownOption}>
+                <Text style={styles.emptyDropdownText}>No options available</Text>
+              </View>
+            }
+          </ScrollView>
         </View>
       )}
     </View>
@@ -289,7 +354,12 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!Object.values(showDropdowns).some(isOpen => isOpen)}
+          keyboardShouldPersistTaps="always"
+        >
           {/* Patient Type */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
@@ -388,12 +458,27 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
           <View style={styles.row}>
             <View style={[styles.section, styles.flex1]}>
               <Text style={styles.sectionLabel}>Doctor</Text>
-              {renderDropdown('doctor', doctors, 'name', 'name')}
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading doctors...</Text>
+                </View>
+              ) : (
+                renderDropdown('doctor', doctors, 'id', 'name')
+              )}
+              <Text style={styles.helpText}>
+                {doctors.length === 0 ? 'No doctors available' : `${doctors.length} doctors available`}
+              </Text>
             </View>
             
             <View style={[styles.section, styles.flex1, styles.marginLeft]}>
               <Text style={styles.sectionLabel}>Department</Text>
-              {renderDropdown('department', departments)}
+              <TextInput
+                style={styles.input}
+                placeholder="Enter department (e.g., Cardiology)"
+                value={formData.department}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, department: text }))}
+              />
+              <Text style={styles.helpText}>Manually enter the department name</Text>
             </View>
           </View>
 
@@ -405,8 +490,16 @@ const AdmitPatientModal = ({ visible, onClose, appointment, onSuccess }) => {
                   <Text style={styles.sectionLabel}>
                     Room Number <Text style={styles.required}>*</Text>
                   </Text>
-                  {renderDropdown('roomNumber', availableRooms, 'number', 'number')}
-                  <Text style={styles.helpText}>Available rooms with beds</Text>
+                  {loading ? (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>Loading rooms...</Text>
+                    </View>
+                  ) : (
+                    renderDropdown('roomNumber', rooms, 'roomNumber', 'roomNumber')
+                  )}
+                  <Text style={styles.helpText}>
+                    {rooms.length === 0 ? 'No available rooms' : `${rooms.length} available rooms`}
+                  </Text>
                 </View>
                 
                 <View style={[styles.section, styles.flex1, styles.marginLeft]}>
@@ -622,6 +715,33 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  loadingContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
+    minHeight: 100,
+  },
+  emptyDropdownOption: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  emptyDropdownText: {
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
 

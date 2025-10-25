@@ -22,6 +22,7 @@ import { AppProvider } from './src/contexts/AppContext';
 // Import services
 import NetworkService from './src/services/networkService';
 import FirebaseInitializer from './src/components/FirebaseInitializer';
+import AuthIntegrationWrapper from './src/components/AuthIntegrationWrapper';
 
 // Import screens
 import SplashScreen from './src/screens/SplashScreen';
@@ -432,6 +433,7 @@ export default function App() {
           <UnifiedAuthProvider>
             <ServicesProvider>
               <AppProvider>
+                <AuthIntegrationWrapper>
                   <NavigationContainer
                     independent={true}
                   >
@@ -482,6 +484,7 @@ export default function App() {
                     <Stack.Screen name="FirebaseTest" component={ExampleApiUsageScreen} />
                   </Stack.Navigator>
                   </NavigationContainer>
+                </AuthIntegrationWrapper>
                 </AppProvider>
               </ServicesProvider>
             </UnifiedAuthProvider>
