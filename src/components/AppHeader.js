@@ -195,7 +195,7 @@ const AppHeader = ({
                 {isAuthenticated ? (
                   user?.profileImage ? (
                     <Image 
-                      source={{ uri: userData.userData.profileImage }} 
+                      source={{ uri: user.profileImage }} 
                       style={styles.profileIconImage}
                       onError={() => console.log('Profile image failed to load')}
                     />

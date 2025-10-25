@@ -7,12 +7,12 @@ import { useApp } from '../contexts/AppContext';
  * This component handles real-time listener setup after successful authentication
  */
 const AuthIntegrationWrapper = ({ children }) => {
-  const { authState } = useUnifiedAuth();
+  const { isAuthenticated, isLoading, user } = useUnifiedAuth();
   const { setupRealTimeListeners } = useApp();
 
   // Set up real-time listeners when user becomes authenticated
   useEffect(() => {
-    if (authState?.isAuthenticated && !authState?.isLoading && authState?.user) {
+    if (isAuthenticated && !isLoading && user) {
       console.log('🔗 Authentication successful - setting up real-time data listeners...');
       
       // Small delay to ensure Firebase auth state is fully propagated
@@ -20,7 +20,7 @@ const AuthIntegrationWrapper = ({ children }) => {
         setupRealTimeListeners();
       }, 500);
     }
-  }, [authState?.isAuthenticated, authState?.isLoading, authState?.user, setupRealTimeListeners]);
+  }, [isAuthenticated, isLoading, user, setupRealTimeListeners]);
 
   return children;
 };
