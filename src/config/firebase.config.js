@@ -1,6 +1,6 @@
 // Firebase Configuration - Memory-Only Persistence (No Session Saving)
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getAuth, browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
+import { initializeAuth, getAuth, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -34,5 +34,5 @@ const db = getFirestore(app);
 // Initialize Storage
 const storage = getStorage(app);
 
-export { auth, db, storage };
+export { auth, db, storage, onAuthStateChanged };
 export default app;

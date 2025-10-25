@@ -456,12 +456,21 @@ export class FirebasePatientService {
           });
         },
         (error) => {
-          console.error('❌ Real-time patients listener error:', error);
-          callback({
-            success: false,
-            data: [],
-            error: error.message
-          });
+          if (error.code === 'permission-denied') {
+            console.log('🔒 Permission denied - providing empty patients for graceful degradation');
+            callback({
+              success: true,
+              data: [],
+              warning: 'Permission denied - showing empty data'
+            });
+          } else {
+            console.error('❌ Real-time patients listener error:', error);
+            callback({
+              success: false,
+              data: [],
+              error: error.message
+            });
+          }
         }
       );
       
@@ -1363,7 +1372,6 @@ class FirebaseRoomService {
           });
         },
         (error) => {
-          console.error('❌ Real-time rooms listener error:', error);
           if (error.code === 'permission-denied') {
             console.log('🔒 Permission denied - providing empty rooms for graceful degradation');
             callback({
@@ -1372,6 +1380,7 @@ class FirebaseRoomService {
               warning: 'Permission denied - showing empty data'
             });
           } else {
+            console.error('❌ Real-time rooms listener error:', error);
             callback({
               success: false,
               data: [],
