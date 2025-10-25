@@ -15,7 +15,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
-import { UnifiedAuthProvider } from './src/contexts/UnifiedAuthContext';
+import { UnifiedAuthProvider, useUnifiedAuth } from './src/contexts/UnifiedAuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppProvider } from './src/contexts/AppContext';
 
@@ -71,6 +71,8 @@ const Drawer = createDrawerNavigator();
 
 // Custom Drawer Content with Profile and Logout
 function CustomDrawerContent(props) {
+  const { logout } = useUnifiedAuth(); // Import the logout function from UnifiedAuthContext
+  
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -83,12 +85,30 @@ function CustomDrawerContent(props) {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: () => {
-            // Navigate to login/onboarding screen
-            props.navigation.reset({
-              index: 0,
-              routes: [{ name: 'Onboarding' }],
-            });
+          onPress: async () => {
+            try {
+              // First, log out from all authentication contexts
+              await logout();
+              
+              // Then navigate to login/onboarding screen
+              props.navigation.reset({
+                index: 0,
+                routes: [{ name: 'Onboarding' }],
+              });
+              
+              // Show success message
+              Alert.alert('Success', 'You have been logged out successfully from all accounts.');
+            } catch (error) {
+              console.error('Logout error:', error);
+              
+              // Even if logout fails, still navigate to onboarding
+              props.navigation.reset({
+                index: 0,
+                routes: [{ name: 'Onboarding' }],
+              });
+              
+              Alert.alert('Logout Complete', 'You have been logged out. Please login again to continue.');
+            }
           },
         },
       ],
@@ -468,6 +488,7 @@ export default function App() {
                       getId={() => 'profile-screen'}
                     />
                     <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+                    <Stack.Screen name="MedicalReports" component={MedicalReportsScreen} />
                     <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
                     <Stack.Screen name="AppointmentScreen" component={AppointmentScreen} />
                     <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />

@@ -14,6 +14,8 @@ import {
   ToastAndroid,
   ActivityIndicator,
   FlatList,
+  Linking,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +26,8 @@ import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 const MedicalReportsScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,150 +37,113 @@ const MedicalReportsScreen = ({ navigation }) => {
   const { reports: contextReports } = useApp();
   const { theme } = useTheme();
   
+  // Action loading states
+  const [downloadingReports, setDownloadingReports] = useState(new Set());
+  const [sharingReports, setSharingReports] = useState(new Set());
+  
   // Real-time Firebase reports state
   const [userReports, setUserReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Debug logging for user data
-  console.log('👤 Current user data:', {
-    id: userData?.id,
-    uid: userData?.uid,
-    email: userData?.email,
-    phone: userData?.phone || userData?.phoneNumber,
+  // Debug logging
+  console.log('🔍 MedicalReportsScreen - User Data:', {
     isLoggedIn,
+    userId: userData?.id || userData?.uid,
+    email: userData?.email,
+    phone: userData?.phone,
     contextReportsCount: contextReports?.length || 0
   });
 
   // Real-time Firebase listener for user-specific reports
   useEffect(() => {
-    console.log('🔄 Starting reports fetch useEffect...');
+    let unsubscribe = null;
     
+    console.log('🔄 Setting up reports listener...');
+    
+    // Check if user data is available
     if (!userData?.id && !userData?.uid && !userData?.email && !userData?.phone) {
-      console.log('⚠️ No user identification available for reports');
-      console.log('userData:', userData);
+      console.log('❌ No user data available');
       setLoading(false);
+      setError('No user data available');
       return;
     }
 
-    // Try multiple user identifiers
+    setLoading(true);
+    setError(null);
+
     const userId = userData.id || userData.uid;
     const userEmail = userData.email;
     const userPhone = userData.phone || userData.phoneNumber;
     
-    console.log('🔍 Setting up real-time listener for user:', {
-      id: userId,
-      email: userEmail,
-      phone: userPhone,
-      fullUserData: userData
-    });
-
+    console.log('👤 Searching for reports with:', { userId, userEmail, userPhone });
+    
     try {
-      // Simplified query - fetch ALL reports first, then filter
-      console.log('📋 Creating Firebase query...');
-      const reportsQuery = query(
-        collection(db, 'reports')
-      );
+      const reportsRef = collection(db, 'reports');
 
-      console.log('👂 Setting up onSnapshot listener...');
-      const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
-        console.log('📥 Firebase snapshot received, size:', snapshot.size);
+      unsubscribe = onSnapshot(reportsRef, (snapshot) => {
+        console.log('📄 Firebase snapshot received, total docs:', snapshot.size);
         
-        const allReports = [];
+        const userSpecificReports = [];
+        
         snapshot.forEach((doc) => {
-          const reportData = {
-            id: doc.id,
-            ...doc.data()
-          };
-          allReports.push(reportData);
-          console.log('📄 Report found:', {
-            id: reportData.id,
-            patientId: reportData.patientId,
-            sentToPatient: reportData.sentToPatient,
-            patientEmail: reportData.patientEmail,
-            patientPhone: reportData.patientPhone,
-            sentToPhoneNumber: reportData.sentToPhoneNumber
-          });
-        });
-        
-        console.log('📊 Total reports from Firebase:', allReports.length);
-        
-        // Filter reports that are sent to patients
-        const sentReports = allReports.filter(report => report.sentToPatient === true);
-        console.log('📤 Sent reports:', sentReports.length);
-        
-        // Filter reports that match any of the user identifiers
-        const userSpecificReports = sentReports.filter(report => {
+          const reportData = { id: doc.id, ...doc.data() };
+          
+          // Only process reports sent to patients
+          if (!reportData.sentToPatient) return;
+          
           // Check if report matches user by various fields
-          const matchesId = report.patientId === userId;
-          const matchesEmail = report.patientEmail === userEmail || report.email === userEmail;
-          const matchesPhone = report.patientPhone === userPhone || 
-                              report.phone === userPhone ||
-                              report.sentToPhoneNumber === userPhone;
+          const matchesId = reportData.patientId === userId;
+          const matchesEmail = reportData.patientEmail === userEmail || reportData.email === userEmail;
+          const matchesPhone = reportData.patientPhone === userPhone || 
+                              reportData.phone === userPhone ||
+                              reportData.sentToPhoneNumber === userPhone;
           
-          console.log('� Checking report:', report.id, {
-            reportPatientId: report.patientId,
-            userIds: [userId],
-            reportEmail: report.patientEmail || report.email,
-            userEmails: [userEmail],
-            reportPhone: report.patientPhone || report.phone || report.sentToPhoneNumber,
-            userPhones: [userPhone],
-            matchesId,
-            matchesEmail,
-            matchesPhone,
-            finalMatch: matchesId || matchesEmail || matchesPhone
-          });
-          
-          return matchesId || matchesEmail || matchesPhone;
+          if (matchesId || matchesEmail || matchesPhone) {
+            userSpecificReports.push(reportData);
+            console.log('✅ Found matching report:', reportData.id);
+          }
         });
         
-        console.log('👤 User-specific reports found:', userSpecificReports.length);
-        
-        // Sort by sentAt in JavaScript instead of Firebase
-        const sortedReports = userSpecificReports.sort((a, b) => {
-          const dateA = new Date(a.sentAt || a.createdAt || 0);
-          const dateB = new Date(b.sentAt || b.createdAt || 0);
-          return dateB - dateA; // Descending order (newest first)
-        });
-        
-        // Temporary: If no user-specific reports found, show all sent reports for debugging
-        const finalReports = sortedReports.length > 0 ? sortedReports : sentReports.slice(0, 5); // Show max 5 for testing
-        if (sortedReports.length === 0 && sentReports.length > 0) {
-          console.log('⚠️ No user-specific reports found, showing all sent reports for debugging');
-        }
-        
-        setUserReports(finalReports);
+        console.log('📊 Total user-specific reports found:', userSpecificReports.length);
+        setUserReports(userSpecificReports);
         setLoading(false);
         setError(null);
-        console.log('✅ Final reports set for user:', finalReports.length);
       }, (error) => {
         console.error('❌ Error fetching user reports:', error);
-        setError('Failed to load reports');
+        setError('Failed to load reports: ' + error.message);
         setLoading(false);
         
-        // Fallback to context reports if available with flexible matching
-        const fallbackReports = contextReports?.filter(r => {
-          const matchesId = r.patientId === userId;
-          const matchesEmail = r.patientEmail === userEmail || r.email === userEmail;
-          const matchesPhone = r.patientPhone === userPhone || 
-                              r.phone === userPhone ||
-                              r.sentToPhoneNumber === userPhone;
-          return (matchesId || matchesEmail || matchesPhone) && r.sentToPatient;
-        }) || [];
-        setUserReports(fallbackReports);
+        // Fallback to context reports
+        if (contextReports && contextReports.length > 0) {
+          console.log('🔄 Using context reports as fallback');
+          const fallbackReports = contextReports.filter(r => {
+            const matchesId = r.patientId === userId;
+            const matchesEmail = r.patientEmail === userEmail || r.email === userEmail;
+            const matchesPhone = r.patientPhone === userPhone || 
+                                r.phone === userPhone ||
+                                r.sentToPhoneNumber === userPhone;
+            return (matchesId || matchesEmail || matchesPhone) && r.sentToPatient;
+          });
+          setUserReports(fallbackReports);
+        }
       });
 
-      return () => {
-        unsubscribe();
-        console.log('🔧 Cleaned up reports listener');
-      };
     } catch (error) {
       console.error('❌ Error setting up reports listener:', error);
-      setError('Failed to setup reports listener');
+      setError('Failed to setup reports listener: ' + error.message);
       setLoading(false);
     }
+
+    // Cleanup function
+    return () => {
+      if (unsubscribe) {
+        console.log('🧹 Cleaning up reports listener');
+        unsubscribe();
+      }
+    };
   }, [userData?.id, userData?.uid, userData?.email, userData?.phone, contextReports]);
-  
+
   // Helper function to get color for category
   const getCategoryColor = (category) => {
     const colors = {
@@ -207,6 +174,261 @@ const MedicalReportsScreen = ({ navigation }) => {
     return icons[category] || 'document-text-outline';
   };
 
+  // Share functionality
+  const handleShare = async (report) => {
+    // Set loading state
+    setSharingReports(prev => new Set([...prev, report.id]));
+    
+    try {
+      const patientName = userData?.name || userData?.email || 'Patient';
+      const hospitalName = 'KBR Life Care Hospital';
+      const currentDate = new Date().toLocaleDateString();
+      
+      const shareMessage = `🏥 ${hospitalName}\n` +
+                          `� Medical Report Summary\n\n` +
+                          `👤 Patient: ${patientName}\n` +
+                          `📄 Report: ${report.title}\n` +
+                          `👨‍⚕️ Doctor: Dr. ${report.doctor}\n` +
+                          `📅 Report Date: ${report.date}\n` +
+                          `🕐 Time: ${report.time}\n\n` +
+                          `📝 Description:\n${report.description}\n\n` +
+                          `📊 Report Details:\n` +
+                          `• Category: ${report.category || 'General'}\n` +
+                          `• File Size: ${report.size}\n` +
+                          `• Status: Available for download\n\n` +
+                          `📱 Shared on: ${currentDate}\n` +
+                          `Generated by KBR Life Care Mobile App\n\n` +
+                          `"Your Health, Our Priority" 💙`;
+
+      const shareOptions = {
+        message: shareMessage,
+        title: `Medical Report - ${report.title}`,
+        subject: `Medical Report: ${report.title} - ${hospitalName}`,
+      };
+
+      // Add URL for iOS if available
+      if (Platform.OS === 'ios' && (report.downloadUrl || report.fileUrl)) {
+        shareOptions.url = report.downloadUrl || report.fileUrl;
+      }
+
+      const result = await Share.share(shareOptions);
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          console.log(`📤 Report shared via: ${result.activityType}`);
+        }
+        
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(
+            '📤 Report shared successfully!', 
+            ToastAndroid.SHORT
+          );
+        } else {
+          // For iOS, success is implied by the share completion
+          console.log('📤 Report shared successfully');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        console.log('📤 Share dismissed by user');
+      }
+    } catch (error) {
+      console.error('❌ Error sharing report:', error);
+      
+      let errorMessage = 'Unable to share the report. ';
+      
+      if (error.message?.includes('not available')) {
+        errorMessage += 'Sharing is not available on this device.';
+      } else if (error.message?.includes('cancelled')) {
+        errorMessage += 'Share was cancelled.';
+      } else {
+        errorMessage += 'Please try again or copy the report details manually.';
+      }
+      
+      Alert.alert(
+        'Share Failed', 
+        errorMessage,
+        [
+          { text: 'OK' },
+          { 
+            text: 'Copy Details', 
+            onPress: () => {
+              // Fallback: create a simple text to copy
+              const simpleText = `Medical Report: ${report.title}\nDoctor: Dr. ${report.doctor}\nDate: ${report.date}\nKBR Life Care Hospital`;
+              // Note: Clipboard API would need to be added for copy functionality
+              Alert.alert('Report Details', simpleText);
+            }
+          }
+        ]
+      );
+    } finally {
+      // Clear loading state
+      setSharingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(report.id);
+        return newSet;
+      });
+    }
+  };
+
+  // Download functionality
+  const handleDownload = async (report) => {
+    // Set loading state
+    setDownloadingReports(prev => new Set([...prev, report.id]));
+    
+    try {
+      // Check if report has downloadUrl
+      if (!report.downloadUrl && !report.fileUrl) {
+        Alert.alert(
+          'Download Not Available',
+          'This report doesn\'t have a downloadable file available yet. Please contact your doctor or the hospital for assistance.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const downloadUrl = report.downloadUrl || report.fileUrl;
+      
+      // For Android, request storage permission
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'KBR Life Care needs access to your storage to download medical reports.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert(
+            'Permission Denied', 
+            'Storage permission is required to download reports. Please enable it in app settings.',
+            [
+              { text: 'Cancel' },
+              { text: 'Settings', onPress: () => Linking.openSettings() }
+            ]
+          );
+          return;
+        }
+      }
+
+      // Show loading indicator
+      const loadingAlert = Alert.alert(
+        'Downloading Report',
+        `Please wait while we download "${report.title}"...`,
+        [],
+        { cancelable: false }
+      );
+
+      // Generate filename
+      const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const cleanTitle = report.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+      const filename = `KBR_${cleanTitle}_${timestamp}.pdf`;
+      
+      if (Platform.OS === 'web') {
+        // For web platform, open in new tab
+        window.open(downloadUrl, '_blank');
+        Alert.alert('Download Started', 'The report will open in a new tab for download.');
+      } else {
+        // For mobile platforms
+        const fileUri = FileSystem.documentDirectory + filename;
+        
+        const downloadObject = FileSystem.createDownloadResumable(
+          downloadUrl,
+          fileUri,
+          {},
+          (downloadProgress) => {
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            console.log(`📥 Download progress: ${Math.round(progress * 100)}%`);
+          }
+        );
+
+        const { uri } = await downloadObject.downloadAsync();
+        
+        // Try to save to media library if available
+        try {
+          const { status } = await MediaLibrary.requestPermissionsAsync();
+          if (status === 'granted') {
+            const asset = await MediaLibrary.createAssetAsync(uri);
+            const albumExists = await MediaLibrary.getAlbumAsync('KBR Medical Reports');
+            if (albumExists) {
+              await MediaLibrary.addAssetsToAlbumAsync([asset], albumExists, false);
+            } else {
+              await MediaLibrary.createAlbumAsync('KBR Medical Reports', asset, false);
+            }
+            console.log('📁 Report saved to KBR Medical Reports album');
+          }
+        } catch (mediaError) {
+          console.log('📱 MediaLibrary not available or permission denied:', mediaError);
+          // Continue without media library - file is still saved to app directory
+        }
+
+        // Dismiss loading alert
+        Alert.dismiss?.();
+
+        // Show success message
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(
+            `✅ "${report.title}" downloaded successfully!`, 
+            ToastAndroid.LONG
+          );
+        } else {
+          Alert.alert(
+            '✅ Download Complete',
+            `Report "${report.title}" has been downloaded successfully and saved to your device.`,
+            [
+              { text: 'OK' },
+              { 
+                text: 'Open File', 
+                onPress: () => {
+                  Linking.openURL(uri).catch(() => {
+                    Alert.alert('Error', 'Unable to open the file. Please check your file manager.');
+                  });
+                }
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error downloading report:', error);
+      
+      // Dismiss any loading alert
+      Alert.dismiss?.();
+      
+      let errorMessage = 'Unable to download the report. ';
+      
+      if (error.message?.includes('Network')) {
+        errorMessage += 'Please check your internet connection and try again.';
+      } else if (error.message?.includes('permission')) {
+        errorMessage += 'Storage permission is required. Please enable it in app settings.';
+      } else if (error.message?.includes('space')) {
+        errorMessage += 'Not enough storage space available on your device.';
+      } else {
+        errorMessage += 'Please try again later or contact support if the problem persists.';
+      }
+      
+      Alert.alert(
+        'Download Failed',
+        errorMessage,
+        [
+          { text: 'OK' },
+          ...(error.message?.includes('permission') ? [
+            { text: 'Settings', onPress: () => Linking.openSettings() }
+          ] : [])
+        ]
+      );
+    } finally {
+      // Clear loading state
+      setDownloadingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(report.id);
+        return newSet;
+      });
+    }
+  };
+
   // Convert Firebase reports to categorized format
   const categoriesMap = React.useMemo(() => {
     if (!userReports.length) return {};
@@ -221,24 +443,24 @@ const MedicalReportsScreen = ({ navigation }) => {
       // Convert Firebase report format to display format
       categorized[category].push({
         id: report.id,
-        title: report.type,
-        doctor: report.doctorName,
-        date: new Date(report.sentAt).toLocaleDateString('en-US', {
+        title: report.type || report.testName || report.reportTitle || 'Medical Report',
+        doctor: report.doctorName || 'Dr. Unknown',
+        date: new Date(report.sentAt || report.createdAt).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric'
         }),
-        time: new Date(report.sentAt).toLocaleTimeString('en-US', {
+        time: new Date(report.sentAt || report.createdAt).toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true
         }),
-        description: report.notes || 'Medical report available',
+        description: report.notes || report.description || 'Medical report available',
         size: report.files?.length ? `${report.files.length} file${report.files.length > 1 ? 's' : ''}` : 'No files',
         status: "available",
         icon: getCategoryIcon(category),
         iconColor: getCategoryColor(category),
-        type: report.type.toLowerCase().replace(/\\s+/g, ''),
+        type: (report.type || 'general').toLowerCase().replace(/\s+/g, ''),
         category: category,
         originalReport: report // Keep reference to original Firebase data
       });
@@ -246,65 +468,32 @@ const MedicalReportsScreen = ({ navigation }) => {
     
     return categorized;
   }, [userReports]);
-  
-  // Combine all reports from all categories for the All Reports tab
+
+  // Get all reports data
   const allReportsData = Object.values(categoriesMap).flat();
-  
-  // Recent reports from real data - most recent first
+
+  // Recent reports data (last 5 recent reports)
   const recentReportsData = React.useMemo(() => {
     return allReportsData
-      .sort((a, b) => {
-        const dateA = a.originalReport?.sentAt || a.date;
-        const dateB = b.originalReport?.sentAt || b.date;
-        return new Date(dateB) - new Date(dateA);
-      })
-      .slice(0, 5); // Show only 5 most recent
+      .sort((a, b) => new Date(b.originalReport.sentAt || b.originalReport.createdAt) - new Date(a.originalReport.sentAt || a.originalReport.createdAt))
+      .slice(0, 5);
   }, [allReportsData]);
-
-  // Statistics calculation from real data
-  const statisticsData = React.useMemo(() => {
-    return {
-      availableReports: allReportsData.length,
-      recentlyViewed: recentReportsData.length,
-      pendingReports: 0 // No pending reports concept for patients
-    };
-  }, [allReportsData.length, recentReportsData.length]);
-
-  // Filter reports based on search query
-  const filteredReports = React.useMemo(() => {
-    if (!searchQuery.trim()) return allReportsData;
-    
-    const query = searchQuery.toLowerCase();
-    return allReportsData.filter(report =>
-      report.title.toLowerCase().includes(query) ||
-      report.doctor.toLowerCase().includes(query) ||
-      report.category.toLowerCase().includes(query) ||
-      report.description.toLowerCase().includes(query)
-    );
-  }, [allReportsData, searchQuery]);
 
   // Loading state
   if (loading) {
     return (
-      <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.outerContainer, { backgroundColor: theme?.background || Colors.background }]}>
         <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme?.background || Colors.background }]} edges={['left', 'right']}>
           <AppHeader 
             subtitle="Reports"
             navigation={navigation}
             showBackButton={true}
           />
-          <View style={styles.loadingContainer}>
+          <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading your medical reports...</Text>
-            <Text style={[styles.loadingText, { fontSize: 12, marginTop: 10 }]}>
-              Debug: User ID: {userData?.id || userData?.uid || 'None'}
-            </Text>
-            <Text style={[styles.loadingText, { fontSize: 12 }]}>
-              Email: {userData?.email || 'None'}
-            </Text>
-            <Text style={[styles.loadingText, { fontSize: 12 }]}>
-              Phone: {userData?.phone || userData?.phoneNumber || 'None'}
+            <Text style={[styles.loadingText, { color: theme?.textPrimary || Colors.text }]}>
+              Loading your medical reports...
             </Text>
           </View>
         </SafeAreaView>
@@ -315,23 +504,29 @@ const MedicalReportsScreen = ({ navigation }) => {
   // Error state
   if (error) {
     return (
-      <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.outerContainer, { backgroundColor: theme?.background || Colors.background }]}>
         <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme?.background || Colors.background }]} edges={['left', 'right']}>
           <AppHeader 
             subtitle="Reports"
             navigation={navigation}
             showBackButton={true}
           />
-          <View style={styles.errorContainer}>
+          <View style={styles.centerContainer}>
             <Ionicons name="alert-circle-outline" size={64} color={Colors.danger} />
-            <Text style={styles.errorTitle}>Unable to Load Reports</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => {
-              setLoading(true);
-              setError(null);
-              // The useEffect will retrigger the data fetch
-            }}>
+            <Text style={[styles.errorTitle, { color: theme?.textPrimary || Colors.text }]}>
+              Unable to Load Reports
+            </Text>
+            <Text style={[styles.errorText, { color: theme?.textSecondary || Colors.textSecondary }]}>
+              {error}
+            </Text>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={() => {
+                setLoading(true);
+                setError(null);
+              }}
+            >
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -340,266 +535,260 @@ const MedicalReportsScreen = ({ navigation }) => {
     );
   }
 
-  // Empty state for no reports
-  if (!userReports.length) {
-    return (
-      <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
-        <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
-          <AppHeader 
-            subtitle="Reports"
-            navigation={navigation}
-            showBackButton={true}
-          />
-          <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={100} color={Colors.textSecondary} />
-            <Text style={styles.emptyTitle}>Login to see reports</Text>
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  // Check authentication - redirect if not logged in
+  // No authentication state
   if (!isLoggedIn) {
     return (
-      <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
+      <View style={[styles.outerContainer, { backgroundColor: theme?.background || Colors.background }]}>
         <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme?.background || Colors.background }]} edges={['left', 'right']}>
           <AppHeader 
             subtitle="Reports"
             navigation={navigation}
             showBackButton={true}
           />
-          <View style={styles.centerContainer}>
-            <Text style={styles.authMessage}>Please log in to view your medical reports</Text>
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => navigation.navigate('PatientLogin')}
-            >
-              <Text style={styles.loginButtonText}>Login</Text>
-            </TouchableOpacity>
+          <View style={styles.authRequiredContainer}>
+            <View style={styles.authRequiredContent}>
+              <Ionicons name="document-text-outline" size={80} color={Colors.textSecondary} />
+              <Text style={styles.authRequiredTitle}>Login Required</Text>
+              <Text style={styles.authRequiredMessage}>
+                Please login to access your medical reports and health information.
+              </Text>
+              <TouchableOpacity 
+                style={styles.loginButton}
+                onPress={() => {
+                  navigation.navigate('PatientMain', { 
+                    screen: 'Home',
+                    params: { showAuthModal: true }
+                  });
+                }}
+              >
+                <Ionicons name="log-in-outline" size={20} color={Colors.white} />
+                <Text style={styles.loginButtonText}>Login Now</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
       </View>
     );
   }
 
-  // Main render function for report cards
-  const renderReportCard = ({ item }) => (
-    <TouchableOpacity 
-      style={[styles.reportCard, { backgroundColor: theme.cardBackground }]}
-      onPress={() => navigation.navigate('ReportDetail', { report: item })}
-      activeOpacity={0.7}
-    >
-      <View style={styles.reportHeader}>
-        <View style={[styles.reportIcon, { backgroundColor: item.iconColor }]}>
-          <Ionicons name={item.icon} size={24} color="white" />
-        </View>
-        <View style={styles.reportInfo}>
-          <Text style={[styles.reportTitle, { color: theme.textPrimary }]}>{item.title}</Text>
-          <Text style={[styles.reportDoctor, { color: theme.textSecondary }]}>{item.doctor}</Text>
-          <Text style={[styles.reportDate, { color: theme.textSecondary }]}>
-            {item.date} • {item.time}
-          </Text>
-        </View>
-        <View style={styles.reportStatus}>
-          <View style={[styles.statusBadge, { backgroundColor: Colors.success }]}>
-            <Text style={styles.statusText}>{item.status}</Text>
-          </View>
-        </View>
-      </View>
-      
-      <Text style={[styles.reportDescription, { color: theme.textSecondary }]}>
-        {item.description}
-      </Text>
-      
-      <View style={styles.reportFooter}>
-        <Text style={[styles.reportSize, { color: theme.textSecondary }]}>{item.size}</Text>
-        <TouchableOpacity style={styles.downloadButton}>
-          <Ionicons name="download-outline" size={16} color={Colors.primary} />
-          <Text style={styles.downloadText}>Download</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
+  // Main content with original layout
   return (
-    <View style={[styles.outerContainer, { backgroundColor: theme.background }]}>
-      <StatusBar 
-        backgroundColor="transparent" 
-        barStyle="light-content" 
-        translucent={true} 
-      />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
-        {/* Header */}
+    <View style={[styles.outerContainer, { backgroundColor: theme?.background || Colors.background }]}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme?.background || Colors.background }]} edges={['left', 'right']}>
+        {/* App Header */}
         <AppHeader 
           subtitle="Reports"
           navigation={navigation}
           showBackButton={true}
         />
 
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {/* Page Title */}
-          <View style={styles.titleContainer}>
-            <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Medical Reports</Text>
-            <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
-              Access and manage all your medical reports
-            </Text>
+        <ScrollView style={[styles.scrollView, { backgroundColor: theme?.background || Colors.background }]} showsVerticalScrollIndicator={false}>
+          {/* Title Section */}
+          <View style={[styles.titleSection, { backgroundColor: theme?.background || Colors.background }]}>
+            <Text style={styles.mainTitle}>Medical Reports</Text>
+            <Text style={styles.subtitle}>Access and manage all your medical reports</Text>
           </View>
 
           {/* Search Bar */}
-          <View style={[styles.searchContainer, { backgroundColor: theme.cardBackground }]}>
-            <Ionicons name="search" size={20} color={Colors.textSecondary} />
-            <TextInput
-              style={[styles.searchInput, { color: theme.textPrimary }]}
-              placeholder="Search reports or doctors..."
-              placeholderTextColor={Colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          {/* Statistics Cards */}
-          <View style={styles.statsContainer}>
-            <View style={[styles.statCard, { backgroundColor: Colors.success + '20' }]}>
-              <Text style={[styles.statNumber, { color: Colors.success }]}>
-                {statisticsData.availableReports}
-              </Text>
-              <Text style={styles.statLabel}>Available Reports</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: Colors.primary + '20' }]}>
-              <Text style={[styles.statNumber, { color: Colors.primary }]}>
-                {statisticsData.recentlyViewed}
-              </Text>
-              <Text style={styles.statLabel}>Recently Viewed</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: Colors.warning + '20' }]}>
-              <Text style={[styles.statNumber, { color: Colors.warning }]}>
-                {statisticsData.pendingReports}
-              </Text>
-              <Text style={styles.statLabel}>Pending</Text>
+          <View style={[styles.searchSection, { backgroundColor: theme?.background || Colors.background }]}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search reports or doctors..."
+                placeholderTextColor={Colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
           </View>
 
-          {/* Tab Navigation */}
-          <View style={styles.tabContainer}>
+          {/* Statistics */}
+          <View style={styles.statsSection}>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { backgroundColor: Colors.kbrGreen + '15' }]}>
+                <Text style={[styles.statNumber, { color: Colors.kbrGreen }]}>{allReportsData.length}</Text>
+                <Text style={styles.statLabel}>Available Reports</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: Colors.kbrBlue + '15' }]}>
+                <Text style={[styles.statNumber, { color: Colors.kbrBlue }]}>{recentReportsData.length}</Text>
+                <Text style={styles.statLabel}>Recently Viewed</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: Colors.warning + '15' }]}>
+                <Text style={[styles.statNumber, { color: Colors.warning }]}>0</Text>
+                <Text style={styles.statLabel}>Pending</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabsSection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {['All Reports', 'Recent', 'Invoices', 'Categories'].map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[
-                    styles.tabItem,
-                    activeTab === tab && styles.activeTab
-                  ]}
-                  onPress={() => {
-                    setActiveTab(tab);
-                    setSelectedCategory(null);
-                  }}
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity 
+                  style={[styles.tabButton, activeTab === 'All Reports' && styles.activeTabButton]}
+                  onPress={() => setActiveTab('All Reports')}
                 >
-                  <Text style={[
-                    styles.tabText,
-                    activeTab === tab && styles.activeTabText
-                  ]}>
-                    {tab}
-                    {tab === 'Recent' && recentReportsData.length > 0 && (
-                      <Text style={styles.tabBadge}> {recentReportsData.length}</Text>
-                    )}
+                  <Text style={activeTab === 'All Reports' ? styles.activeTabButtonText : styles.tabButtonText}>
+                    All Reports
                   </Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity 
+                  style={[styles.tabButton, activeTab === 'Recent' && styles.activeTabButton]}
+                  onPress={() => setActiveTab('Recent')}
+                >
+                  <View style={styles.tabWithBadge}>
+                    <Text style={activeTab === 'Recent' ? styles.activeTabButtonText : styles.tabButtonText}>
+                      Recent
+                    </Text>
+                    <View style={styles.tabBadge}>
+                      <Text style={styles.tabBadgeText}>{recentReportsData.length}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.tabButton, activeTab === 'Categories' && styles.activeTabButton]}
+                  onPress={() => setActiveTab('Categories')}
+                >
+                  <Text style={activeTab === 'Categories' ? styles.activeTabButtonText : styles.tabButtonText}>
+                    Categories
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
 
-          {/* Content based on active tab */}
-          <View style={styles.contentContainer}>
-            {activeTab === 'All Reports' && (
-              <FlatList
-                data={filteredReports}
-                renderItem={renderReportCard}
-                keyExtractor={(item) => item.id.toString()}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={false}
-                ListEmptyComponent={() => (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="document-text-outline" size={64} color={Colors.textSecondary} />
-                    <Text style={styles.emptyStateTitle}>No Reports Found</Text>
-                    <Text style={styles.emptyStateText}>
-                      {searchQuery ? 'Try adjusting your search terms' : 'No reports available'}
-                    </Text>
-                  </View>
-                )}
-              />
-            )}
-
-            {activeTab === 'Recent' && (
-              <FlatList
-                data={recentReportsData}
-                renderItem={renderReportCard}
-                keyExtractor={(item) => item.id.toString()}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={false}
-                ListEmptyComponent={() => (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="time-outline" size={64} color={Colors.textSecondary} />
-                    <Text style={styles.emptyStateTitle}>No Recent Reports</Text>
-                    <Text style={styles.emptyStateText}>Your recently viewed reports will appear here</Text>
-                  </View>
-                )}
-              />
-            )}
-
-            {activeTab === 'Categories' && !selectedCategory && (
-              <View style={styles.categoriesGrid}>
-                {Object.keys(categoriesMap).map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[styles.categoryCard, { backgroundColor: theme.cardBackground }]}
-                    onPress={() => setSelectedCategory(category)}
-                  >
-                    <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(category) }]}>
-                      <Ionicons name={getCategoryIcon(category)} size={32} color="white" />
+          {/* Reports Content */}
+          <View style={styles.reportsSection}>
+            {activeTab === 'All Reports' && allReportsData.map((report) => (
+              <View key={report.id} style={[styles.reportCard, { backgroundColor: theme?.cardBackground || Colors.white }]}>
+                <View style={styles.reportHeader}>
+                  <View style={styles.reportIconContainer}>
+                    <View style={[styles.reportIcon, { backgroundColor: report.iconColor + '20' }]}>
+                      <Ionicons name={report.icon} size={24} color={report.iconColor} />
                     </View>
-                    <Text style={[styles.categoryName, { color: theme.textPrimary }]}>{category}</Text>
-                    <Text style={[styles.categoryCount, { color: theme.textSecondary }]}>
-                      {categoriesMap[category].length} report{categoriesMap[category].length !== 1 ? 's' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {activeTab === 'Categories' && selectedCategory && (
-              <View>
-                <View style={styles.categoryHeader}>
-                  <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => setSelectedCategory(null)}
-                  >
-                    <Ionicons name="chevron-back" size={24} color={Colors.primary} />
-                    <Text style={styles.backButtonText}>Back to Categories</Text>
-                  </TouchableOpacity>
-                  <Text style={[styles.categoryTitle, { color: theme.textPrimary }]}>{selectedCategory}</Text>
-                  <Text style={[styles.categorySubtitle, { color: theme.textSecondary }]}>
-                    {categoriesMap[selectedCategory] ? categoriesMap[selectedCategory].length : 0} reports
-                  </Text>
+                  </View>
+                  <View style={styles.reportInfo}>
+                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
+                    <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>Dr. {report.doctor}</Text>
+                    <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date} • {report.time}</Text>
+                  </View>
+                  <View style={styles.reportActions}>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
+                      onPress={() => handleShare(report)}
+                      disabled={sharingReports.has(report.id)}
+                    >
+                      {sharingReports.has(report.id) ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Ionicons name="share-outline" size={20} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
+                      onPress={() => handleDownload(report)}
+                      disabled={downloadingReports.has(report.id)}
+                    >
+                      {downloadingReports.has(report.id) ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Ionicons name="download-outline" size={20} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                
-                <FlatList
-                  data={categoriesMap[selectedCategory] || []}
-                  renderItem={renderReportCard}
-                  keyExtractor={(item) => item.id.toString()}
-                  showsVerticalScrollIndicator={false}
-                  scrollEnabled={false}
-                />
+                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.description}</Text>
+                <View style={styles.reportFooter}>
+                  <Text style={[styles.reportSize, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.size}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: Colors.success + '20' }]}>
+                    <Text style={[styles.statusText, { color: Colors.success }]}>Available</Text>
+                  </View>
+                </View>
               </View>
-            )}
+            ))}
 
-            {activeTab === 'Invoices' && (
+            {activeTab === 'Recent' && recentReportsData.map((report) => (
+              <View key={report.id} style={[styles.reportCard, { backgroundColor: theme?.cardBackground || Colors.white }]}>
+                <View style={styles.reportHeader}>
+                  <View style={styles.reportIconContainer}>
+                    <View style={[styles.reportIcon, { backgroundColor: report.iconColor + '20' }]}>
+                      <Ionicons name={report.icon} size={24} color={report.iconColor} />
+                    </View>
+                  </View>
+                  <View style={styles.reportInfo}>
+                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
+                    <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>Dr. {report.doctor}</Text>
+                    <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date} • {report.time}</Text>
+                  </View>
+                  <View style={styles.reportActions}>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
+                      onPress={() => handleShare(report)}
+                      disabled={sharingReports.has(report.id)}
+                    >
+                      {sharingReports.has(report.id) ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Ionicons name="share-outline" size={20} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.actionButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
+                      onPress={() => handleDownload(report)}
+                      disabled={downloadingReports.has(report.id)}
+                    >
+                      {downloadingReports.has(report.id) ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <Ionicons name="download-outline" size={20} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.description}</Text>
+                <View style={styles.reportFooter}>
+                  <Text style={[styles.reportSize, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.size}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: Colors.success + '20' }]}>
+                    <Text style={[styles.statusText, { color: Colors.success }]}>Available</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {activeTab === 'Categories' && Object.keys(categoriesMap).map((category) => (
+              <View key={category} style={[styles.categorySection, { backgroundColor: theme?.cardBackground || Colors.white }]}>
+                <View style={styles.categoryHeader}>
+                  <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(category) + '20' }]}>
+                    <Ionicons name={getCategoryIcon(category)} size={20} color={getCategoryColor(category)} />
+                  </View>
+                  <Text style={[styles.categoryTitle, { color: theme?.textPrimary || Colors.text }]}>{category}</Text>
+                  <Text style={[styles.categoryCount, { color: theme?.textSecondary || Colors.textSecondary }]}>({categoriesMap[category].length})</Text>
+                </View>
+                {categoriesMap[category].slice(0, 2).map((report) => (
+                  <View key={report.id} style={styles.categoryReportItem}>
+                    <Text style={[styles.categoryReportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
+                    <Text style={[styles.categoryReportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date}</Text>
+                  </View>
+                ))}
+                {categoriesMap[category].length > 2 && (
+                  <TouchableOpacity style={styles.viewMoreButton}>
+                    <Text style={[styles.viewMoreText, { color: Colors.primary }]}>View {categoriesMap[category].length - 2} more</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            {/* Empty state */}
+            {allReportsData.length === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="receipt-outline" size={64} color={Colors.textSecondary} />
-                <Text style={styles.emptyStateTitle}>No Invoices</Text>
-                <Text style={styles.emptyStateText}>Medical report invoices will appear here</Text>
+                <Ionicons name="document-text-outline" size={100} color={Colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: theme?.textPrimary || Colors.text }]}>No Reports Found</Text>
+                <Text style={[styles.emptyText, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                  You don't have any medical reports yet. Reports will appear here once they are available.
+                </Text>
               </View>
             )}
           </View>
@@ -612,153 +801,261 @@ const MedicalReportsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
+    backgroundColor: Colors.kbrBlue,
   },
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
-  scrollContainer: {
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authRequiredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Sizes.screenPadding,
+  },
+  authRequiredContent: {
+    alignItems: 'center',
+    paddingVertical: Sizes.xxl,
+  },
+  authRequiredTitle: {
+    fontSize: Sizes.xlarge,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginTop: Sizes.lg,
+    marginBottom: Sizes.sm,
+  },
+  authRequiredMessage: {
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Sizes.xl,
+    paddingHorizontal: Sizes.lg,
+  },
+  loginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: Sizes.xl,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loginButtonText: {
+    color: Colors.white,
+    fontSize: Sizes.medium,
+    fontWeight: '600',
+    marginLeft: Sizes.sm,
+  },
+  scrollView: {
     flex: 1,
   },
-  titleContainer: {
+  titleSection: {
     paddingHorizontal: Sizes.screenPadding,
-    paddingVertical: Sizes.md,
+    paddingVertical: Sizes.lg,
   },
-  pageTitle: {
-    fontSize: 28,
+  mainTitle: {
+    fontSize: Sizes.title,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: Colors.kbrRed,
+    marginBottom: Sizes.xs,
   },
-  pageSubtitle: {
-    fontSize: 16,
-    opacity: 0.7,
+  subtitle: {
+    fontSize: Sizes.regular,
+    color: Colors.textSecondary,
+  },
+  searchSection: {
+    paddingHorizontal: Sizes.screenPadding,
+    marginBottom: Sizes.md,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: Sizes.screenPadding,
-    marginBottom: Sizes.lg,
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusMedium,
     paddingHorizontal: Sizes.md,
     paddingVertical: Sizes.sm,
-    borderRadius: Sizes.radiusMedium,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
+    fontSize: Sizes.regular,
+    color: Colors.textPrimary,
     marginLeft: Sizes.sm,
-    fontSize: 16,
   },
-  statsContainer: {
-    flexDirection: 'row',
+  statsSection: {
     paddingHorizontal: Sizes.screenPadding,
     marginBottom: Sizes.lg,
-    gap: Sizes.sm,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Sizes.xs,
   },
   statCard: {
     flex: 1,
-    padding: Sizes.md,
+    backgroundColor: Colors.white,
     borderRadius: Sizes.radiusMedium,
+    padding: Sizes.md,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 32,
+    fontSize: Sizes.title,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: Sizes.medium,
     color: Colors.textSecondary,
     textAlign: 'center',
   },
-  tabContainer: {
-    marginHorizontal: Sizes.screenPadding,
-    marginBottom: Sizes.lg,
+  tabsSection: {
+    marginBottom: Sizes.md,
   },
-  tabItem: {
-    paddingHorizontal: Sizes.lg,
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Sizes.screenPadding,
+    gap: Sizes.sm,
+  },
+  tabButton: {
+    paddingHorizontal: Sizes.md,
     paddingVertical: Sizes.sm,
-    marginRight: Sizes.sm,
     borderRadius: Sizes.radiusMedium,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  activeTab: {
-    backgroundColor: Colors.primary,
+  activeTabButton: {
+    backgroundColor: Colors.kbrBlue,
+    borderColor: Colors.kbrBlue,
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+  tabButtonText: {
+    fontSize: Sizes.medium,
+    color: Colors.textPrimary,
+    fontWeight: '500',
   },
-  activeTabText: {
+  activeTabButtonText: {
+    fontSize: Sizes.medium,
     color: Colors.white,
+    fontWeight: '500',
+  },
+  tabWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabBadge: {
-    fontSize: 12,
+    backgroundColor: Colors.kbrRed,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  tabBadgeText: {
+    color: Colors.white,
+    fontSize: 10,
     fontWeight: 'bold',
   },
-  contentContainer: {
+  reportsSection: {
     paddingHorizontal: Sizes.screenPadding,
     paddingBottom: Sizes.xl,
   },
   reportCard: {
-    padding: Sizes.lg,
+    backgroundColor: Colors.white,
     borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
     marginBottom: Sizes.md,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
   reportHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: Sizes.sm,
+    marginBottom: Sizes.md,
+  },
+  reportIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.md,
   },
   reportIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Sizes.md,
+    justifyContent: 'center',
   },
   reportInfo: {
     flex: 1,
   },
   reportTitle: {
-    fontSize: 18,
+    fontSize: Sizes.regular,
     fontWeight: 'bold',
-    marginBottom: 2,
+    color: Colors.textPrimary,
+    marginBottom: Sizes.xs,
   },
   reportDoctor: {
-    fontSize: 14,
-    marginBottom: 2,
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+    marginBottom: Sizes.xs,
   },
   reportDate: {
-    fontSize: 12,
-  },
-  reportStatus: {
-    alignItems: 'flex-end',
-  },
-  statusBadge: {
-    paddingHorizontal: Sizes.sm,
-    paddingVertical: 4,
-    borderRadius: Sizes.radiusSmall,
-  },
-  statusText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'capitalize',
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
   },
   reportDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: Sizes.sm,
+    fontSize: Sizes.medium,
+    color: Colors.textPrimary,
+    marginBottom: Sizes.xs,
   },
   reportFooter: {
     flexDirection: 'row',
@@ -766,178 +1063,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reportSize: {
-    fontSize: 12,
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
   },
-  downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statusBadge: {
     paddingHorizontal: Sizes.sm,
-    paddingVertical: 4,
+    paddingVertical: 2,
     borderRadius: Sizes.radiusSmall,
-    backgroundColor: Colors.primary + '20',
   },
-  downloadText: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+  statusText: {
+    fontSize: Sizes.small,
+    fontWeight: '500',
   },
-  categoriesGrid: {
+  reportActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  categoryCard: {
-    width: '48%',
-    padding: Sizes.lg,
-    borderRadius: Sizes.radiusLarge,
     alignItems: 'center',
+    gap: Sizes.sm,
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionButtonLoading: {
+    opacity: 0.6,
+    backgroundColor: Colors.primary + '10',
+  },
+  categorySection: {
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
     marginBottom: Sizes.md,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  categoryIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Sizes.sm,
-  },
-  categoryName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  categoryCount: {
-    fontSize: 12,
-    textAlign: 'center',
+    elevation: 3,
   },
   categoryHeader: {
-    marginBottom: Sizes.lg,
-  },
-  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Sizes.sm,
+    marginBottom: Sizes.md,
   },
-  backButtonText: {
-    color: Colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
+  categoryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Sizes.sm,
   },
   categoryTitle: {
-    fontSize: 24,
+    fontSize: Sizes.regular,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: Colors.textPrimary,
+    flex: 1,
   },
-  categorySubtitle: {
-    fontSize: 14,
+  categoryCount: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+  },
+  categoryReportItem: {
+    paddingVertical: Sizes.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Sizes.xs,
+  },
+  categoryReportTitle: {
+    fontSize: Sizes.medium,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  categoryReportDate: {
+    fontSize: Sizes.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  viewMoreButton: {
+    paddingVertical: Sizes.xs,
+    alignItems: 'center',
+  },
+  viewMoreText: {
+    fontSize: Sizes.small,
+    fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: Sizes.xl * 2,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.textSecondary,
-    marginTop: Sizes.md,
-    marginBottom: Sizes.xs,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: Sizes.lg,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Sizes.screenPadding,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginTop: Sizes.md,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Sizes.screenPadding,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.danger,
-    marginTop: Sizes.md,
-    marginBottom: Sizes.xs,
-  },
-  errorText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Sizes.lg,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Sizes.lg,
-    paddingVertical: Sizes.sm,
-    borderRadius: Sizes.radiusMedium,
-  },
-  retryButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Sizes.screenPadding,
+    paddingVertical: Sizes.xxl,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: Sizes.xlarge,
     fontWeight: 'bold',
-    color: Colors.textSecondary,
     marginTop: Sizes.lg,
     marginBottom: Sizes.sm,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: Sizes.medium,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Sizes.screenPadding,
-  },
-  authMessage: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Sizes.lg,
-  },
-  loginButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Sizes.xl,
-    paddingVertical: Sizes.md,
-    borderRadius: Sizes.radiusMedium,
-  },
-  loginButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+    lineHeight: 22,
+    paddingHorizontal: Sizes.lg,
   },
 });
 

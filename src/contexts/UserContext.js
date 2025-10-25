@@ -72,8 +72,10 @@ export const UserProvider = ({ children }) => {
 
   // Logout user
   const logoutUser = () => {
+    console.log('🚪 UserContext logout - clearing user data...');
     setUser(initialUserState);
     setTokenCounter(1);
+    console.log('✅ UserContext logout completed');
   };
 
   // Update user data

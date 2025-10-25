@@ -51,19 +51,45 @@ export class AuthService {
   // Logout user
   static async logout() {
     try {
+      console.log('🚪 Starting auth service logout...');
+      
       // Use Firebase Authentication
       if (ApiService.useFirebase) {
-        return await FirebaseAuthService.logout();
+        const result = await FirebaseAuthService.logout();
+        console.log('✅ Firebase logout completed');
+        return result;
       }
       
       // Fallback to REST API
-      await ApiService.post('/auth/logout');
+      try {
+        await ApiService.post('/auth/logout');
+        console.log('✅ REST API logout completed');
+      } catch (apiError) {
+        console.warn('⚠️ REST API logout failed:', apiError.message);
+        // Continue with local cleanup even if API call fails
+      }
+      
+      return {
+        success: true,
+        message: 'Logout completed successfully'
+      };
     } catch (error) {
-      console.error('Logout call failed:', error);
+      console.error('Auth service logout error:', error);
+      
+      // Still return success to allow local cleanup
+      return {
+        success: true,
+        message: 'Logout completed (with local cleanup)'
+      };
     } finally {
-      // Clear local token for REST API
+      // Always clear local token for REST API
       if (!ApiService.useFirebase) {
-        await ApiService.setAuthToken(null);
+        try {
+          await ApiService.setAuthToken(null);
+          console.log('🗑️ Cleared local auth token');
+        } catch (tokenError) {
+          console.warn('⚠️ Error clearing local token:', tokenError);
+        }
       }
     }
   }
