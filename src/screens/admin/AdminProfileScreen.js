@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,36 +9,307 @@ import {
   Image,
   TextInput,
   Alert,
+  ActivityIndicator,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import AppHeader from '../../components/AppHeader';
+import { FirebaseAdminService } from '../../services/firebaseHospitalServices';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const AdminProfileScreen = ({ navigation }) => {
-  const [adminData, setAdminData] = useState({
-    name: 'Admin King',
-    email: 'admin@kbrhospital.com',
-    phone: '+91 98765 43210',
-    role: 'Administrator',
-    department: 'Hospital Management',
-    joinDate: '2020-01-15',
-    permissions: ['Full Access', 'User Management', 'System Configuration']
-  });
-
+  const [adminData, setAdminData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState(adminData);
+  const [editData, setEditData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handleSave = () => {
-    setAdminData(editData);
-    setIsEditing(false);
-    Alert.alert('Success', 'Profile updated successfully');
+  // Load admin profile from backend on component mount
+  useEffect(() => {
+    loadAdminProfile();
+  }, []);
+
+  const loadAdminProfile = async () => {
+    try {
+      setLoading(true);
+      console.log('📱 Loading admin profile from backend...');
+      
+      const result = await FirebaseAdminService.getAdminProfile();
+      
+      if (result.success) {
+        setAdminData(result.data);
+        setEditData(result.data);
+        console.log('✅ Admin profile loaded:', result.data.name);
+      } else {
+        throw new Error('Failed to load admin profile');
+      }
+    } catch (error) {
+      console.error('❌ Error loading admin profile:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'Failed to load admin profile. Please try again.',
+        [
+          { text: 'Retry', onPress: loadAdminProfile },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      console.log('💾 Saving admin profile changes...');
+      
+      // Include profile image in the save data if one was selected
+      const saveData = {
+        ...editData,
+        ...(profileImage && { profileImage })
+      };
+      
+      const result = await FirebaseAdminService.updateAdminProfile(saveData);
+      
+      if (result.success) {
+        setAdminData(saveData);
+        setIsEditing(false);
+        setProfileImage(null); // Clear the selected image after successful save
+        Alert.alert('Success', 'Profile updated successfully');
+        console.log('✅ Admin profile saved successfully');
+      } else {
+        throw new Error('Failed to save profile');
+      }
+    } catch (error) {
+      console.error('❌ Error saving admin profile:', error);
+      Alert.alert('Error', error.message || 'Failed to save profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
-    setEditData(adminData);
+    setEditData(adminData || {});
     setIsEditing(false);
   };
+
+  // Request camera permissions
+  const requestCameraPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'KBR Life Care needs access to your camera to take profile photos.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true; // iOS permissions are handled by expo-image-picker
+  };
+
+  // Handle camera button press
+  const handleCameraPress = () => {
+    Alert.alert(
+      'Change Profile Picture',
+      'Choose how you would like to update your profile picture',
+      [
+        {
+          text: 'Take Photo',
+          onPress: () => takePhoto(),
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: () => pickImage(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  // Take photo with camera
+  const takePhoto = async () => {
+    try {
+      const hasPermission = await requestCameraPermissions();
+      if (!hasPermission) {
+        Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+        return;
+      }
+
+      // Request camera permissions from expo-image-picker
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+        return;
+      }
+
+      setUploadingImage(true);
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        await handleImageSelected(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Pick image from gallery
+  const pickImage = async () => {
+    try {
+      // Request media library permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Media library permission is required to choose photos.');
+        return;
+      }
+
+      setUploadingImage(true);
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        await handleImageSelected(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Handle selected image
+  const handleImageSelected = async (imageAsset) => {
+    try {
+      console.log('📸 Processing selected image:', imageAsset.uri);
+
+      // Validate image
+      if (!imageAsset.uri) {
+        throw new Error('Invalid image selected');
+      }
+
+      // Check file size (limit to 5MB)
+      const fileInfo = await FileSystem.getInfoAsync(imageAsset.uri);
+      if (fileInfo.size && fileInfo.size > 5 * 1024 * 1024) {
+        Alert.alert('File Too Large', 'Please select an image smaller than 5MB.');
+        return;
+      }
+
+      // Update local state immediately for UI feedback
+      setProfileImage(imageAsset.uri);
+
+      // Update edit data if in editing mode
+      if (isEditing) {
+        setEditData(prev => ({
+          ...prev,
+          profileImage: imageAsset.uri
+        }));
+      }
+
+      // You can implement upload to Firebase Storage here if needed
+      // For now, we'll just store the local URI
+      console.log('✅ Profile image updated locally');
+      
+      Alert.alert(
+        'Profile Picture Updated',
+        'Your profile picture has been updated. Remember to save your changes.',
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      console.error('Error handling selected image:', error);
+      Alert.alert('Error', 'Failed to process the selected image. Please try again.');
+    }
+  };
+
+  // Show loading screen while fetching data
+  if (loading) {
+    return (
+      <View style={styles.outerContainer}>
+        <StatusBar 
+          backgroundColor="transparent" 
+          barStyle="light-content" 
+          translucent={true} 
+        />
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+          <AppHeader 
+            title="Admin Profile"
+            subtitle="Loading admin account settings..."
+            navigation={navigation}
+            showBackButton={true}
+            useSimpleAdminHeader={true}
+          />
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={Colors.kbrBlue} />
+            <Text style={styles.loadingText}>Loading admin profile...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // Show error state if no admin data
+  if (!adminData) {
+    return (
+      <View style={styles.outerContainer}>
+        <StatusBar 
+          backgroundColor="transparent" 
+          barStyle="light-content" 
+          translucent={true} 
+        />
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+          <AppHeader 
+            title="Admin Profile"
+            subtitle="Error loading admin account"
+            navigation={navigation}
+            showBackButton={true}
+            useSimpleAdminHeader={true}
+          />
+          <View style={styles.errorContent}>
+            <Ionicons name="alert-circle" size={64} color={Colors.kbrRed} />
+            <Text style={styles.errorText}>Failed to load admin profile</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadAdminProfile}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.outerContainer}>
@@ -60,8 +331,9 @@ const AdminProfileScreen = ({ navigation }) => {
         {/* Edit Button */}
         <View style={styles.actionSection}>
           <TouchableOpacity 
-            style={styles.editButton}
+            style={[styles.editButton, saving && styles.disabledButton]}
             onPress={() => setIsEditing(!isEditing)}
+            disabled={saving}
           >
             <Ionicons 
               name={isEditing ? "close" : "create"} 
@@ -79,16 +351,30 @@ const AdminProfileScreen = ({ navigation }) => {
           <View style={styles.profileSection}>
             <View style={styles.profileImageContainer}>
               <Image 
-                source={require('../../../assets/hospital-logo.jpeg')}
+                source={
+                  profileImage || editData.profileImage
+                    ? { uri: profileImage || editData.profileImage }
+                    : adminData?.profileImage
+                    ? { uri: adminData.profileImage }
+                    : require('../../../assets/hospital-logo.jpeg')
+                }
                 style={styles.profileImage}
                 resizeMode="cover"
               />
-              <TouchableOpacity style={styles.cameraButton}>
-                <Ionicons name="camera" size={16} color={Colors.white} />
+              <TouchableOpacity 
+                style={[styles.cameraButton, uploadingImage && styles.cameraButtonDisabled]}
+                onPress={handleCameraPress}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Ionicons name="camera" size={16} color={Colors.white} />
+                )}
               </TouchableOpacity>
             </View>
-            <Text style={styles.profileName}>{adminData.name}</Text>
-            <Text style={styles.profileRole}>{adminData.role}</Text>
+            <Text style={styles.profileName}>{adminData.name || 'Admin User'}</Text>
+            <Text style={styles.profileRole}>{adminData.role || 'Administrator'}</Text>
           </View>
 
           {/* Profile Information */}
@@ -101,11 +387,12 @@ const AdminProfileScreen = ({ navigation }) => {
                 {isEditing ? (
                   <TextInput
                     style={styles.infoInput}
-                    value={editData.name}
+                    value={editData.name || ''}
                     onChangeText={(text) => setEditData({...editData, name: text})}
+                    editable={!saving}
                   />
                 ) : (
-                  <Text style={styles.infoValue}>{adminData.name}</Text>
+                  <Text style={styles.infoValue}>{adminData.name || 'N/A'}</Text>
                 )}
               </View>
 
@@ -114,12 +401,13 @@ const AdminProfileScreen = ({ navigation }) => {
                 {isEditing ? (
                   <TextInput
                     style={styles.infoInput}
-                    value={editData.email}
+                    value={editData.email || ''}
                     onChangeText={(text) => setEditData({...editData, email: text})}
                     keyboardType="email-address"
+                    editable={!saving}
                   />
                 ) : (
-                  <Text style={styles.infoValue}>{adminData.email}</Text>
+                  <Text style={styles.infoValue}>{adminData.email || 'N/A'}</Text>
                 )}
               </View>
 
@@ -128,23 +416,24 @@ const AdminProfileScreen = ({ navigation }) => {
                 {isEditing ? (
                   <TextInput
                     style={styles.infoInput}
-                    value={editData.phone}
+                    value={editData.phone || ''}
                     onChangeText={(text) => setEditData({...editData, phone: text})}
                     keyboardType="phone-pad"
+                    editable={!saving}
                   />
                 ) : (
-                  <Text style={styles.infoValue}>{adminData.phone}</Text>
+                  <Text style={styles.infoValue}>{adminData.phone || 'N/A'}</Text>
                 )}
               </View>
 
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Department</Text>
-                <Text style={styles.infoValue}>{adminData.department}</Text>
+                <Text style={styles.infoValue}>{adminData.department || 'N/A'}</Text>
               </View>
 
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Join Date</Text>
-                <Text style={styles.infoValue}>{adminData.joinDate}</Text>
+                <Text style={styles.infoValue}>{adminData.joinDate || 'N/A'}</Text>
               </View>
             </View>
           </View>
@@ -153,12 +442,15 @@ const AdminProfileScreen = ({ navigation }) => {
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Permissions</Text>
             <View style={styles.infoCard}>
-              {adminData.permissions.map((permission, index) => (
+              {(adminData.permissions || []).map((permission, index) => (
                 <View key={index} style={styles.permissionItem}>
                   <Ionicons name="checkmark-circle" size={20} color={Colors.kbrGreen} />
                   <Text style={styles.permissionText}>{permission}</Text>
                 </View>
               ))}
+              {(!adminData.permissions || adminData.permissions.length === 0) && (
+                <Text style={styles.infoValue}>No permissions assigned</Text>
+              )}
             </View>
           </View>
 
@@ -166,17 +458,23 @@ const AdminProfileScreen = ({ navigation }) => {
           {isEditing && (
             <View style={styles.actionButtons}>
               <TouchableOpacity 
-                style={styles.cancelButton}
+                style={[styles.cancelButton, saving && styles.disabledButton]}
                 onPress={handleCancel}
+                disabled={saving}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.saveButton}
+                style={[styles.saveButton, saving && styles.disabledButton]}
                 onPress={handleSave}
+                disabled={saving}
               >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                {saving ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -194,6 +492,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingText: {
+    marginTop: Sizes.md,
+    fontSize: Sizes.medium,
+    color: Colors.textSecondary,
+  },
+  errorContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    paddingHorizontal: Sizes.screenPadding,
+  },
+  errorText: {
+    marginTop: Sizes.md,
+    fontSize: Sizes.large,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Sizes.xl,
+  },
+  retryButton: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: Sizes.xl,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: Sizes.medium,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: Colors.kbrBlue,
@@ -243,6 +577,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   scrollView: {
     flex: 1,
   },
@@ -275,6 +612,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: Colors.white,
+  },
+  cameraButtonDisabled: {
+    backgroundColor: Colors.gray,
+    opacity: 0.7,
   },
   profileName: {
     fontSize: Sizes.large,

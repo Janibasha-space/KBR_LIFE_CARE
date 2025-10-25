@@ -111,14 +111,26 @@ export class FirebaseAuthService {
   // Logout user
   static async logout() {
     try {
+      console.log('🚪 Starting Firebase logout...');
+      
+      // Sign out from Firebase
       await signOut(auth);
+      
+      console.log('✅ Firebase logout completed successfully');
       return {
         success: true,
         message: 'Logout successful'
       };
     } catch (error) {
       console.error('Firebase logout error:', error);
-      throw new Error('Logout failed');
+      
+      // Even if logout fails, still return success
+      // This ensures the app can continue with local logout
+      console.log('⚠️ Firebase logout failed, but continuing with local logout');
+      return {
+        success: true,
+        message: 'Logout completed (local cleanup)'
+      };
     }
   }
 

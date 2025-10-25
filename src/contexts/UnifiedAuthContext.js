@@ -226,32 +226,60 @@ export const UnifiedAuthProvider = ({ children }) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
       
+      console.log('🚪 Starting unified logout process...');
+      
       // If Firebase user, logout from Firebase
       if (authState.authMode === 'firebase') {
+        console.log('🔥 Logging out from Firebase...');
         await AuthService.logout();
       }
       
-      // Clear local state
-      setAuthState(prev => ({
-        ...prev,
+      // Clear AsyncStorage data (including any cached user data)
+      try {
+        await AsyncStorage.multiRemove([
+          'firebase:authUser',
+          'firebase:host:kbr-life-care--hospitals.firebaseapp.com',
+          'firebaseLocalStorageDb',
+          'userToken',
+          'userData',
+          'isLoggedIn',
+          'userContext',
+          'adminData',
+          'patientData'
+        ]);
+        console.log('🗑️ Cleared all cached authentication and user data');
+      } catch (storageError) {
+        console.warn('⚠️ Error clearing storage:', storageError);
+      }
+      
+      // Clear local state completely
+      setAuthState({
         isAuthenticated: false,
+        isLoading: false,
         user: null,
         authMode: 'demo',
-        isLoading: false,
         error: null
-      }));
+      });
       
       // Reset token counter for demo accounts
       setTokenCounter(9);
       
-      return { success: true };
+      console.log('✅ Unified logout completed successfully - all user sessions cleared');
+      return { success: true, message: 'Logged out successfully from all accounts' };
     } catch (error) {
-      setAuthState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: error.message 
-      }));
-      throw error;
+      console.error('❌ Logout error:', error);
+      
+      // Even if logout fails, clear local state
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        user: null,
+        authMode: 'demo',
+        error: null
+      });
+      
+      console.log('🧹 Force logout completed - local state cleared');
+      return { success: true, message: 'Logout completed (with cleanup)' };
     }
   };
 

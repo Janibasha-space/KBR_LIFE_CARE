@@ -137,10 +137,9 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleMedicalHistory = () => {
-    // Navigate to the Patient tab navigator first, then to Reports tab
-    navigation.navigate('PatientMain', { 
-      screen: 'Reports',
-      initial: false 
+    // Navigate directly to the standalone MedicalReportsScreen from Profile
+    navigation.navigate('MedicalReports', { 
+      fromProfile: true
     });
   };
 
