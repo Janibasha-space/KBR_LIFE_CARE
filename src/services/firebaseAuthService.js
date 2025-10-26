@@ -41,22 +41,43 @@ export class FirebaseAuthService {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
+      console.log('🔥 Firebase user authenticated:', user.uid);
+      console.log('📧 User email:', user.email);
+      
       // Get additional user data from Firestore
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userData = userDoc.exists() ? userDoc.data() : {};
+      
+      console.log('📊 Firestore user data:', userData);
+      
+      // Determine role with fallbacks and admin email check
+      let userRole = userData.role || 'patient';
+      
+      // Special check for admin email
+      if (user.email === 'thukaram2388@gmail.com') {
+        userRole = 'admin';
+        console.log('👑 Admin email detected, setting role to admin');
+      }
+      
+      console.log('🔑 Final user role:', userRole);
+      
+      const finalUserData = {
+        id: user.uid,
+        name: userData.name || user.displayName || 'User',
+        email: user.email,
+        role: userRole,
+        phone: userData.phone || '',
+        isAdmin: userRole === 'admin',
+        ...userData
+      };
+      
+      console.log('📋 Complete user data being returned:', finalUserData);
       
       return {
         success: true,
         data: {
           token: await user.getIdToken(),
-          user: {
-            id: user.uid,
-            name: userData.name || user.displayName,
-            email: user.email,
-            role: userData.role || 'patient',
-            phone: userData.phone || '',
-            ...userData
-          }
+          user: finalUserData
         },
         message: 'Login successful'
       };

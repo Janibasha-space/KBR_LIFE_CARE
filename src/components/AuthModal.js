@@ -69,20 +69,40 @@ const AuthModal = ({ visible, onClose, navigation }) => {
         });
         
         if (response.success) {
+          // Enhanced role detection with multiple fallback paths
+          const userRole = response.data?.user?.role || 
+                          response.user?.role || 
+                          response.data?.role ||
+                          response.role;
+          
+          const userEmail = response.data?.user?.email || 
+                           response.user?.email || 
+                           response.data?.email ||
+                           response.email ||
+                           formData.email;
+          
+          console.log('🔍 Complete login response:', response);
+          console.log('👤 User role detected:', userRole);
+          console.log('📧 User email:', userEmail);
+          
+          // Check if this is the admin email (hardcoded check as fallback)
+          const isAdminEmail = userEmail === 'thukaram2388@gmail.com';
+          const isAdmin = userRole === 'admin' || userRole === 'administrator' || isAdminEmail;
+          
+          console.log('🔑 Is admin email?', isAdminEmail);
+          console.log('� Final admin status:', isAdmin);
+          
           Alert.alert('Success', response.message || 'Signed in successfully!', [
             {
               text: 'OK',
               onPress: () => {
                 handleClose();
-                // Navigate based on user role - fix the data structure path
-                const userRole = response.data?.user?.role || response.user?.role;
-                console.log('🔄 User role detected:', userRole);
                 
                 // Trigger data loading after successful authentication
                 console.log('📊 Loading Firebase data after successful login...');
                 initializeFirebaseData();
                 
-                if (userRole === 'admin') {
+                if (isAdmin) {
                   console.log('🚀 Navigating to Admin Dashboard');
                   navigation?.navigate('AdminMain');
                 } else {
