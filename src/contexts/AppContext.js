@@ -596,7 +596,7 @@ export const AppProvider = ({ children }) => {
 
       // Real-time rooms listener
       console.log('🔄 Setting up rooms real-time listener...');
-      const roomsUnsubscribe = RoomService.subscribeToRooms((result) => {
+      const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
         if (result.success) {
           console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
           setAppState(prev => ({
@@ -888,7 +888,7 @@ export const AppProvider = ({ children }) => {
   const assignPatientToRoom = async (roomId, patientData) => {
     if (useBackend) {
       try {
-        await RoomService.assignPatient(roomId, patientData);
+        await FirebaseRoomService.assignPatient(roomId, patientData);
         setAppState(prev => ({
           ...prev,
           rooms: prev.rooms.map(room =>
@@ -972,7 +972,7 @@ export const AppProvider = ({ children }) => {
     if (useBackend) {
       try {
         // Update Firebase with bed assignment
-        await RoomService.assignPatientToBed(roomId, bedNumber, patientData);
+        await FirebaseRoomService.assignPatientToBed(roomId, bedNumber, patientData);
         
         setAppState(prev => ({
           ...prev,
@@ -1060,7 +1060,7 @@ export const AppProvider = ({ children }) => {
   const releasePatientFromBed = async (roomId, bedNumber, patientId) => {
     if (useBackend) {
       try {
-        await RoomService.releasePatientFromBed(roomId, bedNumber, patientId);
+        await FirebaseRoomService.releasePatientFromBed(roomId, bedNumber, patientId);
         
         setAppState(prev => ({
           ...prev,

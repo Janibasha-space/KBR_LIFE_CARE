@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormData = null }) => {
+const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormData = null, existingPayment = null }) => {
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
@@ -22,16 +22,34 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
     description: '',
     transactionId: '',
   });
+
+  // Calculate remaining amount for existing payments
+  const getRemainingAmount = () => {
+    if (existingPayment && existingPayment.dueAmount) {
+      return existingPayment.dueAmount;
+    }
+    return 0;
+  };
+
+  const getTotalPaidAmount = () => {
+    if (existingPayment && existingPayment.paidAmount) {
+      return existingPayment.paidAmount;
+    }
+    return 0;
+  };
   
   // Update form data when initialFormData changes
   useEffect(() => {
     if (initialFormData && initialFormData.patientId) {
       setFormData(prev => ({
         ...prev,
-        ...initialFormData
+        ...initialFormData,
+        // For existing payments, suggest the remaining amount
+        fullAmount: existingPayment ? existingPayment.totalAmount?.toString() || '' : initialFormData.fullAmount || '',
+        actualAmountPaid: existingPayment ? getRemainingAmount().toString() : initialFormData.actualAmountPaid || ''
       }));
     }
-  }, [initialFormData]);
+  }, [initialFormData, existingPayment]);
 
   const paymentTypes = [
     { value: 'consultation', label: 'Consultation', icon: 'medical' },
@@ -85,36 +103,102 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
 
     const fullAmount = parseFloat(formData.fullAmount);
     const actualAmountPaid = parseFloat(formData.actualAmountPaid);
-    const dueAmount = fullAmount - actualAmountPaid;
+    
+    // If this is an additional payment to an existing record
+    if (existingPayment) {
+      const newTotalPaid = getTotalPaidAmount() + actualAmountPaid;
+      const newDueAmount = existingPayment.totalAmount - newTotalPaid;
+      
+      // Determine payment status based on total amount paid
+      let status = 'pending';
+      if (newTotalPaid === 0) {
+        status = 'pending';
+      } else if (newTotalPaid >= existingPayment.totalAmount) {
+        status = 'paid';
+      } else {
+        status = 'partial';
+      }
 
-    // Determine payment status based on amount paid
-    let status = 'pending';
-    if (actualAmountPaid === 0) {
-      status = 'pending';
-    } else if (actualAmountPaid === fullAmount) {
-      status = 'paid';
+      const paymentData = {
+        id: existingPayment.id, // Keep existing payment ID
+        patientId: formData.patientId,
+        patientName: formData.patientName,
+        fullAmount: existingPayment.totalAmount, // Keep original total
+        totalAmount: existingPayment.totalAmount,
+        paidAmount: newTotalPaid, // Updated total paid amount
+        actualAmountPaid: newTotalPaid, // For compatibility
+        amount: newTotalPaid, // For compatibility
+        dueAmount: newDueAmount,
+        type: existingPayment.type || formData.type,
+        paymentMethod: formData.paymentMethod,
+        description: formData.description.trim(),
+        transactionId: formData.transactionId.trim() || null,
+        status: status,
+        // Add payment history entry
+        paymentHistory: [
+          ...(existingPayment.paymentHistory || []),
+          {
+            id: `payment_${Date.now()}`,
+            amount: actualAmountPaid,
+            paymentMethod: formData.paymentMethod,
+            transactionId: formData.transactionId.trim() || null,
+            paidDate: new Date().toISOString(),
+            paidBy: 'admin', // You can customize this
+            description: formData.description.trim()
+          }
+        ],
+        lastPaymentDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      console.log('Updating existing payment with additional payment:', paymentData);
+      onSave(paymentData, 'update');
     } else {
-      status = 'partial';
+      // New payment record
+      const dueAmount = fullAmount - actualAmountPaid;
+
+      // Determine payment status based on amount paid
+      let status = 'pending';
+      if (actualAmountPaid === 0) {
+        status = 'pending';
+      } else if (actualAmountPaid >= fullAmount) {
+        status = 'paid';
+      } else {
+        status = 'partial';
+      }
+
+      const paymentData = {
+        patientId: formData.patientId,
+        patientName: formData.patientName,
+        fullAmount: fullAmount,
+        actualAmountPaid: actualAmountPaid,
+        amount: actualAmountPaid, // Keep this for backwards compatibility
+        totalAmount: fullAmount,
+        paidAmount: actualAmountPaid,
+        dueAmount: dueAmount,
+        type: formData.type,
+        paymentMethod: formData.paymentMethod,
+        description: formData.description.trim(),
+        transactionId: formData.transactionId.trim() || null,
+        status: status,
+        // Initialize payment history
+        paymentHistory: actualAmountPaid > 0 ? [{
+          id: `payment_${Date.now()}`,
+          amount: actualAmountPaid,
+          paymentMethod: formData.paymentMethod,
+          transactionId: formData.transactionId.trim() || null,
+          paidDate: new Date().toISOString(),
+          paidBy: 'admin',
+          description: formData.description.trim()
+        }] : [],
+        createdAt: new Date().toISOString(),
+        lastPaymentDate: actualAmountPaid > 0 ? new Date().toISOString() : null
+      };
+
+      console.log('Saving new payment with data:', paymentData);
+      onSave(paymentData, 'create');
     }
-
-    const paymentData = {
-      patientId: formData.patientId,
-      patientName: formData.patientName,
-      fullAmount: fullAmount,
-      actualAmountPaid: actualAmountPaid,
-      amount: actualAmountPaid, // Keep this for backwards compatibility
-      totalAmount: fullAmount,
-      paidAmount: actualAmountPaid,
-      dueAmount: dueAmount,
-      type: formData.type,
-      paymentMethod: formData.paymentMethod,
-      description: formData.description.trim(),
-      transactionId: formData.transactionId.trim() || null,
-      status: status,
-    };
-
-    console.log('Saving payment with data:', paymentData);
-    onSave(paymentData);
+    
     handleClose();
   };
 
@@ -153,6 +237,31 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Existing Payment Information (if updating) */}
+            {existingPayment && (
+              <View style={styles.existingPaymentInfo}>
+                <Text style={styles.existingPaymentTitle}>Existing Payment Information</Text>
+                <View style={styles.existingPaymentDetails}>
+                  <View style={styles.existingPaymentRow}>
+                    <Text style={styles.existingPaymentLabel}>Total Amount:</Text>
+                    <Text style={styles.existingPaymentValue}>₹{existingPayment.totalAmount?.toLocaleString() || '0'}</Text>
+                  </View>
+                  <View style={styles.existingPaymentRow}>
+                    <Text style={styles.existingPaymentLabel}>Already Paid:</Text>
+                    <Text style={[styles.existingPaymentValue, { color: '#22C55E' }]}>₹{getTotalPaidAmount().toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.existingPaymentRow}>
+                    <Text style={styles.existingPaymentLabel}>Remaining:</Text>
+                    <Text style={[styles.existingPaymentValue, { color: '#EF4444', fontWeight: 'bold' }]}>₹{getRemainingAmount().toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.existingPaymentRow}>
+                    <Text style={styles.existingPaymentLabel}>Payment History:</Text>
+                    <Text style={styles.existingPaymentValue}>{existingPayment.paymentHistory?.length || 0} payments made</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Patient Selection */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Select Patient *</Text>
@@ -558,6 +667,42 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
+    fontWeight: '600',
+  },
+  // Existing Payment Info Styles
+  existingPaymentInfo: {
+    backgroundColor: '#F0F9FF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+  },
+  existingPaymentTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 12,
+  },
+  existingPaymentDetails: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+  },
+  existingPaymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  existingPaymentLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  existingPaymentValue: {
+    fontSize: 14,
+    color: '#1F2937',
     fontWeight: '600',
   },
 });

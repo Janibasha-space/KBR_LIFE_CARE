@@ -24,6 +24,7 @@ const PaymentManagementScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedPaymentForUpdate, setSelectedPaymentForUpdate] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const flatListRef = React.useRef(null);
@@ -541,116 +542,133 @@ Search: "${searchQuery || 'none'}"`,
     }
   };
 
-  const handleAddPayment = async (paymentData) => {
+  const handleAddPayment = async (paymentData, actionType = 'create') => {
     try {
       setIsLoading(true);
       
-      // Create a unique local ID with timestamp for easier tracking
-      const localId = `local-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      
-      // Create a local payment object for immediate UI update
-      const localPayment = {
-        id: localId,
-        patientId: paymentData.patientId,
-        patientName: paymentData.patientName,
-        fullAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
-        actualAmountPaid: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
-        amount: parseFloat(paymentData.actualAmountPaid || paymentData.amount), // For backwards compatibility
-        totalAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
-        paidAmount: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
-        dueAmount: parseFloat(paymentData.dueAmount || 0),
-        type: paymentData.type || 'consultation',
-        paymentMethod: paymentData.paymentMethod || 'cash',
-        description: paymentData.description || '',
-        status: paymentData.status || 'paid',
-        paymentStatus: paymentData.status || 'paid',
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }),
-        paymentDate: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        transactionId: paymentData.transactionId || null,
-        isLocalPayment: true, // Flag to identify this is a locally added payment
-        locallyAdded: true,    // Additional flag for UI differentiation
-        pending: true          // Flag to show sync status
-      };
-      
-      // Show an immediate toast or notification
-      Alert.alert(
-        'Payment Added',
-        'Your payment has been added and is being saved.',
-        [{ text: 'OK' }],
-        { cancelable: true }
-      );
-      
-      // Immediately update local state for responsive UI
-      const updatedPayments = [localPayment, ...(payments || [])]; // Add to beginning of array
-      
-      // Update the payments array directly for immediate UI refresh
-      setAppState(prev => ({
-        ...prev,
-        payments: updatedPayments
-      }));
-      
-      // Force filter reset to "All" to ensure new payment is visible
-      setSelectedFilter('All');
-      setSearchQuery('');
-      
-      console.log('✅ Added new payment to state:', localPayment.id);
-      
-      console.log('📱 Immediately updated UI with new payment:', localId);
-      setShowAddModal(false);
-      
-      // Now send to the backend
-      try {
-        const result = await addPayment(paymentData);
-        console.log('💾 Payment saved to backend:', result);
+      if (actionType === 'update' && selectedPaymentForUpdate) {
+        // Updating an existing payment with additional payment
+        console.log('Updating existing payment:', selectedPaymentForUpdate.id);
         
-        // Update the local payment with the server-generated ID if available
-        if (result && result.data && result.data.id) {
-          // Find and update the local payment with the real ID from server
-          const serverPayment = result.data;
+        // Update the existing payment in local state
+        setAppState(prev => ({
+          ...prev,
+          payments: prev.payments.map(p => 
+            p.id === selectedPaymentForUpdate.id ? {
+              ...p,
+              ...paymentData,
+              updatedAt: new Date().toISOString()
+            } : p
+          )
+        }));
+        
+        // Send update to backend
+        const result = await addPayment({
+          ...paymentData,
+          isUpdate: true,
+          originalPaymentId: selectedPaymentForUpdate.id
+        });
+        
+        Alert.alert('Success', 'Additional payment has been recorded successfully!');
+        setSelectedPaymentForUpdate(null);
+      } else {
+        // Creating a new payment record
+        const localId = `local-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        
+        const localPayment = {
+          id: localId,
+          patientId: paymentData.patientId,
+          patientName: paymentData.patientName,
+          fullAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
+          actualAmountPaid: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
+          amount: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
+          totalAmount: parseFloat(paymentData.fullAmount || paymentData.amount),
+          paidAmount: parseFloat(paymentData.actualAmountPaid || paymentData.amount),
+          dueAmount: parseFloat(paymentData.dueAmount || 0),
+          type: paymentData.type || 'consultation',
+          paymentMethod: paymentData.paymentMethod || 'cash',
+          description: paymentData.description || '',
+          status: paymentData.status || 'paid',
+          paymentStatus: paymentData.status || 'paid',
+          paymentHistory: paymentData.paymentHistory || [],
+          date: new Date().toISOString().split('T')[0],
+          time: new Date().toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          }),
+          paymentDate: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          transactionId: paymentData.transactionId || null,
+          isLocalPayment: true,
+          locallyAdded: true,
+          pending: true
+        };
+        
+        Alert.alert(
+          'Payment Added',
+          'Your payment has been added and is being saved.',
+          [{ text: 'OK' }],
+          { cancelable: true }
+        );
+        
+        const updatedPayments = [localPayment, ...(payments || [])];
+        
+        setAppState(prev => ({
+          ...prev,
+          payments: updatedPayments
+        }));
+        
+        setSelectedFilter('All');
+        setSearchQuery('');
+        
+        console.log('✅ Added new payment to state:', localPayment.id);
+        
+        try {
+          const result = await addPayment(paymentData);
+          console.log('💾 Payment saved to backend:', result);
+          
+          if (result && result.data && result.data.id) {
+            const serverPayment = result.data;
+            
+            setAppState(prev => ({
+              ...prev,
+              payments: prev.payments.map(p => 
+                p.id === localId ? { 
+                  ...p, 
+                  id: serverPayment.id, 
+                  originalId: serverPayment.id,
+                  pending: false,
+                  syncedAt: new Date().toISOString()
+                } : p
+              )
+            }));
+            
+            console.log('🔄 Updated local payment with server ID:', serverPayment.id);
+          }
+        } catch (error) {
+          console.error('❌ Error saving payment to backend:', error);
           
           setAppState(prev => ({
             ...prev,
             payments: prev.payments.map(p => 
               p.id === localId ? { 
                 ...p, 
-                id: serverPayment.id, 
-                originalId: serverPayment.id,
-                pending: false,
-                syncedAt: new Date().toISOString()
+                syncFailed: true,
+                pending: false
               } : p
             )
           }));
           
-          console.log('🔄 Updated local payment with server ID:', serverPayment.id);
+          Alert.alert(
+            'Sync Warning',
+            'Your payment was added but had trouble syncing with the server. It will automatically retry.',
+            [{ text: 'OK' }]
+          );
         }
-      } catch (error) {
-        console.error('❌ Error saving payment to backend:', error);
-        
-        // Mark the payment as failed in UI but keep it visible
-        setAppState(prev => ({
-          ...prev,
-          payments: prev.payments.map(p => 
-            p.id === localId ? { 
-              ...p, 
-              syncFailed: true,
-              pending: false
-            } : p
-          )
-        }));
-        
-        // Show error but don't disrupt the flow
-        Alert.alert(
-          'Sync Warning',
-          'Your payment was added but had trouble syncing with the server. It will automatically retry.',
-          [{ text: 'OK' }]
-        );
       }
+      
+      setShowAddModal(false);
       
       // Optional: Refresh from Firebase in the background for complete sync
       if (initializeFirebaseData) {
@@ -659,10 +677,9 @@ Search: "${searchQuery || 'none'}"`,
             .then(() => console.log('✅ Background sync completed'))
             .catch(err => console.error('⚠️ Background sync error:', err))
             .finally(() => {
-              // Ensure loading state is reset after all operations
               setIsLoading(false);
             });
-        }, 2000); // Wait 2 seconds before refreshing to allow Firebase to update
+        }, 2000);
       } else {
         setIsLoading(false);
       }
@@ -670,7 +687,6 @@ Search: "${searchQuery || 'none'}"`,
       console.error('❌ Error adding payment:', error);
       Alert.alert('Error', 'Failed to add payment. Please try again.');
     } finally {
-      // Final safety to ensure loading is always turned off
       setIsLoading(false);
     }
   };
@@ -1454,17 +1470,37 @@ Search: "${searchQuery || 'none'}"`,
                         <TouchableOpacity 
                           style={[styles.actionButton, styles.actionButtonSuccess]}
                           onPress={() => {
-                            // Pre-select the patient in the modal
-                            setFormData && setFormData(prev => ({
-                              ...prev,
-                              patientId: item.patientId,
-                              patientName: item.patientName
-                            }));
+                            // Check if this payment has pending/partial amount
+                            const hasRemainingBalance = item.dueAmount > 0 || item.status === 'pending' || item.status === 'partial';
+                            
+                            if (hasRemainingBalance) {
+                              // Set this payment for update and pre-fill the modal
+                              setSelectedPaymentForUpdate(item);
+                              setFormData(prev => ({
+                                ...prev,
+                                patientId: item.patientId,
+                                patientName: item.patientName,
+                                fullAmount: item.totalAmount?.toString() || item.fullAmount?.toString() || '',
+                                actualAmountPaid: item.dueAmount?.toString() || ''
+                              }));
+                            } else {
+                              // Pre-select the patient for a new payment
+                              setSelectedPaymentForUpdate(null);
+                              setFormData(prev => ({
+                                ...prev,
+                                patientId: item.patientId,
+                                patientName: item.patientName,
+                                fullAmount: '',
+                                actualAmountPaid: ''
+                              }));
+                            }
                             setShowAddModal(true);
                           }}
                         >
                           <Ionicons name="add-circle" size={16} color="#22C55E" />
-                          <Text style={[styles.actionText, { color: "#22C55E" }]}>Add Payment</Text>
+                          <Text style={[styles.actionText, { color: "#22C55E" }]}>
+                            {(item.dueAmount > 0 || item.status === 'pending' || item.status === 'partial') ? 'Add Payment' : 'New Payment'}
+                          </Text>
                         </TouchableOpacity>
                       )}
                       
@@ -1508,6 +1544,7 @@ Search: "${searchQuery || 'none'}"`,
           onClose={() => {
             console.log('Closing payment modal');
             setShowAddModal(false);
+            setSelectedPaymentForUpdate(null);
             // Reset form data when modal is closed
             setFormData({
               patientId: '',
@@ -1522,6 +1559,7 @@ Search: "${searchQuery || 'none'}"`,
           onSave={handleAddPayment}
           patients={patients}
           initialFormData={formData}
+          existingPayment={selectedPaymentForUpdate}
         />
       </SafeAreaView>
     </View>

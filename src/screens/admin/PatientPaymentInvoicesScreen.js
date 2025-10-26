@@ -256,12 +256,56 @@ const PatientPaymentInvoicesScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={styles.paymentRight}>
-          <Text style={styles.paymentAmount}>₹{(payment.amount || 0).toLocaleString()}</Text>
+          <Text style={styles.paymentAmount}>₹{(payment.totalAmount || payment.amount || 0).toLocaleString()}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(payment.status || 'pending') }]}>
             <Text style={styles.statusText}>{(payment.status || 'pending').toUpperCase()}</Text>
           </View>
         </View>
       </View>
+
+      {/* Payment Summary for partial payments */}
+      {(payment.status === 'partial' || payment.dueAmount > 0 || payment.paidAmount !== payment.totalAmount) && (
+        <View style={styles.paymentSummary}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total Amount:</Text>
+            <Text style={styles.summaryValue}>₹{(payment.totalAmount || payment.amount || 0).toLocaleString()}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Paid Amount:</Text>
+            <Text style={[styles.summaryValue, { color: '#22C55E' }]}>₹{(payment.paidAmount || 0).toLocaleString()}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Due Amount:</Text>
+            <Text style={[styles.summaryValue, { color: '#EF4444', fontWeight: 'bold' }]}>₹{(payment.dueAmount || 0).toLocaleString()}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Payment History */}
+      {payment.paymentHistory && payment.paymentHistory.length > 0 && (
+        <View style={styles.paymentHistorySection}>
+          <Text style={styles.paymentHistoryTitle}>Payment History ({payment.paymentHistory.length} payments):</Text>
+          {payment.paymentHistory.slice(0, 3).map((historyItem, index) => (
+            <View key={historyItem.id || index} style={styles.historyItem}>
+              <View style={styles.historyLeft}>
+                <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                <Text style={styles.historyAmount}>₹{historyItem.amount?.toLocaleString() || '0'}</Text>
+              </View>
+              <View style={styles.historyRight}>
+                <Text style={styles.historyDate}>
+                  {new Date(historyItem.paidDate).toLocaleDateString('en-IN')}
+                </Text>
+                <Text style={styles.historyMethod}>{historyItem.paymentMethod || 'Cash'}</Text>
+              </View>
+            </View>
+          ))}
+          {payment.paymentHistory.length > 3 && (
+            <TouchableOpacity style={styles.viewAllHistory}>
+              <Text style={styles.viewAllHistoryText}>View all {payment.paymentHistory.length} payments</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.paymentDetails}>
         <View style={styles.paymentMethodRow}>
@@ -581,6 +625,88 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4B5563',
     marginLeft: 4,
+  },
+  // Payment Summary Styles
+  paymentSummary: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  // Payment History Styles
+  paymentHistorySection: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  paymentHistoryTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  historyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  historyAmount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#22C55E',
+    marginLeft: 6,
+  },
+  historyRight: {
+    alignItems: 'flex-end',
+  },
+  historyDate: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  historyMethod: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  viewAllHistory: {
+    marginTop: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  viewAllHistoryText: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
