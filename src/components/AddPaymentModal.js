@@ -10,8 +10,10 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useApp } from '../contexts/AppContext';
 
 const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormData = null, existingPayment = null }) => {
+  const { addInvoice, addPatientPayment } = useApp();
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
@@ -25,17 +27,130 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
 
   // Calculate remaining amount for existing payments
   const getRemainingAmount = () => {
-    if (existingPayment && existingPayment.dueAmount) {
-      return existingPayment.dueAmount;
+    if (existingPayment) {
+      const totalAmount = existingPayment.totalAmount || existingPayment.fullAmount || 0;
+      const actualPaidAmount = getTotalPaidAmount(); // Use our corrected function
+      
+      const remaining = Math.max(0, totalAmount - actualPaidAmount);
+      console.log('🔍 [AddPaymentModal] getRemainingAmount - Final remaining:', remaining);
+      
+      return remaining;
     }
     return 0;
   };
 
   const getTotalPaidAmount = () => {
-    if (existingPayment && existingPayment.paidAmount) {
-      return existingPayment.paidAmount;
+    if (existingPayment) {
+      console.log('🔍 [AddPaymentModal] getTotalPaidAmount - DEBUGGING:');
+      console.log('🔍 existingPayment.totalAmount:', existingPayment.totalAmount);
+      console.log('🔍 existingPayment.dueAmount:', existingPayment.dueAmount);
+      console.log('🔍 existingPayment.paidAmount:', existingPayment.paidAmount);
+      
+      // The correct calculation should be: totalAmount - dueAmount = actualPaid
+      const totalAmount = existingPayment.totalAmount || existingPayment.fullAmount || 0;
+      const dueAmount = existingPayment.dueAmount || existingPayment.remainingAmount || 0;
+      
+      if (totalAmount > 0 && dueAmount >= 0) {
+        const actualPaid = totalAmount - dueAmount;
+        console.log('🔍 Calculated: totalAmount (', totalAmount, ') - dueAmount (', dueAmount, ') = actualPaid (', actualPaid, ')');
+        return Math.max(0, actualPaid);
+      }
+      
+      // Fallback to other calculations if the above doesn't work
+      console.log('🔍 Using fallback calculation');
+      return existingPayment.calculatedPaid || existingPayment.actualAmountPaid || 0;
     }
     return 0;
+  };
+
+  // Function to generate invoice for payment
+  const generateInvoiceForPayment = async (paymentData) => {
+    try {
+      console.log('🧾 [AddPaymentModal] Generating invoice for payment:', paymentData.id);
+      console.log('🧾 [AddPaymentModal] Payment data received:', paymentData);
+      console.log('🧾 [AddPaymentModal] addInvoice function available:', !!addInvoice);
+
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now()}`;
+      const currentDate = new Date().toISOString().split('T')[0];
+
+      // Determine service type based on payment type
+      const getServiceType = (paymentType) => {
+        switch (paymentType) {
+          case 'consultation':
+          case 'tests':
+            return 'OP';
+          case 'admission':
+          case 'surgery':
+            return 'IP';
+          case 'tests':
+            return 'TEST';
+          default:
+            return 'General';
+        }
+      };
+
+      // Create invoice data - Use actualAmountPaid for invoice amount, not fullAmount
+      const actualPaid = paymentData.actualAmountPaid || paymentData.paidAmount || paymentData.amount || 0;
+      const invoiceData = {
+        invoiceNumber,
+        patientId: paymentData.patientId,
+        patientName: paymentData.patientName,
+        issueDate: currentDate,
+        dueDate: currentDate, // Same day since payment is created
+        totalAmount: actualPaid, // Use actual paid amount for invoice total
+        status: actualPaid > 0 ? 'paid' : 'draft',
+        paymentStatus: actualPaid > 0 ? 'paid' : 'draft',
+        description: paymentData.description || 'Medical Service Payment',
+        serviceType: getServiceType(paymentData.type),
+        items: [
+          {
+            name: paymentData.description || 'Medical Service',
+            description: `${paymentData.type} - ${paymentData.description}${actualPaid < (paymentData.fullAmount || paymentData.totalAmount) ? ` (Partial Payment: ₹${actualPaid})` : ''}`,
+            quantity: 1,
+            amount: actualPaid, // Use actual paid amount
+            unitPrice: actualPaid,
+            totalPrice: actualPaid
+          }
+        ],
+        paymentDetails: {
+          paymentId: paymentData.id,
+          paymentDate: paymentData.createdAt || new Date().toISOString(),
+          paymentMethod: paymentData.paymentMethod || 'cash',
+          transactionId: paymentData.transactionId,
+          actualAmountPaid: actualPaid,
+          fullAmount: paymentData.fullAmount || paymentData.totalAmount || actualPaid,
+          remainingAmount: Math.max(0, (paymentData.fullAmount || paymentData.totalAmount || actualPaid) - actualPaid),
+          dueAmount: paymentData.dueAmount || Math.max(0, (paymentData.fullAmount || paymentData.totalAmount || actualPaid) - actualPaid)
+        },
+        // Auto-generated invoice metadata
+        isAutoGenerated: true,
+        generatedFrom: 'payment',
+        originalId: paymentData.id,
+        generatedAt: new Date().toISOString(),
+        notes: `Auto-generated invoice for payment ${paymentData.id}`,
+        terms: 'Thank you for choosing KBR Life Care',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      console.log('🧾 [AddPaymentModal] Final invoice data:', invoiceData);
+
+      // Add invoice to database
+      if (addInvoice) {
+        console.log('🧾 [AddPaymentModal] Calling addInvoice function...');
+        const newInvoice = await addInvoice(invoiceData);
+        console.log('✅ [AddPaymentModal] Invoice generated successfully:', invoiceNumber);
+        console.log('✅ [AddPaymentModal] New invoice result:', newInvoice);
+        return newInvoice;
+      } else {
+        console.error('❌ [AddPaymentModal] addInvoice function not available');
+      }
+    } catch (error) {
+      console.error('❌ [AddPaymentModal] Error generating invoice:', error);
+      console.error('❌ [AddPaymentModal] Error stack:', error.stack);
+      // Don't show error to user since this is automatic - just log it
+    }
   };
   
   // Update form data when initialFormData changes
@@ -45,11 +160,29 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
         ...prev,
         ...initialFormData,
         // For existing payments, suggest the remaining amount
-        fullAmount: existingPayment ? existingPayment.totalAmount?.toString() || '' : initialFormData.fullAmount || '',
+        fullAmount: existingPayment ? (existingPayment.totalAmount || existingPayment.fullAmount || '')?.toString() || '' : initialFormData.fullAmount || '',
         actualAmountPaid: existingPayment ? getRemainingAmount().toString() : initialFormData.actualAmountPaid || ''
       }));
     }
   }, [initialFormData, existingPayment]);
+
+  // Debug log for existing payment data
+  useEffect(() => {
+    if (visible && existingPayment) {
+      console.log('🔍 AddPaymentModal opened with existing payment:', {
+        id: existingPayment.id,
+        totalAmount: existingPayment.totalAmount,
+        fullAmount: existingPayment.fullAmount,
+        paidAmount: existingPayment.paidAmount,
+        actualAmountPaid: existingPayment.actualAmountPaid,
+        dueAmount: existingPayment.dueAmount,
+        remainingAmount: existingPayment.remainingAmount,
+        paymentHistory: existingPayment.paymentHistory?.length || 0,
+        calculatedPaid: getTotalPaidAmount(),
+        calculatedRemaining: getRemainingAmount()
+      });
+    }
+  }, [visible, existingPayment]);
 
   const paymentTypes = [
     { value: 'consultation', label: 'Consultation', icon: 'medical' },
@@ -85,9 +218,37 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
       return false;
     }
 
-    if (parseFloat(formData.actualAmountPaid) > parseFloat(formData.fullAmount)) {
-      Alert.alert('Validation Error', 'Actual amount paid cannot be more than the full amount');
-      return false;
+    // For existing payments, check if new payment exceeds remaining amount
+    if (existingPayment) {
+      const remainingAmount = getRemainingAmount();
+      const paymentAmount = parseFloat(formData.actualAmountPaid);
+      
+      if (isNaN(paymentAmount) || paymentAmount <= 0) {
+        Alert.alert('Validation Error', 'Please enter a valid payment amount greater than 0');
+        return false;
+      }
+      
+      if (paymentAmount > remainingAmount) {
+        Alert.alert(
+          'Validation Error', 
+          `Payment amount ₹${paymentAmount.toLocaleString()} exceeds remaining due amount ₹${remainingAmount.toLocaleString()}. Please enter a valid amount.`
+        );
+        return false;
+      }
+    } else {
+      // For new payments, check if paid amount exceeds total amount
+      const fullAmount = parseFloat(formData.fullAmount);
+      const paymentAmount = parseFloat(formData.actualAmountPaid);
+      
+      if (isNaN(paymentAmount) || paymentAmount < 0) {
+        Alert.alert('Validation Error', 'Please enter a valid payment amount');
+        return false;
+      }
+      
+      if (paymentAmount > fullAmount) {
+        Alert.alert('Validation Error', 'Actual amount paid cannot be more than the full amount');
+        return false;
+      }
     }
 
     if (!formData.description.trim()) {
@@ -98,61 +259,153 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
     return true;
   };
 
-  const handleSave = () => {
-    if (!validateForm()) return;
+  const handleSave = async () => {
+    try {
+      console.log('💰 HandleSave called with:', {
+        formData,
+        existingPayment: existingPayment ? {
+          id: existingPayment.id,
+          totalAmount: existingPayment.totalAmount,
+          paidAmount: existingPayment.paidAmount,
+          dueAmount: existingPayment.dueAmount
+        } : null
+      });
 
-    const fullAmount = parseFloat(formData.fullAmount);
-    const actualAmountPaid = parseFloat(formData.actualAmountPaid);
-    
-    // If this is an additional payment to an existing record
-    if (existingPayment) {
-      const newTotalPaid = getTotalPaidAmount() + actualAmountPaid;
-      const newDueAmount = existingPayment.totalAmount - newTotalPaid;
+      if (!validateForm()) return;
+
+      const fullAmount = parseFloat(formData.fullAmount);
+      const actualAmountPaid = parseFloat(formData.actualAmountPaid);
       
-      // Determine payment status based on total amount paid
+      // Validate parsed amounts
+      if (isNaN(fullAmount) || isNaN(actualAmountPaid)) {
+        Alert.alert('Error', 'Invalid amount values. Please check your input.');
+        return;
+      }
+      
+      // If this is an additional payment to an existing record
+      if (existingPayment) {
+        const currentPaidAmount = getTotalPaidAmount();
+        const newTotalPaid = currentPaidAmount + actualAmountPaid;
+        const totalAmount = existingPayment.totalAmount || existingPayment.fullAmount || fullAmount;
+        const newDueAmount = Math.max(0, totalAmount - newTotalPaid);
+
+        console.log('💰 Payment calculation:', {
+          currentPaid: currentPaidAmount,
+          newPayment: actualAmountPaid,
+          newTotalPaid,
+          totalAmount,
+          newDueAmount
+        });
+      
+      // Determine payment status based on cumulative payments
       let status = 'pending';
+      let paymentStatus = 'Pending';
+      
       if (newTotalPaid === 0) {
         status = 'pending';
-      } else if (newTotalPaid >= existingPayment.totalAmount) {
+        paymentStatus = 'Pending';
+      } else if (newTotalPaid >= totalAmount) {
         status = 'paid';
+        paymentStatus = 'Fully Paid';
       } else {
         status = 'partial';
+        paymentStatus = 'Partially Paid';
       }
 
-      const paymentData = {
-        id: existingPayment.id, // Keep existing payment ID
-        patientId: formData.patientId,
-        patientName: formData.patientName,
-        fullAmount: existingPayment.totalAmount, // Keep original total
-        totalAmount: existingPayment.totalAmount,
-        paidAmount: newTotalPaid, // Updated total paid amount
-        actualAmountPaid: newTotalPaid, // For compatibility
-        amount: newTotalPaid, // For compatibility
-        dueAmount: newDueAmount,
-        type: existingPayment.type || formData.type,
+      // Create payment history entry for this new payment
+      const newPaymentEntry = {
+        id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        amount: actualAmountPaid,
         paymentMethod: formData.paymentMethod,
-        description: formData.description.trim(),
         transactionId: formData.transactionId.trim() || null,
-        status: status,
-        // Add payment history entry
-        paymentHistory: [
-          ...(existingPayment.paymentHistory || []),
-          {
-            id: `payment_${Date.now()}`,
-            amount: actualAmountPaid,
-            paymentMethod: formData.paymentMethod,
-            transactionId: formData.transactionId.trim() || null,
-            paidDate: new Date().toISOString(),
-            paidBy: 'admin', // You can customize this
-            description: formData.description.trim()
-          }
-        ],
-        lastPaymentDate: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        paidDate: new Date().toISOString(),
+        paidBy: 'admin',
+        description: formData.description.trim(),
+        paymentType: formData.type
       };
 
-      console.log('Updating existing payment with additional payment:', paymentData);
-      onSave(paymentData, 'update');
+      const paymentData = {
+        id: existingPayment.id,
+        patientId: formData.patientId,
+        patientName: formData.patientName,
+        fullAmount: totalAmount,
+        totalAmount: totalAmount,
+        paidAmount: newTotalPaid,
+        actualAmountPaid: newTotalPaid,
+        amount: newTotalPaid,
+        dueAmount: newDueAmount,
+        remainingAmount: newDueAmount,
+        type: existingPayment.type || formData.type,
+        paymentMethod: formData.paymentMethod,
+        description: `${existingPayment.description || ''} | Additional payment: ${formData.description.trim()}`.trim(),
+        transactionId: formData.transactionId.trim() || existingPayment.transactionId || null,
+        status: status,
+        paymentStatus: paymentStatus,
+        // Update payment history with all previous payments plus new one
+        paymentHistory: [
+          ...(existingPayment.paymentHistory || []),
+          newPaymentEntry
+        ],
+        paymentCount: (existingPayment.paymentHistory?.length || 0) + 1,
+        lastPaymentDate: new Date().toISOString(),
+        lastPaymentAmount: actualAmountPaid,
+        updatedAt: new Date().toISOString(),
+        // Track that this is an update with additional payment
+        isAdditionalPayment: true,
+        additionalPaymentAmount: actualAmountPaid
+      };
+
+      console.log('💰 Adding payment to existing record:', {
+        previousPaid: currentPaidAmount,
+        newPayment: actualAmountPaid,
+        totalPaid: newTotalPaid,
+        totalAmount: totalAmount,
+        remaining: newDueAmount,
+        status: paymentStatus
+      });
+      
+      // Save the payment first
+      await onSave(paymentData, 'update');
+      
+      // Update patient payment details in context for real-time updates
+      if (addPatientPayment && formData.patientId) {
+        try {
+          console.log('📝 Updating patient payment details for:', formData.patientId);
+          addPatientPayment(formData.patientId, {
+            amount: actualAmountPaid,
+            type: formData.type,
+            method: formData.paymentMethod,
+            description: formData.description.trim(),
+            transactionId: formData.transactionId.trim() || null
+          });
+          console.log('✅ Patient payment details updated successfully');
+        } catch (error) {
+          console.error('❌ Error updating patient payment details:', error);
+        }
+      }
+      
+      // Generate invoice for the additional payment amount
+      if (actualAmountPaid > 0) {
+        try {
+          console.log('🧾 Attempting to generate invoice for additional payment:', actualAmountPaid);
+          // Create a payment data object for the additional payment
+          const additionalPaymentData = {
+            ...paymentData,
+            id: paymentData.id || `payment_${Date.now()}`,
+            actualAmountPaid: actualAmountPaid, // Only the new payment amount
+            fullAmount: actualAmountPaid, // For invoice, use the additional amount
+            totalAmount: actualAmountPaid,
+            description: `Additional payment: ${formData.description.trim()}`
+          };
+          console.log('🧾 Additional payment data for invoice:', additionalPaymentData);
+          await generateInvoiceForPayment(additionalPaymentData);
+          console.log('✅ Invoice generation completed for additional payment');
+        } catch (error) {
+          console.error('❌ Error generating invoice for additional payment:', error);
+        }
+      } else {
+        console.log('⏭️ Skipping invoice generation - actualAmountPaid is 0 or negative');
+      }
     } else {
       // New payment record
       const dueAmount = fullAmount - actualAmountPaid;
@@ -196,10 +449,49 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
       };
 
       console.log('Saving new payment with data:', paymentData);
-      onSave(paymentData, 'create');
+      
+      // Save the payment first
+      await onSave(paymentData, 'create');
+      
+      // Update patient payment details in context for real-time updates
+      if (addPatientPayment && formData.patientId && actualAmountPaid > 0) {
+        try {
+          console.log('📝 Updating patient payment details for new payment:', formData.patientId);
+          addPatientPayment(formData.patientId, {
+            amount: actualAmountPaid,
+            type: formData.type,
+            method: formData.paymentMethod,
+            description: formData.description.trim(),
+            transactionId: formData.transactionId.trim() || null
+          });
+          console.log('✅ Patient payment details updated successfully for new payment');
+        } catch (error) {
+          console.error('❌ Error updating patient payment details for new payment:', error);
+        }
+      }
+      
+      // Generate invoice for any payment amount > 0
+      if (actualAmountPaid > 0) {
+        try {
+          console.log('🧾 Attempting to generate invoice for new payment:', actualAmountPaid);
+          // Create payment data for invoice generation
+          const paymentForInvoice = { ...paymentData, id: `payment_${Date.now()}` };
+          console.log('🧾 New payment data for invoice:', paymentForInvoice);
+          await generateInvoiceForPayment(paymentForInvoice);
+          console.log('✅ Invoice generation completed for new payment');
+        } catch (error) {
+          console.error('❌ Error generating invoice for new payment:', error);
+        }
+      } else {
+        console.log('⏭️ Skipping invoice generation - actualAmountPaid is 0 or negative');
+      }
     }
     
     handleClose();
+    } catch (error) {
+      console.error('❌ Error in handleSave:', error);
+      Alert.alert('Error', `Failed to save payment: ${error.message}`);
+    }
   };
 
   const handleClose = () => {
@@ -244,7 +536,7 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
                 <View style={styles.existingPaymentDetails}>
                   <View style={styles.existingPaymentRow}>
                     <Text style={styles.existingPaymentLabel}>Total Amount:</Text>
-                    <Text style={styles.existingPaymentValue}>₹{existingPayment.totalAmount?.toLocaleString() || '0'}</Text>
+                    <Text style={styles.existingPaymentValue}>₹{(existingPayment.totalAmount || existingPayment.fullAmount || 0).toLocaleString()}</Text>
                   </View>
                   <View style={styles.existingPaymentRow}>
                     <Text style={styles.existingPaymentLabel}>Already Paid:</Text>
@@ -333,7 +625,9 @@ const AddPaymentModal = ({ visible, onClose, onSave, patients = [], initialFormD
               {formData.fullAmount && formData.actualAmountPaid && (
                 <View style={styles.amountSummary}>
                   <Text style={styles.summaryText}>
-                    Due Amount: ₹{(parseFloat(formData.fullAmount || 0) - parseFloat(formData.actualAmountPaid || 0)).toLocaleString()}
+                    Due Amount: ₹{existingPayment 
+                      ? getRemainingAmount().toLocaleString() 
+                      : (parseFloat(formData.fullAmount || 0) - parseFloat(formData.actualAmountPaid || 0)).toLocaleString()}
                   </Text>
                   <Text style={[styles.statusText, {
                     color: parseFloat(formData.actualAmountPaid || 0) === parseFloat(formData.fullAmount || 0) ? '#22C55E' :

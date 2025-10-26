@@ -1,10 +1,25 @@
 import React, { createContext, useContext, useState } from 'react';
 
-// Initial services - will be populated from Firebase database only
+// Initial services - will be populated from AppContext and Firebase database
 const initialServices = {
-  medical: [],
-  specialized: [],
-  surgical: [],
+  medical: [
+    { id: 'general-consultation', name: 'General Consultation', price: 600, category: 'medical' },
+    { id: 'prenatal-checkup', name: 'Prenatal Checkup', price: 800, category: 'medical' },
+    { id: 'diabetes-consultation', name: 'Diabetes Consultation', price: 700, category: 'medical' },
+    { id: 'hypertension-checkup', name: 'Hypertension Checkup', price: 650, category: 'medical' },
+  ],
+  surgical: [
+    { id: 'minor-surgery', name: 'Minor Surgery', price: 5000, category: 'surgical' },
+    { id: 'appendectomy', name: 'Appendectomy', price: 25000, category: 'surgical' },
+    { id: 'hernia-repair', name: 'Hernia Repair', price: 30000, category: 'surgical' },
+  ],
+  specialized: [
+    { id: 'ecg-consultation', name: 'ECG & Consultation', price: 800, category: 'specialized' },
+    { id: 'dental-consultation', name: 'Dental Consultation', price: 500, category: 'specialized' },
+    { id: 'eye-examination', name: 'Eye Examination', price: 600, category: 'specialized' },
+    { id: 'orthopedic-consultation', name: 'Orthopedic Consultation', price: 900, category: 'specialized' },
+    { id: 'cardiology-consultation', name: 'Cardiology Consultation', price: 1200, category: 'specialized' },
+  ],
 };
 
 // Create the context

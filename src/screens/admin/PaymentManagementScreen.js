@@ -20,13 +20,14 @@ import AddPaymentModal from '../../components/AddPaymentModal';
 import AppHeader from '../../components/AppHeader';
 
 const PaymentManagementScreen = ({ navigation }) => {
-  const { patients, getAllPendingPayments, payments, addPayment, updatePaymentStatus, deletePayment, initializeFirebaseData, addInvoice, setAppState } = useApp();
+  const { patients, appointments, getAllPendingPayments, payments, addPayment, addPatient, updatePayment, updatePaymentStatus, updatePaymentStatusAndSync, generateInvoiceForPayment, deletePayment, initializeFirebaseData, addInvoice, setAppState, syncMissingPaymentsFromInvoices, invoices } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedPaymentForUpdate, setSelectedPaymentForUpdate] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [aggregatedPayments, setAggregatedPayments] = useState([]);
   const flatListRef = React.useRef(null);
   const [formData, setFormData] = useState({
     patientId: '',
@@ -75,11 +76,222 @@ const PaymentManagementScreen = ({ navigation }) => {
     };
   }, []);
 
+  // Load aggregated payments function - moved outside useEffect to be accessible globally
+  const loadAggregatedPayments = async () => {
+    try {
+      const allPayments = await aggregateAllPayments();
+      setAggregatedPayments(allPayments);
+    } catch (error) {
+      console.error('❌ Error loading aggregated payments:', error);
+      setAggregatedPayments(payments || []);
+    }
+  };
+
+  // Load aggregated payments when payments, appointments, or patients change
+  useEffect(() => {
+    loadAggregatedPayments();
+  }, [payments, appointments, patients]);
+
+  // Separate useEffect for one-time payment sync when invoices are first loaded
+  useEffect(() => {
+    let syncTimer;
+    
+    const performSync = () => {
+      if (syncMissingPaymentsFromInvoices && invoices && invoices.length > 0 && patients && patients.length > 0) {
+        console.log('🔄 One-time sync of missing payments from invoices...');
+        syncMissingPaymentsFromInvoices();
+      }
+    };
+    
+    // Debounce the sync to prevent multiple calls
+    if (invoices && invoices.length > 0) {
+      syncTimer = setTimeout(performSync, 1000); // Wait 1 second before syncing
+    }
+    
+    return () => {
+      if (syncTimer) {
+        clearTimeout(syncTimer);
+      }
+    };
+  }, [invoices?.length]); // Only trigger when invoices count changes
+
   // Refresh payments when screen comes into focus
   // Function to scroll to top of payment list
   const scrollToTop = () => {
     if (flatListRef.current) {
       flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+    }
+  };
+
+  // Function to aggregate all payment types from different sources
+  const aggregateAllPayments = async () => {
+    try {
+      console.log('🔄 Aggregating payments from all sources...');
+      
+      // Get existing payments from the payments collection
+      const existingPayments = payments || [];
+      console.log(`💰 Found ${existingPayments.length} payments from payments collection`);
+
+      // Get appointment payments (OP payments)
+      const appointmentPayments = [];
+      if (appointments && appointments.length > 0) {
+        appointments.forEach(appointment => {
+          if (appointment.paymentStatus && appointment.amount > 0) {
+            appointmentPayments.push({
+              id: `appointment-${appointment.id}`,
+              patientId: appointment.patientId,
+              patientName: appointment.patientName,
+              amount: appointment.amount || appointment.totalAmount || appointment.consultationFee,
+              totalAmount: appointment.amount || appointment.totalAmount || appointment.consultationFee,
+              paidAmount: appointment.paymentStatus === 'Paid' ? (appointment.amount || appointment.totalAmount || appointment.consultationFee) : 0,
+              dueAmount: appointment.paymentStatus === 'Paid' ? 0 : (appointment.amount || appointment.totalAmount || appointment.consultationFee),
+              status: appointment.paymentStatus === 'Paid' ? 'paid' : 'pending',
+              paymentStatus: appointment.paymentStatus,
+              type: 'appointment',
+              serviceType: 'OP', // Out-Patient
+              description: `Appointment - ${appointment.serviceName || appointment.doctorName}`,
+              paymentMethod: appointment.paymentMethod || appointment.paymentMode || 'cash',
+              appointmentDate: appointment.appointmentDate || appointment.date,
+              doctorName: appointment.doctorName,
+              serviceName: appointment.serviceName,
+              tokenNumber: appointment.tokenNumber,
+              createdAt: appointment.createdAt || appointment.date,
+              updatedAt: appointment.updatedAt
+            });
+          }
+        });
+      }
+      console.log(`🏥 Found ${appointmentPayments.length} appointment payments (OP)`);
+
+      // Get admission payments (IP payments)
+      const admissionPayments = [];
+      if (patients && patients.length > 0) {
+        patients.forEach(patient => {
+          // Check if patient has payment information (from Patient Management)
+          if (patient.paymentDetails && patient.paymentDetails.totalAmount > 0) {
+            admissionPayments.push({
+              id: `admission-${patient.id}`,
+              patientId: patient.id,
+              patientName: patient.name,
+              amount: patient.paymentDetails.totalAmount,
+              totalAmount: patient.paymentDetails.totalAmount,
+              paidAmount: patient.paymentDetails.totalPaid || 0,
+              dueAmount: patient.paymentDetails.dueAmount || 0,
+              status: (patient.paymentDetails.dueAmount || 0) <= 0 ? 'paid' : 
+                     (patient.paymentDetails.totalPaid || 0) > 0 ? 'partial' : 'pending',
+              paymentStatus: (patient.paymentDetails.dueAmount || 0) <= 0 ? 'Paid' : 
+                           (patient.paymentDetails.totalPaid || 0) > 0 ? 'Partially Paid' : 'Pending',
+              type: 'admission',
+              serviceType: 'IP', // In-Patient
+              description: `${patient.patientType || 'IP'} Patient - ${patient.department || 'General Ward'}`,
+              paymentMethod: patient.paymentDetails.payments && patient.paymentDetails.payments.length > 0 
+                           ? patient.paymentDetails.payments[patient.paymentDetails.payments.length - 1].method
+                           : 'cash',
+              admissionDate: patient.admissionDate || patient.registrationDate,
+              department: patient.department,
+              roomNumber: patient.roomNumber || patient.room,
+              createdAt: patient.registrationDate || patient.createdAt,
+              updatedAt: patient.paymentDetails.lastPaymentDate || patient.updatedAt,
+              patientType: patient.patientType,
+              doctor: patient.doctor,
+              // Include payment history for detailed view
+              paymentHistory: patient.paymentDetails.payments || []
+            });
+          }
+          // Also check for legacy format (backward compatibility)
+          else if (patient.admissionDate && patient.totalBill > 0) {
+            admissionPayments.push({
+              id: `admission-legacy-${patient.id}`,
+              patientId: patient.id,
+              patientName: patient.name,
+              amount: patient.totalBill,
+              totalAmount: patient.totalBill,
+              paidAmount: patient.paidAmount || 0,
+              dueAmount: (patient.totalBill || 0) - (patient.paidAmount || 0),
+              status: (patient.paidAmount || 0) >= (patient.totalBill || 0) ? 'paid' : 
+                     (patient.paidAmount || 0) > 0 ? 'partial' : 'pending',
+              paymentStatus: (patient.paidAmount || 0) >= (patient.totalBill || 0) ? 'Paid' : 
+                           (patient.paidAmount || 0) > 0 ? 'Partially Paid' : 'Pending',
+              type: 'admission',
+              serviceType: 'IP', // In-Patient
+              description: `Admission - ${patient.department || 'General Ward'}`,
+              paymentMethod: patient.paymentMethod || 'cash',
+              admissionDate: patient.admissionDate,
+              department: patient.department,
+              roomNumber: patient.roomNumber,
+              createdAt: patient.admissionDate,
+              updatedAt: patient.updatedAt || patient.admissionDate
+            });
+          }
+        });
+      }
+      console.log(`🏨 Found ${admissionPayments.length} admission payments (IP)`);
+      
+      // Debug: Log patient data for troubleshooting
+      if (patients && patients.length > 0) {
+        console.log(`👥 Processing ${patients.length} patients for IP payments:`);
+        patients.forEach((patient, index) => {
+          console.log(`  Patient #${index + 1}: ${patient.name} (${patient.id})`);
+          console.log(`    - Has paymentDetails: ${!!patient.paymentDetails}`);
+          if (patient.paymentDetails) {
+            console.log(`    - Total Amount: ₹${patient.paymentDetails.totalAmount || 0}`);
+            console.log(`    - Total Paid: ₹${patient.paymentDetails.totalPaid || 0}`);
+            console.log(`    - Due Amount: ₹${patient.paymentDetails.dueAmount || 0}`);
+            console.log(`    - Payment Count: ${patient.paymentDetails.payments?.length || 0}`);
+          }
+          console.log(`    - Patient Type: ${patient.patientType || 'Unknown'}`);
+          console.log(`    - Department: ${patient.department || 'None'}`);
+        });
+      }
+
+      // Get test/laboratory payments
+      const testPayments = [];
+      // Note: Test payments would come from a tests collection if it exists
+      // For now, we'll check if any appointments have test-related services
+      if (appointments && appointments.length > 0) {
+        appointments.forEach(appointment => {
+          if (appointment.type === 'test' || appointment.serviceName?.toLowerCase().includes('test') || 
+              appointment.serviceName?.toLowerCase().includes('lab') || appointment.serviceName?.toLowerCase().includes('x-ray') ||
+              appointment.serviceName?.toLowerCase().includes('scan') || appointment.serviceName?.toLowerCase().includes('blood')) {
+            testPayments.push({
+              id: `test-${appointment.id}`,
+              patientId: appointment.patientId,
+              patientName: appointment.patientName,
+              amount: appointment.amount || appointment.totalAmount || appointment.consultationFee,
+              totalAmount: appointment.amount || appointment.totalAmount || appointment.consultationFee,
+              paidAmount: appointment.paymentStatus === 'Paid' ? (appointment.amount || appointment.totalAmount || appointment.consultationFee) : 0,
+              dueAmount: appointment.paymentStatus === 'Paid' ? 0 : (appointment.amount || appointment.totalAmount || appointment.consultationFee),
+              status: appointment.paymentStatus === 'Paid' ? 'paid' : 'pending',
+              paymentStatus: appointment.paymentStatus,
+              type: 'test',
+              serviceType: 'TEST', // Test/Laboratory
+              description: `Test - ${appointment.serviceName}`,
+              paymentMethod: appointment.paymentMethod || appointment.paymentMode || 'cash',
+              testDate: appointment.appointmentDate || appointment.date,
+              testName: appointment.serviceName,
+              doctorName: appointment.doctorName,
+              createdAt: appointment.createdAt || appointment.date,
+              updatedAt: appointment.updatedAt
+            });
+          }
+        });
+      }
+      console.log(`🧪 Found ${testPayments.length} test payments`);
+
+      // Combine all payment sources
+      const allPayments = [
+        ...existingPayments,
+        ...appointmentPayments,
+        ...admissionPayments,
+        ...testPayments
+      ];
+
+      console.log(`📊 Total aggregated payments: ${allPayments.length} (${existingPayments.length} general + ${appointmentPayments.length} OP + ${admissionPayments.length} IP + ${testPayments.length} tests)`);
+      
+      return allPayments;
+    } catch (error) {
+      console.error('❌ Error aggregating payments:', error);
+      return payments || []; // Fallback to existing payments
     }
   };
 
@@ -312,21 +524,26 @@ Search: "${searchQuery || 'none'}"`,
   // Transform actual payments data for display  
   const paymentList = useMemo(() => {
     try {
+      // Use aggregated payments which includes all payment types
+      const allPayments = aggregatedPayments.length > 0 ? aggregatedPayments : payments || [];
+      
       // Safety check for undefined payments
-      if (!payments) {
+      if (!allPayments) {
         console.log('❌ Payments array is undefined');
         return [];
       }
       
       // Ensure we always have data to work with
-      if (payments.length === 0) {
+      if (allPayments.length === 0) {
         console.log('❌ No payments data available (empty array)');
         return [];
       }
       
+      console.log(`📊 Processing ${allPayments.length} total payments (aggregated from all sources)`);
+      
       // Enhanced deduplication with guaranteed unique keys
       const uniquePaymentsMap = new Map();
-      (payments || []).forEach((payment, idx) => {
+      (allPayments || []).forEach((payment, idx) => {
         if (!payment) return; // Skip undefined payments
         
         // Generate a truly unique key with multiple fallbacks
@@ -419,15 +636,12 @@ Search: "${searchQuery || 'none'}"`,
           patientId: payment.patientId || `unknown-${index}`,
           patientType: patient?.patientType || 'IP',
           
-          // Payment amounts - Fixed to show correct total and paid amounts
+          // Payment amounts - FIXED to show correct payment amounts
           amount: payment.actualAmountPaid || payment.amount || payment.totalAmount || 1000, // Actual amount paid
           paymentStatus: payment.status || payment.paymentStatus || 'paid', // Add fallback
-          totalAmount: payment.fullAmount || payment.totalAmount || payment.amount || 1000, // Full amount owed
-          paidAmount: payment.actualAmountPaid || payment.paidAmount || (payment.status === 'paid' || payment.paymentStatus === 'paid') ? (payment.amount || 1000) : 
-                    (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : 0,
-          dueAmount: payment.dueAmount || (payment.fullAmount ? payment.fullAmount - (payment.actualAmountPaid || 0) : 
-                    (payment.status === 'paid' || payment.paymentStatus === 'paid') ? 0 : 
-                    (payment.status === 'partial' || payment.paymentStatus === 'partial') ? (payment.amount || 1000) * 0.5 : (payment.amount || 1000)),
+          totalAmount: payment.totalAmount || payment.fullAmount || payment.amount || 1000, // Full amount owed
+          paidAmount: payment.totalPaid || (payment.totalAmount && payment.dueAmount ? payment.totalAmount - payment.dueAmount : payment.actualAmountPaid || payment.paidAmount || 0),
+          dueAmount: payment.dueAmount || 0,
           
           // Status information
           status: isLocalPayment && hasSyncFailed ? 'Sync Failed' :
@@ -477,7 +691,7 @@ Search: "${searchQuery || 'none'}"`,
       console.error('❌ Error transforming payments:', error);
       return []; // Return empty array to prevent crashes
     }
-  }, [payments, patients]);
+  }, [aggregatedPayments, payments, patients]);
 
   const filteredPayments = (paymentList || []).filter(payment => {
     // Search filtering
@@ -486,19 +700,32 @@ Search: "${searchQuery || 'none'}"`,
                          (payment.originalId && payment.originalId?.toLowerCase().includes(searchQuery.toLowerCase())) ||
                          (payment.patientId && payment.patientId.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // Status filtering - ensure exact match or show all
-    // Convert everything to lowercase for case-insensitive comparison
+    // Status and Service Type filtering
     const paymentStatus = (payment.status || payment.paymentStatus || '').toLowerCase();
     let matchesFilter = false;
+    
     if (selectedFilter === 'All') {
       matchesFilter = true; // Show all payments
-    } else if (selectedFilter === 'Fully Paid') {
+    } 
+    // Payment Status Filters
+    else if (selectedFilter === 'Fully Paid') {
       matchesFilter = paymentStatus === 'fully paid' || paymentStatus === 'paid';
     } else if (selectedFilter === 'Partially Paid') {
       matchesFilter = paymentStatus === 'partially paid' || paymentStatus === 'partial';
     } else if (selectedFilter === 'Pending') {
       matchesFilter = paymentStatus === 'pending';
-    } else {
+    } 
+    // Service Type Filters
+    else if (selectedFilter === 'OP Payments') {
+      matchesFilter = payment.serviceType === 'OP' || payment.type === 'appointment';
+    } else if (selectedFilter === 'IP Payments') {
+      matchesFilter = payment.serviceType === 'IP' || payment.type === 'admission';
+    } else if (selectedFilter === 'Test Payments') {
+      matchesFilter = payment.serviceType === 'TEST' || payment.type === 'test';
+    } else if (selectedFilter === 'General') {
+      matchesFilter = !payment.serviceType || payment.serviceType === 'General' || payment.type === 'consultation';
+    } 
+    else {
       matchesFilter = paymentStatus === selectedFilter.toLowerCase();
     }
     
@@ -533,14 +760,112 @@ Search: "${searchQuery || 'none'}"`,
   }
 
   const handleViewDetails = (payment) => {
-    // Navigate to PatientDetails instead of PaymentDetails for better integration
-    const patient = patients.find(p => p.id === payment.patientId);
+    console.log('🔍 Looking for patient with ID:', payment.patientId);
+    console.log('🔍 Available patients:', patients.map(p => ({ id: p.id, name: p.name })));
+    
+    // Clean up payment name (remove trailing spaces)
+    const cleanPaymentName = payment.patientName?.trim();
+    
+    // Try different ways to find the patient
+    let patient = patients.find(p => p.id === payment.patientId);
+    
+    if (!patient) {
+      // Try exact name match (case sensitive)
+      patient = patients.find(p => p.name === cleanPaymentName);
+    }
+    
+    if (!patient) {
+      // Try case-insensitive name match
+      patient = patients.find(p => 
+        p.name?.toLowerCase() === cleanPaymentName?.toLowerCase()
+      );
+    }
+    
+    if (!patient) {
+      // Try partial name matching (if payment name contains patient name or vice versa)
+      patient = patients.find(p => {
+        const patientName = p.name?.toLowerCase();
+        const paymentName = cleanPaymentName?.toLowerCase();
+        return (patientName && paymentName) && 
+               (patientName.includes(paymentName) || paymentName.includes(patientName));
+      });
+    }
+    
+    if (!patient) {
+      // Try to find by Firebase UID stored in patient record
+      patient = patients.find(p => 
+        p.firebaseId === payment.patientId || 
+        p.uid === payment.patientId ||
+        p.userId === payment.patientId
+      );
+    }
+    
+    if (!patient) {
+      // Try to find by phone number if available
+      patient = patients.find(p => 
+        p.phone === payment.patientPhone || 
+        p.contactNumber === payment.patientPhone
+      );
+    }
+    
     if (patient) {
+      console.log('✅ Found patient:', patient.name, 'via matching logic');
       navigation.navigate('PatientDetails', { patient });
     } else {
-      Alert.alert('Error', 'Patient details not found');
+      console.error('❌ Patient not found. Payment data:', { 
+        patientId: payment.patientId, 
+        patientName: payment.patientName,
+        cleanedName: cleanPaymentName
+      });
+      
+      Alert.alert(
+        'Patient Not Found', 
+        `Could not find patient "${cleanPaymentName}" in the patient database.\n\nThis usually happens when a patient books an appointment but wasn't registered as a patient record.\n\nWould you like to create a patient record for this person?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Show Payment Only', 
+            onPress: () => {
+              Alert.alert(
+                'Payment Information',
+                `Patient: ${cleanPaymentName}\nPatient ID: ${payment.patientId}\n\nAmount: ₹${payment.totalAmount || 0}\nPaid: ₹${payment.paidAmount || 0}\nDue: ₹${payment.dueAmount || 0}\nStatus: ${payment.status || 'Unknown'}\nMethod: ${payment.paymentMethod || 'Not specified'}`,
+                [{ text: 'OK' }]
+              );
+            }
+          },
+          {
+            text: 'Create Patient Record',
+            onPress: () => handleCreatePatientFromPayment(payment, cleanPaymentName)
+          }
+        ]
+      );
     }
   };
+
+  const handleViewPaymentHistory = (payment) => {
+    const paymentHistory = payment.paymentHistory || [];
+    const historyText = paymentHistory.map((p, index) => {
+      const sequence = index + 1;
+      const suffix = sequence === 1 ? 'st' : sequence === 2 ? 'nd' : sequence === 3 ? 'rd' : 'th';
+      const date = p.date || p.paidDate || new Date(p.createdAt || Date.now()).toLocaleDateString('en-IN');
+      const method = p.method || p.paymentMethod || 'Cash';
+      return `${sequence}${suffix} Payment: ₹${p.amount?.toLocaleString() || '0'}\nDate: ${date}\nMethod: ${method}`;
+    }).join('\n\n');
+
+    Alert.alert(
+      `Payment History - ${payment.patientName}`,
+      `Total Payments: ${paymentHistory.length}\n\n${historyText}`,
+      [
+        {
+          text: 'View Patient Details',
+          onPress: () => handleViewDetails(payment)
+        },
+        { text: 'OK', style: 'default' }
+      ]
+    );
+  };
+
+
 
   const handleAddPayment = async (paymentData, actionType = 'create') => {
     try {
@@ -548,28 +873,66 @@ Search: "${searchQuery || 'none'}"`,
       
       if (actionType === 'update' && selectedPaymentForUpdate) {
         // Updating an existing payment with additional payment
-        console.log('Updating existing payment:', selectedPaymentForUpdate.id);
+        console.log('💰 Processing additional payment for:', selectedPaymentForUpdate.id);
+        console.log('💰 Payment data received:', paymentData);
         
-        // Update the existing payment in local state
+        // Update the existing payment in local state with new totals
         setAppState(prev => ({
           ...prev,
           payments: prev.payments.map(p => 
             p.id === selectedPaymentForUpdate.id ? {
               ...p,
               ...paymentData,
+              // Ensure these critical fields are properly updated
+              totalAmount: paymentData.totalAmount || p.totalAmount,
+              paidAmount: paymentData.paidAmount,
+              actualAmountPaid: paymentData.paidAmount,
+              amount: paymentData.paidAmount,
+              dueAmount: paymentData.dueAmount,
+              remainingAmount: paymentData.dueAmount,
+              status: paymentData.status,
+              paymentStatus: paymentData.paymentStatus,
+              paymentHistory: paymentData.paymentHistory,
+              paymentCount: paymentData.paymentCount,
+              lastPaymentDate: paymentData.lastPaymentDate,
+              lastPaymentAmount: paymentData.additionalPaymentAmount,
               updatedAt: new Date().toISOString()
             } : p
           )
         }));
         
-        // Send update to backend
-        const result = await addPayment({
-          ...paymentData,
-          isUpdate: true,
-          originalPaymentId: selectedPaymentForUpdate.id
-        });
+        // Send update to backend using updatePayment method
+        try {
+          console.log('🔄 Attempting to update payment with ID:', selectedPaymentForUpdate.id);
+          console.log('🔄 Payment data being sent:', {
+            id: paymentData.id,
+            totalAmount: paymentData.totalAmount,
+            paidAmount: paymentData.paidAmount,
+            dueAmount: paymentData.dueAmount
+          });
+          
+          const result = await updatePayment(selectedPaymentForUpdate.id, paymentData);
+          console.log('✅ Backend update successful:', result);
+        } catch (backendError) {
+          console.warn('⚠️ Backend update failed, but local state updated:', backendError);
+          // Could optionally show a "retry" option to the user
+        }
         
-        Alert.alert('Success', 'Additional payment has been recorded successfully!');
+        Alert.alert(
+          'Payment Added Successfully!', 
+          `Additional payment of ₹${paymentData.additionalPaymentAmount} has been recorded.\n\nTotal Paid: ₹${paymentData.paidAmount}\nRemaining: ₹${paymentData.dueAmount}\nStatus: ${paymentData.paymentStatus}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Refresh the data to ensure consistency
+                if (initializeFirebaseData) {
+                  initializeFirebaseData();
+                }
+              }
+            }
+          ]
+        );
         setSelectedPaymentForUpdate(null);
       } else {
         // Creating a new payment record
@@ -645,6 +1008,13 @@ Search: "${searchQuery || 'none'}"`,
             }));
             
             console.log('🔄 Updated local payment with server ID:', serverPayment.id);
+            
+            // Auto-generate invoice for any payment with amount > 0
+            if (serverPayment.id && paymentData.actualAmountPaid > 0) {
+              setTimeout(async () => {
+                await generateInvoiceForPayment(serverPayment.id);
+              }, 1000); // Small delay to ensure payment is fully processed
+            }
           }
         } catch (error) {
           console.error('❌ Error saving payment to backend:', error);
@@ -670,24 +1040,107 @@ Search: "${searchQuery || 'none'}"`,
       
       setShowAddModal(false);
       
-      // Optional: Refresh from Firebase in the background for complete sync
-      if (initializeFirebaseData) {
-        setTimeout(() => {
-          initializeFirebaseData()
-            .then(() => console.log('✅ Background sync completed'))
-            .catch(err => console.error('⚠️ Background sync error:', err))
-            .finally(() => {
-              setIsLoading(false);
-            });
-        }, 2000);
-      } else {
-        setIsLoading(false);
-      }
+      // Force refresh all payment data after adding payment
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Forcing complete payment data refresh after payment addition...');
+          
+          // Refresh all data to ensure consistency
+          if (initializeFirebaseData) {
+            await initializeFirebaseData();
+          }
+          
+          // Also refresh aggregated payments specifically
+          await loadAggregatedPayments();
+          
+          console.log('✅ Complete payment data refresh completed');
+        } catch (error) {
+          console.error('⚠️ Error during payment data refresh:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }, 1500); // Give enough time for backend to process
     } catch (error) {
       console.error('❌ Error adding payment:', error);
       Alert.alert('Error', 'Failed to add payment. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Create a patient record from payment data
+  const handleCreatePatientFromPayment = async (payment, cleanPaymentName) => {
+    try {
+      console.log('👤 Creating patient record from payment data:', cleanPaymentName);
+      
+      // Generate a new patient ID
+      const timestamp = Date.now();
+      const uniqueId = timestamp.toString().slice(-10);
+      const newPatientId = `KBR-OP-${new Date().getFullYear()}-${uniqueId}`;
+      
+      const newPatientData = {
+        id: newPatientId,
+        name: cleanPaymentName,
+        phone: payment.patientPhone || 'Not provided',
+        age: 30, // Default age
+        gender: 'Male', // Default gender
+        bloodGroup: 'A+', // Default blood group
+        address: 'Not provided',
+        patientType: 'OP',
+        status: 'OP',
+        statusText: 'Consultation',
+        statusColor: '#34C759',
+        registrationDate: new Date().toISOString().split('T')[0],
+        registrationTime: new Date().toLocaleTimeString(),
+        
+        // Link the Firebase UID to this patient record
+        firebaseId: payment.patientId,
+        uid: payment.patientId,
+        userId: payment.patientId,
+        
+        // Payment details based on the payment record
+        paymentDetails: {
+          totalAmount: payment.totalAmount || 0,
+          totalPaid: payment.paidAmount || 0,
+          dueAmount: payment.dueAmount || 0,
+          payments: [],
+          lastPaymentDate: payment.date
+        },
+        
+        editHistory: [{
+          action: 'created_from_payment',
+          timestamp: new Date().toISOString(),
+          details: `Patient record created from payment ${payment.id}`,
+        }]
+      };
+      
+      // Save to database
+      const result = await addPatient(newPatientData);
+      
+      if (result) {
+        Alert.alert(
+          'Patient Created!',
+          `Patient record created successfully for ${cleanPaymentName}.\n\nPatient ID: ${newPatientId}`,
+          [
+            {
+              text: 'View Patient',
+              onPress: () => {
+                // Find the newly created patient and navigate to details
+                setTimeout(() => {
+                  const createdPatient = patients.find(p => p.id === newPatientId) || result;
+                  if (createdPatient) {
+                    navigation.navigate('PatientDetails', { patient: createdPatient });
+                  }
+                }, 1000);
+              }
+            },
+            { text: 'OK' }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error creating patient from payment:', error);
+      Alert.alert('Error', 'Failed to create patient record. Please try again.');
     }
   };
 
@@ -706,7 +1159,8 @@ Search: "${searchQuery || 'none'}"`,
         }
       }
       
-      await updatePaymentStatus(paymentId, newStatus);
+      // Use centralized update function for better synchronization
+      await updatePaymentStatusAndSync(paymentId, newStatus);
       
       // If payment is marked as paid, automatically generate an invoice
       if (newStatus === 'paid') {
@@ -720,82 +1174,28 @@ Search: "${searchQuery || 'none'}"`,
     }
   };
 
-  // Function to automatically generate invoice when payment is completed
-  const generateInvoiceForPayment = async (paymentId) => {
+  // Payment completion handler with centralized updates
+  const handlePaymentCompleted = async (paymentId) => {
     try {
-      // Find the payment that was just completed - check both original and generated IDs
-      let completedPayment = payments.find(p => p.id === paymentId);
+      console.log('💰 Completing payment:', paymentId);
       
-      // If not found by direct ID, try to find via the transformed payment list
-      if (!completedPayment) {
-        const transformedPayment = paymentList.find(p => 
-          p.id === paymentId || p.originalId === paymentId
-        );
-        
-        if (transformedPayment && transformedPayment.originalId) {
-          completedPayment = payments.find(p => p.id === transformedPayment.originalId);
-        }
-      }
+      // Use centralized function that handles both payment status and invoice generation
+      await updatePaymentStatusAndSync(paymentId, 'paid');
       
-      if (!completedPayment) {
-        console.error('Payment not found for invoice generation, ID:', paymentId);
-        return;
-      }
-
-      // Find the patient details
-      const patient = patients.find(p => p.id === completedPayment.patientId);
-      if (!patient) {
-        console.error('Patient not found for invoice generation');
-        return;
-      }
-
-      // Generate invoice number
-      const invoiceNumber = `INV-${Date.now()}`;
-      const currentDate = new Date().toISOString().split('T')[0];
-
-      // Create invoice data
-      const invoiceData = {
-        invoiceNumber,
-        patientId: completedPayment.patientId,
-        patientName: completedPayment.patientName,
-        issueDate: currentDate,
-        dueDate: currentDate, // Same day since payment is already completed
-        totalAmount: completedPayment.amount,
-        status: 'paid', // Already paid
-        description: completedPayment.description || 'Medical Service Payment',
-        items: [
-          {
-            description: completedPayment.description || 'Medical Service',
-            quantity: 1,
-            unitPrice: completedPayment.amount,
-            totalPrice: completedPayment.amount
-          }
-        ],
-        paymentDetails: {
-          paymentId: completedPayment.id,
-          paymentDate: completedPayment.paymentDate,
-          paymentMethod: completedPayment.paymentMethod || 'cash',
-          transactionId: completedPayment.transactionId
-        },
-        notes: `Auto-generated invoice for completed payment ${completedPayment.id}`,
-        terms: 'Payment completed - Thank you for choosing KBR Life Care'
-      };
-
-      // Add invoice to database using the context function
-      if (addInvoice) {
-        await addInvoice(invoiceData);
-        console.log('✅ Invoice generated successfully:', invoiceNumber);
-        
-        // Show success message to user
-        Alert.alert(
-          'Invoice Generated', 
-          `Invoice ${invoiceNumber} has been automatically created and saved to Invoice Management.`,
-          [{ text: 'OK' }]
-        );
-      }
+      Alert.alert(
+        'Payment Completed!', 
+        'Payment has been marked as completed. Invoice has been automatically generated and the appointment status has been updated.',
+        [{ text: 'OK' }]
+      );
+      
+      // Force refresh to show updates
+      setTimeout(async () => {
+        await loadAggregatedPayments();
+      }, 1000);
+      
     } catch (error) {
-      console.error('❌ Error generating invoice:', error);
-      // Don't show error to user since this is automatic - just log it
+      console.error('❌ Error completing payment:', error);
+      Alert.alert('Error', 'Failed to complete payment. Please try again.');
     }
   };
 
@@ -1105,6 +1505,7 @@ Search: "${searchQuery || 'none'}"`,
             
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabsScrollView}>
               <View style={styles.filterTabs}>
+                {/* Payment Status Filters */}
                 {['All', 'Fully Paid', 'Partially Paid', 'Pending'].map((filter) => (
                   <TouchableOpacity
                     key={filter}
@@ -1117,6 +1518,28 @@ Search: "${searchQuery || 'none'}"`,
                     <Text style={[
                       styles.filterTabText,
                       selectedFilter === filter && styles.activeFilterTabText
+                    ]}>
+                      {filter}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                
+                {/* Service Type Filters */}
+                <View style={styles.filterSeparator} />
+                {['OP Payments', 'IP Payments', 'Test Payments', 'General'].map((filter) => (
+                  <TouchableOpacity
+                    key={filter}
+                    style={[
+                      styles.filterTab,
+                      styles.serviceTypeFilterTab,
+                      selectedFilter === filter && styles.activeServiceTypeFilterTab
+                    ]}
+                    onPress={() => setSelectedFilter(filter)}
+                  >
+                    <Text style={[
+                      styles.filterTabText,
+                      styles.serviceTypeFilterText,
+                      selectedFilter === filter && styles.activeServiceTypeFilterText
                     ]}>
                       {filter}
                     </Text>
@@ -1309,15 +1732,33 @@ Search: "${searchQuery || 'none'}"`,
                         <View style={styles.patientDetails}>
                           <Text style={styles.patientName}>{item.patientName || 'Unknown Patient'}</Text>
                           <Text style={styles.patientMeta}>
-                            {item.patientId || 'No ID'} • {item.patientType || 'IP'}
+                            {item.patientId || 'No ID'} • {item.serviceType || item.patientType || 'General'}
                           </Text>
                         </View>
                       </View>
-                      <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                        <Text style={styles.statusText}>
-                          {item.status || (item.paymentStatus === 'paid' ? 'Fully Paid' : 
-                          item.paymentStatus === 'pending' ? 'Pending' : 'Partial Paid')}
-                        </Text>
+                      <View style={styles.badgeContainer}>
+                        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                          <Text style={styles.statusText}>
+                            {item.status || (item.paymentStatus === 'paid' ? 'Fully Paid' : 
+                            item.paymentStatus === 'pending' ? 'Pending' : 'Partial Paid')}
+                          </Text>
+                        </View>
+                        {/* Service Type Badge */}
+                        {item.serviceType && (
+                          <View style={[styles.serviceTypeBadge, { 
+                            backgroundColor: item.serviceType === 'OP' ? '#E0F2FE' : 
+                                           item.serviceType === 'IP' ? '#FEF3C7' : 
+                                           item.serviceType === 'TEST' ? '#F3E8FF' : '#F1F5F9'
+                          }]}>
+                            <Text style={[styles.serviceTypeText, {
+                              color: item.serviceType === 'OP' ? '#0369A1' : 
+                                     item.serviceType === 'IP' ? '#D97706' : 
+                                     item.serviceType === 'TEST' ? '#7C3AED' : '#475569'
+                            }]}>
+                              {item.serviceType}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                     
@@ -1346,13 +1787,92 @@ Search: "${searchQuery || 'none'}"`,
                         <View style={styles.amountItem}>
                           <Text style={styles.amountLabel}>Payments Made</Text>
                           <Text style={[styles.amountValue, { color: "#4A90E2" }]}>
-                            {item.paymentHistory?.length || (item.paymentStatus === 'paid' || item.status === 'Fully Paid') ? '1' : '0'}
+                            {item.paymentCount || item.paymentHistory?.length || 
+                             ((item.paidAmount || 0) > 0 ? '1' : '0')}
                           </Text>
                         </View>
                       </View>
                     </View>
 
-                    {/* Latest Payment Info */}
+                    {/* Enhanced Payment History Section */}
+                    <View style={styles.paymentHistorySection}>
+                      <Text style={styles.paymentHistoryTitle}>
+                        <Ionicons name="receipt" size={14} color="#4A90E2" /> Payment History
+                      </Text>
+                      
+                      {/* Payment History Details */}
+                      {item.paymentHistory && item.paymentHistory.length > 0 ? (
+                        <View style={styles.paymentHistoryList}>
+                          {item.paymentHistory.slice(0, 3).map((payment, historyIndex) => (
+                            <View key={`${payment.id}-${historyIndex}`} style={styles.paymentHistoryItem}>
+                              <View style={styles.paymentSequence}>
+                                <Text style={styles.paymentSequenceNumber}>
+                                  {historyIndex + 1}{historyIndex === 0 ? 'st' : historyIndex === 1 ? 'nd' : historyIndex === 2 ? 'rd' : 'th'} time
+                                </Text>
+                              </View>
+                              <View style={styles.paymentHistoryDetails}>
+                                <Text style={styles.paymentHistoryAmount}>₹{payment.amount?.toLocaleString() || '0'}</Text>
+                                <Text style={styles.paymentHistoryDate}>
+                                  {payment.date || payment.paidDate || new Date(payment.createdAt || Date.now()).toLocaleDateString('en-IN')}
+                                </Text>
+                                <Text style={styles.paymentHistoryMethod}>
+                                  {payment.method || payment.paymentMethod || 'Cash'}
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+                          
+                          {item.paymentHistory.length > 3 && (
+                            <TouchableOpacity 
+                              style={styles.viewMorePayments}
+                              onPress={() => handleViewPaymentHistory(item)}
+                            >
+                              <Text style={styles.viewMorePaymentsText}>
+                                +{item.paymentHistory.length - 3} more payments
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ) : (
+                        // Single payment or no history
+                        <View style={styles.singlePaymentInfo}>
+                          {(item.paidAmount || 0) > 0 ? (
+                            <View style={styles.paymentHistoryItem}>
+                              <View style={styles.paymentSequence}>
+                                <Text style={styles.paymentSequenceNumber}>1st time</Text>
+                              </View>
+                              <View style={styles.paymentHistoryDetails}>
+                                <Text style={styles.paymentHistoryAmount}>₹{(item.paidAmount || item.amount || 0).toLocaleString()}</Text>
+                                <Text style={styles.paymentHistoryDate}>
+                                  {item.lastPaymentDate || item.createdAt ? 
+                                    new Date(item.lastPaymentDate || item.createdAt).toLocaleDateString('en-IN') : 
+                                    'Recently'}
+                                </Text>
+                                <Text style={styles.paymentHistoryMethod}>
+                                  {item.paymentMethod || 'Cash'}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <Text style={styles.noPaymentText}>No payments made yet</Text>
+                          )}
+                        </View>
+                      )}
+                      
+                      {/* Payment Status Summary */}
+                      <View style={styles.paymentStatusSummary}>
+                        <Text style={[styles.statusSummaryText, { 
+                          color: (item.dueAmount || 0) <= 0 ? '#22C55E' : 
+                                 (item.paidAmount || 0) > 0 ? '#F59E0B' : '#EF4444'
+                        }]}>
+                          Status: {(item.dueAmount || 0) <= 0 ? 'Fully Paid' : 
+                                   (item.paidAmount || 0) > 0 ? `Partially Paid (₹${(item.dueAmount || 0).toLocaleString()} due)` : 
+                                   'Payment Pending'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Latest Payment Info - Simplified */}
                     <View style={[
                       styles.latestPayment, 
                       { 
@@ -1365,7 +1885,7 @@ Search: "${searchQuery || 'none'}"`,
                       }
                     ]}>
                       <Text style={styles.latestPaymentTitle}>
-                        {isNewPayment ? 'Recently Added Payment' : 'Latest Payment'}
+                        {isNewPayment ? 'Recently Added Payment' : 'Payment Summary'}
                       </Text>
                       {isNewPayment ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1387,11 +1907,20 @@ Search: "${searchQuery || 'none'}"`,
                           </Text>
                         </View>
                       ) : (
-                        <Text style={styles.latestPaymentText}>
-                          {(item.paymentStatus === 'paid' || item.status === 'Fully Paid') ? 
-                            `Payment of ₹${(item.paidAmount || item.amount || 0).toLocaleString()} completed` : 
-                            `Registration payment pending`}
-                        </Text>
+                        <View>
+                          <Text style={styles.latestPaymentText}>
+                            {(item.paymentStatus === 'paid' || item.status === 'Fully Paid') ? 
+                              `${item.serviceType || 'Payment'}: ₹${(item.paidAmount || item.amount || 0).toLocaleString()} paid${item.lastPaymentAmount ? ` (Last: ₹${item.lastPaymentAmount})` : ''}` : 
+                              (item.paymentStatus === 'partial' || item.status === 'Partially Paid') ?
+                              `${item.serviceType || 'Payment'}: ₹${(item.paidAmount || 0).toLocaleString()} of ₹${(item.totalAmount || item.amount || 0).toLocaleString()} paid` :
+                              `${item.serviceType || 'Payment'} pending - ₹${(item.totalAmount || item.amount || 0).toLocaleString()}`}
+                          </Text>
+                          {item.description && (
+                            <Text style={[styles.latestPaymentText, { fontSize: 11, color: '#6B7280', marginTop: 2 }]}>
+                              {item.description}
+                            </Text>
+                          )}
+                        </View>
                       )}
                     </View>
 
@@ -1474,8 +2003,12 @@ Search: "${searchQuery || 'none'}"`,
                             const hasRemainingBalance = item.dueAmount > 0 || item.status === 'pending' || item.status === 'partial';
                             
                             if (hasRemainingBalance) {
-                              // Set this payment for update and pre-fill the modal
-                              setSelectedPaymentForUpdate(item);
+                              // Set this payment for update using originalId for backend operations
+                              const paymentForUpdate = {
+                                ...item,
+                                id: item.originalId || item.id // Use originalId for backend, fallback to id if no originalId
+                              };
+                              setSelectedPaymentForUpdate(paymentForUpdate);
                               setFormData(prev => ({
                                 ...prev,
                                 patientId: item.patientId,
@@ -1745,6 +2278,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  filterSeparator: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
+  },
+  serviceTypeFilterTab: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F9FAFB',
+  },
+  activeServiceTypeFilterTab: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  serviceTypeFilterText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  activeServiceTypeFilterText: {
+    color: '#FFFFFF',
+  },
   
   // List Header Styles
   listHeader: {
@@ -1841,6 +2396,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  serviceTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  serviceTypeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   
   // Payment Amounts Styles
@@ -2091,6 +2663,103 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 6,
+  },
+
+  // Enhanced Payment History Styles
+  paymentHistorySection: {
+    backgroundColor: '#FAFBFC',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4A90E2',
+  },
+  paymentHistoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paymentHistoryList: {
+    gap: 8,
+  },
+  paymentHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  paymentSequence: {
+    marginRight: 12,
+    alignItems: 'center',
+  },
+  paymentSequenceNumber: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4A90E2',
+    backgroundColor: '#EBF8FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    textAlign: 'center',
+    minWidth: 50,
+  },
+  paymentHistoryDetails: {
+    flex: 1,
+  },
+  paymentHistoryAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
+    marginBottom: 2,
+  },
+  paymentHistoryDate: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 1,
+  },
+  paymentHistoryMethod: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textTransform: 'capitalize',
+  },
+  singlePaymentInfo: {
+    marginTop: 4,
+  },
+  noPaymentText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  paymentStatusSummary: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  statusSummaryText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  viewMorePayments: {
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 4,
+    alignItems: 'center',
+  },
+  viewMorePaymentsText: {
+    fontSize: 11,
+    color: '#4A90E2',
+    fontWeight: '500',
   },
 });
 

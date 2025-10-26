@@ -20,13 +20,14 @@ import { Colors, Sizes } from '../../constants/theme';
 import PatientRegistrationModal from '../../components/PatientRegistrationModal';
 import AddAppointmentModal from '../../components/AddAppointmentModal';
 import { FirebaseAppointmentService } from '../../services/firebaseHospitalServices';
+import { InvoiceGenerationService } from '../../services/invoiceGenerationService';
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
 import { db } from '../../config/firebase.config';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 const AppointmentManagementScreen = ({ navigation }) => {
-  const { refreshAppointmentData, forceRefreshAppointments } = useApp(); // Get refresh functions from AppContext
+  const { refreshAppointmentData, forceRefreshAppointments, initializeFirebaseData } = useApp(); // Get refresh functions from AppContext
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState('All');
@@ -446,10 +447,23 @@ const AppointmentManagementScreen = ({ navigation }) => {
     setShowAddAppointmentModal(true);
   };
 
-  const handleAddAppointmentSuccess = (newAppointment) => {
-    // Refresh the appointments list from Firebase to get the latest data
-    fetchAppointments();
-    Alert.alert('Success', 'New appointment has been added successfully!');
+  const handleAddAppointmentSuccess = async (newAppointment) => {
+    try {
+      console.log('✅ Appointment added successfully:', newAppointment);
+      
+      // Force refresh appointment data from multiple sources
+      await fetchAppointments(); // Refresh local appointments list
+      
+      // Also refresh AppContext data
+      if (forceRefreshAppointments) {
+        await forceRefreshAppointments();
+      }
+      
+      Alert.alert('Success', `New appointment has been added successfully!\nPatient: ${newAppointment.patientName}\nToken: ${newAppointment.tokenNumber || 'TBD'}`);
+    } catch (error) {
+      console.error('❌ Error refreshing after appointment creation:', error);
+      Alert.alert('Success', 'Appointment added, but there may be a delay in displaying the latest data.');
+    }
   };
 
   // Generate appointment number in KBR-XXX format
@@ -478,17 +492,19 @@ const AppointmentManagementScreen = ({ navigation }) => {
         throw new Error('Invalid appointment ID');
       }
       
-      // Smart payment logic: Auto-update payment status for Pay at Hospital
+      // Smart payment logic: Auto-update payment status based on payment mode
       let finalPaymentStatus = editFormData.paymentStatus;
       
-      // If payment mode is "Pay at Hospital" and status is being confirmed, auto-set to paid
-      if (editFormData.paymentMode === 'Pay at Hospital' && 
-          (editFormData.status === 'Confirmed' || editFormData.status === 'Admitted' || editFormData.status === 'Completed')) {
-        finalPaymentStatus = 'Paid';
+      // IMPORTANT: "Pay at Hospital" means payment is NOT made yet - patient will pay at hospital
+      // Only set to "Paid" for "Pay at Hospital" if explicitly marked as "Paid" by admin
+      if (editFormData.paymentMode === 'Pay at Hospital') {
+        // Keep the current payment status - do NOT auto-set to "Paid"
+        // Payment should remain "Pending" until actually received at hospital
+        finalPaymentStatus = editFormData.paymentStatus; // Keep as is
       }
       
       // If payment mode is "Cash", "UPI", or "Card" and status is confirmed, assume payment received
-      if (['Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
+      else if (['Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
           (editFormData.status === 'Confirmed' || editFormData.status === 'Admitted' || editFormData.status === 'Completed')) {
         finalPaymentStatus = 'Paid';
       }
@@ -523,15 +539,63 @@ const AppointmentManagementScreen = ({ navigation }) => {
       if (updateResult.success) {
         console.log('✅ Firebase update successful');
         
+        // Check if payment status changed from Pending to Paid - Auto-generate invoice
+        const originalPaymentStatus = editingAppointment.paymentStatus;
+        const wasStatusChangedToPaid = originalPaymentStatus !== 'Paid' && finalPaymentStatus === 'Paid';
+        
+        let invoiceMessage = '';
+        if (wasStatusChangedToPaid) {
+          console.log('💳 Payment status changed from', originalPaymentStatus, 'to', finalPaymentStatus);
+          console.log('📄 Auto-generating invoice for appointment:', editingAppointment.id);
+          
+          try {
+            // Create appointment data with updated payment status for invoice generation
+            const appointmentForInvoice = {
+              ...editingAppointment,
+              paymentStatus: finalPaymentStatus,
+              paymentMode: editFormData.paymentMode,
+              status: editFormData.status
+            };
+            
+            // Generate invoice automatically
+            const invoiceResult = await InvoiceGenerationService.processInvoiceGeneration(appointmentForInvoice);
+            
+            if (invoiceResult.success) {
+              console.log('✅ Invoice generated successfully:', invoiceResult.invoiceNumber);
+              invoiceMessage = `\n\n🧾 Invoice ${invoiceResult.invoiceNumber} auto-generated for ₹${invoiceResult.invoice.totalAmount}`;
+              
+              // Refresh invoices data immediately to show the new invoice
+              console.log('🔄 Refreshing invoices data to show newly generated invoice...');
+              setTimeout(async () => {
+                try {
+                  await initializeFirebaseData();
+                  console.log('✅ Invoices data refreshed - new invoice should now be visible');
+                } catch (refreshError) {
+                  console.error('❌ Error refreshing invoices data:', refreshError);
+                }
+              }, 1000);
+            } else {
+              console.error('❌ Invoice generation failed:', invoiceResult.message);
+              invoiceMessage = '\n\n⚠️ Invoice generation failed. Please create invoice manually.';
+            }
+          } catch (invoiceError) {
+            console.error('❌ Invoice generation error:', invoiceError);
+            invoiceMessage = '\n\n⚠️ Invoice generation failed. Please create invoice manually.';
+          }
+        }
+        
         // Close modal
         setShowEditModal(false);
         setEditingAppointment(null);
 
         // Show appropriate success message
         let successMessage = updateResult.message || 'Appointment updated successfully!';
-        if (finalPaymentStatus === 'Paid' && editFormData.paymentStatus !== 'Paid') {
+        if (finalPaymentStatus === 'Paid' && editFormData.paymentStatus !== 'Paid' && editFormData.paymentMode !== 'Pay at Hospital') {
           successMessage += '\n\nPayment status automatically set to "Paid" based on payment mode and appointment status.';
         }
+        
+        // Add invoice generation message
+        successMessage += invoiceMessage;
 
         Alert.alert('Success', successMessage);
         
@@ -1255,12 +1319,22 @@ const AppointmentManagementScreen = ({ navigation }) => {
                   </View>
                   
                   {/* Smart Payment Logic Indicator */}
-                  {(['Pay at Hospital', 'Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
+                  {(['Cash', 'UPI', 'Card'].includes(editFormData.paymentMode) && 
                     ['Confirmed', 'Completed'].includes(editFormData.status)) && (
                     <View style={styles.smartPaymentIndicator}>
                       <Ionicons name="information-circle" size={16} color={Colors.kbrBlue} />
                       <Text style={styles.smartPaymentText}>
                         Payment status will be automatically set to "Paid" for this payment mode and status combination.
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Pay at Hospital Warning */}
+                  {editFormData.paymentMode === 'Pay at Hospital' && (
+                    <View style={[styles.smartPaymentIndicator, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                      <Ionicons name="warning" size={16} color="#F59E0B" />
+                      <Text style={[styles.smartPaymentText, { color: '#92400E' }]}>
+                        "Pay at Hospital" means payment is NOT received yet. Keep status as "Pending" until patient pays at reception.
                       </Text>
                     </View>
                   )}
