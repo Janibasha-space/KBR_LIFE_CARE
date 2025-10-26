@@ -11,7 +11,10 @@ import {
   FirebaseHospitalService, 
   FirebaseAppointmentService,
   FirebasePatientService,
-  FirebaseRoomService
+  FirebaseRoomService,
+  FirebasePaymentService,
+  FirebaseDoctorService,
+  firebaseHospitalServices
 } from '../services/firebaseHospitalServices';
 import { SimpleBookingService } from '../services/simpleBookingService';
 
@@ -36,9 +39,24 @@ const initialAppState = {
 
   // Shared Services (from ServicesContext but enhanced)
   services: {
-    medical: [],
-    surgical: [],
-    specialized: [],
+    medical: [
+      { id: 'general-consultation', name: 'General Consultation', price: 600, category: 'medical' },
+      { id: 'prenatal-checkup', name: 'Prenatal Checkup', price: 800, category: 'medical' },
+      { id: 'diabetes-consultation', name: 'Diabetes Consultation', price: 700, category: 'medical' },
+      { id: 'hypertension-checkup', name: 'Hypertension Checkup', price: 650, category: 'medical' },
+    ],
+    surgical: [
+      { id: 'minor-surgery', name: 'Minor Surgery', price: 5000, category: 'surgical' },
+      { id: 'appendectomy', name: 'Appendectomy', price: 25000, category: 'surgical' },
+      { id: 'hernia-repair', name: 'Hernia Repair', price: 30000, category: 'surgical' },
+    ],
+    specialized: [
+      { id: 'ecg-consultation', name: 'ECG & Consultation', price: 800, category: 'specialized' },
+      { id: 'dental-consultation', name: 'Dental Consultation', price: 500, category: 'specialized' },
+      { id: 'eye-examination', name: 'Eye Examination', price: 600, category: 'specialized' },
+      { id: 'orthopedic-consultation', name: 'Orthopedic Consultation', price: 900, category: 'specialized' },
+      { id: 'cardiology-consultation', name: 'Cardiology Consultation', price: 1200, category: 'specialized' },
+    ],
   },
 
   // Shared Appointments (loaded from Firebase/real bookings only)
@@ -736,13 +754,14 @@ export const AppProvider = ({ children }) => {
       // Load other data that doesn't need real-time updates (one-time fetch)
       const results = await Promise.allSettled([
         InvoiceService.getAllInvoices(), 
-        PaymentService.getAllPayments(),
+        FirebasePaymentService.getPayments(),
         ReportService.getAllReports(),
-        SimpleBookingService.getAllAppointments()
+        SimpleBookingService.getAllAppointments(),
+        FirebaseDoctorService.getDoctors()
       ]);
 
       // Map results to variables with safe fallbacks and better error logging
-      const serviceNames = ['invoices', 'payments', 'reports', 'appointments'];
+      const serviceNames = ['invoices', 'payments', 'reports', 'appointments', 'doctors'];
       const mapResult = (index) => {
         const res = results[index];
         const serviceName = serviceNames[index];
@@ -762,19 +781,22 @@ export const AppProvider = ({ children }) => {
       const payments = mapResult(1);
       const reports = mapResult(2);
       const appointments = mapResult(3);
+      const doctors = mapResult(4);
 
       // Update state with non-real-time data
       setAppState(prev => ({
         ...prev,
-        // rooms and patients are handled by real-time listeners above
+        // rooms, patients, and doctors are handled by real-time listeners above
         invoices: invoices || prev.invoices,
         payments: payments || prev.payments,
         reports: reports || prev.reports,
-        appointments: appointments || prev.appointments
+        appointments: appointments || prev.appointments,
+        doctors: doctors || prev.doctors
       }));
 
       console.log('✅ Firebase data loaded (partial failures tolerated)');
       console.log(`📋 Loaded ${appointments?.length || 0} appointments`);
+      console.log(`✅ Loaded ${doctors?.length || 0} doctors from backend`);
     } catch (error) {
       if (error.message.includes('Authentication required')) {
         console.log('🔐 Firebase data loading completed with authentication limitations');
@@ -869,6 +891,55 @@ export const AppProvider = ({ children }) => {
         }
       });
       if (patientsUnsubscribe) newUnsubscribeFunctions.patients = patientsUnsubscribe;
+
+      // Real-time doctors listener
+      console.log('🔄 Setting up doctors real-time listener...');
+      const doctorsUnsubscribe = FirebaseDoctorService.subscribeToDoctors((result) => {
+        if (result.success) {
+          if (result.data.length > 0) {
+            console.log(`👨‍⚕️ Real-time doctors update: ${result.data.length} doctors`);
+          } else {
+            throttledLog('doctors-empty', '👨‍⚕️ Real-time doctors update: 0 doctors (permission denied)', 10000);
+          }
+          setAppState(prev => ({
+            ...prev,
+            doctors: removeDuplicatesById(result.data, 'doctors')
+          }));
+        } else if (result.warning) {
+          throttledLog('doctors-warning', '⚠️ Doctors listener warning: ' + result.warning, 10000);
+          // Keep existing doctors on permission error instead of clearing
+          console.log('🔒 Keeping existing doctors due to permission limitation');
+        } else {
+          throttledLog('doctors-error', '❌ Doctors listener error: ' + result.error, 5000);
+        }
+      });
+      if (doctorsUnsubscribe) newUnsubscribeFunctions.doctors = doctorsUnsubscribe;
+
+      // Real-time invoices listener
+      console.log('🔄 Setting up invoices real-time listener...');
+      const invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
+        if (result.success) {
+          if (result.data.length > 0) {
+            console.log(`🧾 Real-time invoices update: ${result.data.length} invoices`);
+          } else {
+            throttledLog('invoices-empty', '🧾 Real-time invoices update: 0 invoices (permission denied)', 10000);
+          }
+          setAppState(prev => ({
+            ...prev,
+            invoices: removeDuplicatesById(result.data, 'invoices')
+          }));
+        } else if (result.warning) {
+          throttledLog('invoices-warning', '⚠️ Invoices listener warning: ' + result.warning, 10000);
+          // Set empty invoices on permission error
+          setAppState(prev => ({
+            ...prev,
+            invoices: []
+          }));
+        } else {
+          throttledLog('invoices-error', '❌ Invoices listener error: ' + result.error, 5000);
+        }
+      });
+      if (invoicesUnsubscribe) newUnsubscribeFunctions.invoices = invoicesUnsubscribe;
 
       // Store unsubscribe functions
       setUnsubscribeFunctions(newUnsubscribeFunctions);
@@ -1143,11 +1214,76 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==== ROOM MANAGEMENT ====
+  // Check if room number already exists
+  const checkRoomExists = async (roomNumber) => {
+    try {
+      const existingRooms = appState.rooms || [];
+      return existingRooms.some(room => room.roomNumber === roomNumber);
+    } catch (error) {
+      console.error('Error checking room existence:', error);
+      return false;
+    }
+  };
+
+  // Get next available room number suggestion
+  const getNextAvailableRoomNumber = () => {
+    try {
+      const existingRooms = appState.rooms || [];
+      const roomNumbers = existingRooms
+        .map(room => parseInt(room.roomNumber))
+        .filter(num => !isNaN(num))
+        .sort((a, b) => a - b);
+      
+      // Find the first gap or next number after the highest
+      let nextNumber = 101; // Default starting number
+      
+      for (let i = 0; i < roomNumbers.length; i++) {
+        if (roomNumbers[i] !== nextNumber) {
+          break; // Found a gap
+        }
+        nextNumber++;
+      }
+      
+      return nextNumber.toString();
+    } catch (error) {
+      console.error('Error getting next room number:', error);
+      return '101'; // Fallback
+    }
+  };
+
   const addRoom = async (roomData) => {
     try {
+      // Pre-check if room already exists to provide better UX
+      const roomExists = await checkRoomExists(roomData.roomNumber);
+      if (roomExists) {
+        const nextAvailable = getNextAvailableRoomNumber();
+        Alert.alert(
+          'Room Already Exists',
+          `Room ${roomData.roomNumber} is already in the system.\n\nSuggested next available room number: ${nextAvailable}`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'View Existing Room', 
+              style: 'default',
+              onPress: () => {
+                // Find and return the existing room for editing
+                const existingRoom = appState.rooms.find(room => room.roomNumber === roomData.roomNumber);
+                console.log('📍 Existing room details:', existingRoom);
+              }
+            }
+          ]
+        );
+        return null;
+      }
+
       const result = await FirebaseRoomService.createRoom(roomData);
       if (result.success) {
         console.log('✅ Room added successfully:', result.data.id);
+        Alert.alert(
+          'Success',
+          `Room ${roomData.roomNumber} has been created successfully!`,
+          [{ text: 'OK', style: 'default' }]
+        );
         // Real-time listener will automatically update the state
         return result.data;
       } else {
@@ -1155,6 +1291,26 @@ export const AppProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error adding room:', error);
+      
+      // Handle specific duplicate room error (backup check)
+      if (error.message && error.message.includes('already exists')) {
+        const roomNumber = roomData.roomNumber;
+        Alert.alert(
+          'Room Already Exists',
+          `Room ${roomNumber} is already in the system. Please choose a different room number or update the existing room instead.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+        // Don't re-throw for duplicate rooms - just show the alert
+        return null;
+      }
+      
+      // For other errors, show generic error message
+      Alert.alert(
+        'Error Adding Room',
+        error.message || 'Failed to add room. Please check your connection and try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      
       throw error;
     }
   };
@@ -1479,7 +1635,7 @@ export const AppProvider = ({ children }) => {
   const addPayment = async (paymentData) => {
     if (useBackend) {
       try {
-        const newPayment = await PaymentService.processPayment(paymentData);
+        const newPayment = await FirebasePaymentService.addPayment(paymentData);
         setAppState(prev => ({
           ...prev,
           payments: [...prev.payments, newPayment]
@@ -1512,10 +1668,121 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Centralized function to update payment status and sync with appointments
+  const updatePaymentStatusAndSync = async (paymentId, newStatus, transactionId = null) => {
+    try {
+      console.log(`🔄 Centralized update: Payment ${paymentId} to ${newStatus}`);
+      
+      // Update payment status
+      await updatePaymentStatus(paymentId, newStatus, transactionId);
+      
+      // Find related appointment and update its payment status
+      const payment = appState.payments.find(p => p.id === paymentId || p.originalId === paymentId);
+      if (payment && payment.appointmentId) {
+        console.log(`🔄 Updating related appointment ${payment.appointmentId}`);
+        
+        // Update appointment payment status
+        setAppState(prev => ({
+          ...prev,
+          appointments: prev.appointments.map(appointment =>
+            appointment.id === payment.appointmentId
+              ? { 
+                  ...appointment, 
+                  paymentStatus: newStatus === 'paid' ? 'Paid' : newStatus === 'partial' ? 'Partially Paid' : 'Pending',
+                  updatedAt: new Date().toISOString()
+                }
+              : appointment
+          )
+        }));
+        
+        // Update in Firebase if backend is enabled
+        if (useBackend) {
+          try {
+            await FirebaseAppointmentService.updateAppointment(payment.appointmentId, {
+              paymentStatus: newStatus === 'paid' ? 'Paid' : newStatus === 'partial' ? 'Partially Paid' : 'Pending',
+              updatedAt: new Date().toISOString()
+            });
+          } catch (error) {
+            console.warn('⚠️ Failed to update appointment payment status in Firebase:', error);
+          }
+        }
+      }
+      
+      // Auto-generate invoice if payment is completed
+      if (newStatus === 'paid' && payment) {
+        console.log('📄 Auto-generating invoice for completed payment');
+        try {
+          await generateInvoiceForPayment(payment);
+        } catch (error) {
+          console.warn('⚠️ Invoice generation failed:', error);
+        }
+      }
+      
+      console.log('✅ Centralized payment update completed');
+    } catch (error) {
+      console.error('❌ Error in centralized payment update:', error);
+      throw error;
+    }
+  };
+
+  // Generate invoice for payment
+  const generateInvoiceForPayment = async (payment) => {
+    try {
+      console.log('📄 Generating invoice for payment:', payment.id);
+      
+      const invoiceNumber = `INV-${Date.now()}`;
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      const invoiceData = {
+        invoiceNumber,
+        patientId: payment.patientId,
+        patientName: payment.patientName,
+        issueDate: currentDate,
+        dueDate: currentDate,
+        totalAmount: payment.amount || payment.actualAmountPaid || payment.paidAmount,
+        status: 'paid',
+        description: payment.description || 'Medical Service Payment',
+        serviceType: payment.type === 'appointment' ? 'OP' : payment.type === 'admission' ? 'IP' : 'General',
+        items: [
+          {
+            name: payment.description || 'Medical Service',
+            description: `${payment.type || 'payment'} - ${payment.description || 'Medical Service'}`,
+            quantity: 1,
+            amount: payment.amount || payment.actualAmountPaid || payment.paidAmount,
+            unitPrice: payment.amount || payment.actualAmountPaid || payment.paidAmount,
+            totalPrice: payment.amount || payment.actualAmountPaid || payment.paidAmount
+          }
+        ],
+        paymentDetails: {
+          paymentId: payment.id,
+          paymentDate: payment.paymentDate || payment.date || new Date().toISOString(),
+          paymentMethod: payment.paymentMethod || 'cash',
+          transactionId: payment.transactionId,
+          actualAmountPaid: payment.amount || payment.actualAmountPaid || payment.paidAmount
+        },
+        isAutoGenerated: true,
+        generatedFrom: 'payment',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      const result = await addInvoice(invoiceData);
+      console.log('✅ Invoice generated successfully:', invoiceNumber);
+      
+      // Optionally send invoice to customer (implement later)
+      // await sendInvoiceToCustomer(result, payment.patientId);
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Error generating invoice:', error);
+      throw error;
+    }
+  };
+
   const updatePaymentStatus = async (paymentId, newStatus, transactionId = null) => {
     if (useBackend) {
       try {
-        await PaymentService.updatePaymentStatus(paymentId, newStatus);
+        await FirebasePaymentService.updatePaymentStatus(paymentId, newStatus);
         setAppState(prev => ({
           ...prev,
           payments: prev.payments.map(payment =>
@@ -1549,10 +1816,26 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const updatePayment = async (paymentId, paymentData) => {
+    if (useBackend) {
+      try {
+        await FirebasePaymentService.updatePayment(paymentId, paymentData);
+        console.log('✅ Payment updated in Firebase backend:', paymentId);
+        return { success: true };
+      } catch (error) {
+        console.error('❌ Error updating payment in Firebase backend:', error);
+        throw error;
+      }
+    } else {
+      console.log('⚠️ Backend not available, payment update is local only');
+      return { success: true };
+    }
+  };
+
   const deletePayment = async (paymentId) => {
     if (useBackend) {
       try {
-        await PaymentService.deletePayment(paymentId);
+        await FirebasePaymentService.deletePayment(paymentId);
         setAppState(prev => ({
           ...prev,
           payments: prev.payments.filter(payment => payment.id !== paymentId)
@@ -1573,7 +1856,7 @@ export const AppProvider = ({ children }) => {
   const getPaymentsByPatient = async (patientId) => {
     if (useBackend) {
       try {
-        return await PaymentService.getPaymentsByPatient(patientId);
+        return await FirebasePaymentService.getPaymentsByPatient(patientId);
       } catch (error) {
         console.error('Error getting payments by patient:', error);
         return [];
@@ -2085,6 +2368,110 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==== PATIENT PAYMENT MANAGEMENT ====
+  
+  // Function to sync missing payments from invoices back to patient payment history
+  const syncMissingPaymentsFromInvoices = () => {
+    console.log('🔄 Checking for missing payments in patient history...');
+    
+    let hasAnyChanges = false;
+    
+    // First pass: check if any changes are needed to prevent unnecessary re-renders
+    const updatedPatients = appState.patients.map(patient => {
+      if (!patient.paymentDetails || !patient.paymentDetails.payments) {
+        return patient;
+      }
+
+      // Find invoices for this patient that represent additional payments
+      const patientInvoices = (appState.invoices || []).filter(invoice => 
+        invoice.patientId === patient.id && 
+        invoice.generatedFrom === 'payment' && 
+        invoice.paymentDetails &&
+        invoice.paymentDetails.actualAmountPaid > 0
+      );
+
+      if (patientInvoices.length === 0) {
+        return patient;
+      }
+
+      let hasChanges = false;
+      let updatedPayments = [...patient.paymentDetails.payments];
+
+      // Check each invoice to see if it's missing from payment history
+      patientInvoices.forEach(invoice => {
+        const existingPayment = updatedPayments.find(payment => 
+          payment.invoiceId === invoice.id ||
+          payment.syncedFromInvoice === true && payment.invoiceId === invoice.id ||
+          (Math.abs(payment.amount - invoice.paymentDetails.actualAmountPaid) < 0.01 &&
+           payment.date === new Date(invoice.paymentDetails.paymentDate).toISOString().split('T')[0])
+        );
+
+        if (!existingPayment) {
+          console.log(`🔧 Adding missing payment: ₹${invoice.paymentDetails.actualAmountPaid} for ${patient.name} (Invoice: ${invoice.id})`);
+          
+          const missingPayment = {
+            id: `PAY-SYNC-${Date.now()}-${updatedPayments.length + 1}`,
+            amount: invoice.paymentDetails.actualAmountPaid,
+            type: 'Additional Payment',
+            method: invoice.paymentDetails.paymentMethod || 'cash',
+            date: new Date(invoice.paymentDetails.paymentDate).toISOString().split('T')[0],
+            time: new Date(invoice.paymentDetails.paymentDate).toLocaleTimeString(),
+            description: invoice.description || 'Payment synced from invoice',
+            transactionId: invoice.paymentDetails.transactionId || null,
+            invoiceId: invoice.id,
+            syncedFromInvoice: true
+          };
+
+          updatedPayments.push(missingPayment);
+          hasChanges = true;
+          hasAnyChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        // Recalculate totals
+        const totalPaid = updatedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+        const dueAmount = Math.max(0, patient.paymentDetails.totalAmount - totalPaid);
+
+        console.log(`✅ Synced payments for ${patient.name}: Total Paid updated from ₹${patient.paymentDetails.totalPaid} to ₹${totalPaid}`);
+
+        return {
+          ...patient,
+          paymentDetails: {
+            ...patient.paymentDetails,
+            payments: updatedPayments,
+            totalPaid: totalPaid,
+            dueAmount: dueAmount,
+            lastPaymentDate: updatedPayments[updatedPayments.length - 1].date,
+            lastSyncedAt: new Date().toISOString()
+          },
+          editHistory: [
+            ...(patient.editHistory || []),
+            {
+              action: 'payments_synced',
+              timestamp: new Date().toISOString(),
+              details: `Synced ${patientInvoices.length} missing payments from invoices. Total: ₹${totalPaid}`,
+            }
+          ]
+        };
+      }
+
+      return patient;
+    });
+    
+    // Only update state if there are actual changes
+    if (hasAnyChanges) {
+      console.log('✅ Updating patient state with synced payments');
+      setAppState(prev => ({
+        ...prev,
+        patients: updatedPatients
+      }));
+    } else {
+      console.log('✅ No missing payments found - all invoices are already synced');
+    }
+  };
+
+
+
   const addPatientPayment = (patientId, paymentData) => {
     setAppState(prev => ({
       ...prev,
@@ -2509,6 +2896,8 @@ export const AppProvider = ({ children }) => {
 
     // Room Methods
     addRoom,
+    checkRoomExists,
+    getNextAvailableRoomNumber,
     updateRoom,
     deleteRoom,
     dischargePatient,
@@ -2524,7 +2913,10 @@ export const AppProvider = ({ children }) => {
 
     // Payment Methods
     addPayment,
+    updatePayment,
     updatePaymentStatus,
+    updatePaymentStatusAndSync,
+    generateInvoiceForPayment,
     deletePayment,
     getPaymentsByPatient,
     getPendingPayments,
@@ -2551,6 +2943,7 @@ export const AppProvider = ({ children }) => {
 
     // Patient Payment Methods
     addPatientPayment,
+    syncMissingPaymentsFromInvoices,
     getPatientPaymentSummary,
     getAllPendingPayments,
 

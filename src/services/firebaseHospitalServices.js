@@ -20,8 +20,37 @@ import { FirebaseAuthService } from './firebaseAuthService';
 import TokenService from './tokenService';
 
 // Utility function to safely update or create documents
+// Helper function to clean undefined values from data
+const cleanDataForFirebase = (data) => {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined && value !== null) {
+      if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        // Recursively clean nested objects
+        const cleanedNested = cleanDataForFirebase(value);
+        if (Object.keys(cleanedNested).length > 0) {
+          cleaned[key] = cleanedNested;
+        }
+      } else if (Array.isArray(value)) {
+        // Clean arrays
+        const cleanedArray = value.filter(item => item !== undefined && item !== null);
+        if (cleanedArray.length > 0) {
+          cleaned[key] = cleanedArray;
+        }
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+};
+
 const safeUpdateDoc = async (docRef, data, options = {}) => {
   try {
+    // Clean the data to remove undefined values
+    const cleanedData = cleanDataForFirebase(data);
+    console.log(`🧹 Cleaned data for document ${docRef.id}:`, Object.keys(cleanedData));
+    
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
@@ -29,7 +58,7 @@ const safeUpdateDoc = async (docRef, data, options = {}) => {
       
       const newData = {
         id: docRef.id,
-        ...data,
+        ...cleanedData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -38,7 +67,7 @@ const safeUpdateDoc = async (docRef, data, options = {}) => {
       return { created: true, message: 'Document created successfully' };
     } else {
       await updateDoc(docRef, {
-        ...data,
+        ...cleanedData,
         updatedAt: new Date().toISOString()
       });
       return { created: false, message: 'Document updated successfully' };
@@ -886,6 +915,57 @@ class FirebaseDoctorService {
     } catch (error) {
       console.error('Error deleting doctor:', error);
       throw new Error('Failed to delete doctor');
+    }
+  }
+
+  // Subscribe to real-time doctors updates
+  static subscribeToDoctors(callback) {
+    try {
+      console.log('🔄 Setting up real-time doctors listener...');
+      const doctorsRef = collection(db, this.collectionName);
+      
+      const unsubscribe = onSnapshot(doctorsRef, 
+        (querySnapshot) => {
+          const doctors = [];
+          querySnapshot.forEach((doc) => {
+            doctors.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          
+          console.log(`🔄 Real-time update: ${doctors.length} doctors`);
+          callback({
+            success: true,
+            data: doctors
+          });
+        },
+        (error) => {
+          console.error('❌ Doctors listener error:', error);
+          if (error.code === 'permission-denied') {
+            console.log('🔒 Permission denied for doctors - using empty array');
+            callback({
+              success: true,
+              data: [],
+              warning: 'Permission denied - limited access'
+            });
+          } else {
+            callback({
+              success: false,
+              error: error.message
+            });
+          }
+        }
+      );
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('❌ Error setting up doctors listener:', error);
+      callback({
+        success: false,
+        error: error.message
+      });
+      return null;
     }
   }
 }
@@ -1900,6 +1980,67 @@ class FirebaseInvoiceService {
     }
   }
 
+  // Subscribe to real-time invoices updates
+  static subscribeToInvoices(callback) {
+    try {
+      console.log('🔄 Setting up real-time invoices listener...');
+      
+      const invoicesRef = collection(db, this.collectionName);
+      const q = query(invoicesRef, orderBy('createdAt', 'desc'));
+      
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        try {
+          const invoices = [];
+          querySnapshot.forEach((doc) => {
+            invoices.push({
+              id: doc.id,
+              ...doc.data()
+            });
+          });
+          
+          console.log(`🔄 Real-time update: ${invoices.length} invoices`);
+          callback({
+            success: true,
+            data: invoices
+          });
+        } catch (error) {
+          console.error('❌ Error processing invoices snapshot:', error);
+          callback({
+            success: false,
+            error: error.message,
+            data: []
+          });
+        }
+      }, (error) => {
+        console.error('❌ Invoices real-time listener error:', error);
+        
+        if (error.code === 'permission-denied') {
+          callback({
+            success: true,
+            data: [],
+            warning: 'Permission denied - showing empty data'
+          });
+        } else {
+          callback({
+            success: false,
+            error: error.message,
+            data: []
+          });
+        }
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('❌ Error setting up invoices real-time listener:', error);
+      callback({
+        success: false,
+        error: error.message,
+        data: []
+      });
+      return null;
+    }
+  }
+
   // Create new invoice
   static async createInvoice(invoiceData) {
     try {
@@ -2161,6 +2302,32 @@ class FirebasePaymentService {
     } catch (error) {
       console.error('❌ Error updating payment status:', error);
       throw new Error(`Failed to update payment status: ${error.message}`);
+    }
+  }
+
+  // Update complete payment record (for additional payments)
+  static async updatePayment(paymentId, paymentData) {
+    try {
+      await this.ensureAuth();
+      
+      const paymentRef = doc(db, this.collectionName, paymentId);
+      const result = await safeUpdateDoc(paymentRef, {
+        ...paymentData,
+        updatedAt: new Date().toISOString()
+      });
+      
+      console.log(`✅ Payment ${paymentId} ${result.created ? 'created' : 'updated'} successfully with additional payment`);
+      return {
+        success: true,
+        data: {
+          id: paymentId,
+          ...paymentData
+        },
+        message: result.message
+      };
+    } catch (error) {
+      console.error('❌ Error updating payment:', error);
+      throw new Error(`Failed to update payment: ${error.message}`);
     }
   }
 
@@ -2996,6 +3163,9 @@ class FirebaseReportsService {
 
 // Export an instance for easy use
 const firebaseHospitalServices = {
+  // Appointment Services
+  updateAppointment: FirebaseAppointmentService.updateAppointment.bind(FirebaseAppointmentService),
+  
   // Patient Services
   createPatient: FirebasePatientService.createPatient.bind(FirebasePatientService),
   getAllPatients: FirebasePatientService.getAllPatients.bind(FirebasePatientService),
@@ -3043,6 +3213,7 @@ const firebaseHospitalServices = {
   
   // Invoice Services
   getInvoices: FirebaseInvoiceService.getInvoices.bind(FirebaseInvoiceService),
+  subscribeToInvoices: FirebaseInvoiceService.subscribeToInvoices.bind(FirebaseInvoiceService),
   createInvoice: FirebaseInvoiceService.createInvoice.bind(FirebaseInvoiceService),
   updateInvoiceStatus: FirebaseInvoiceService.updateInvoiceStatus.bind(FirebaseInvoiceService),
   updateInvoice: FirebaseInvoiceService.updateInvoice.bind(FirebaseInvoiceService),
@@ -3054,6 +3225,7 @@ const firebaseHospitalServices = {
   getPayments: FirebasePaymentService.getPayments.bind(FirebasePaymentService),
   addPayment: FirebasePaymentService.addPayment.bind(FirebasePaymentService),
   updatePaymentStatus: FirebasePaymentService.updatePaymentStatus.bind(FirebasePaymentService),
+  updatePayment: FirebasePaymentService.updatePayment.bind(FirebasePaymentService),
   deletePayment: FirebasePaymentService.deletePayment.bind(FirebasePaymentService),
   getPaymentsByPatient: FirebasePaymentService.getPaymentsByPatient.bind(FirebasePaymentService),
   getPaymentStats: FirebasePaymentService.getPaymentStats.bind(FirebasePaymentService),

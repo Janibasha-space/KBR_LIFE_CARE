@@ -10,18 +10,41 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useApp } from '../../contexts/AppContext';
 import AddPatientPaymentModal from '../../components/AddPatientPaymentModal';
 import { Colors } from '../../constants/theme';
 
 const PatientDetailsScreen = ({ route, navigation }) => {
   const { patient: initialPatient } = route.params;
-  const { updatePatient, deletePatient } = useApp();
+  const { updatePatient, deletePatient, patients } = useApp();
   
   const [isEditing, setIsEditing] = useState(false);
   const [patient, setPatient] = useState(initialPatient);
   const [originalPatient, setOriginalPatient] = useState(initialPatient);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Update patient data from context when it changes (for real-time updates)
+  React.useEffect(() => {
+    const updatedPatient = patients.find(p => p.id === initialPatient.id);
+    if (updatedPatient) {
+      console.log('📝 [PatientDetails] Updating patient data from context:', updatedPatient.id);
+      setPatient(updatedPatient);
+      setOriginalPatient(updatedPatient);
+    }
+  }, [patients, initialPatient.id]);
+
+  // Refresh patient data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📝 [PatientDetails] Screen focused - refreshing patient data');
+      const updatedPatient = patients.find(p => p.id === initialPatient.id);
+      if (updatedPatient) {
+        setPatient(updatedPatient);
+        setOriginalPatient(updatedPatient);
+      }
+    }, [patients, initialPatient.id])
+  );
 
   const handleCall = () => {
     const phoneNumber = patient.phone.replace(/\s/g, '');

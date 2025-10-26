@@ -40,8 +40,9 @@ const { width: screenWidth } = Dimensions.get('window');
 // Note: LayoutAnimation is automatically enabled in React Native's New Architecture (Fabric)
 // No need to call setLayoutAnimationEnabledExperimental which is deprecated
 
-// Sample data - same as web version but adapted for React Native
-const doctors = [
+// Doctors data will be loaded from AppContext/backend
+// Keeping fallback data for UI consistency while backend loads
+const fallbackDoctors = [
   {
     id: 1,
     name: "DR. K. RAMESH",
@@ -350,6 +351,39 @@ const PatientHomeScreen = ({ navigation }) => {
   
   // Get theme context
   const { theme } = useTheme();
+
+  // Get app context for doctors data
+  const { doctors: backendDoctors } = useApp();
+
+  // Merge backend doctors with fallback data for UI consistency
+  const [doctors, setDoctors] = useState(fallbackDoctors);
+
+  useEffect(() => {
+    if (backendDoctors && backendDoctors.length > 0) {
+      // Transform backend doctors to match UI format
+      const transformedDoctors = backendDoctors.map((doctor, index) => ({
+        id: index + 1,
+        name: doctor.name?.toUpperCase() || 'UNKNOWN DOCTOR',
+        credentials: doctor.credentials || 'M.B.B.S.',
+        role: doctor.specialization || doctor.department || 'General Physician',
+        fellowship: doctor.fellowship || '',
+        image: doctor.avatar?.startsWith('http') 
+          ? { uri: doctor.avatar }
+          : fallbackDoctors[index % fallbackDoctors.length]?.image || require('../../../assets/DR. K. RAMESH.jpeg'),
+        expertise: doctor.expertise || [
+          `${doctor.specialization || 'General'} consultation`,
+          "Patient care and treatment",
+          "Medical diagnosis and treatment",
+          "Preventive medicine & health screening"
+        ]
+      }));
+      setDoctors(transformedDoctors);
+      console.log(`✅ Loaded ${transformedDoctors.length} doctors from backend`);
+    } else {
+      console.log('⚠️ Using fallback doctors data');
+      setDoctors(fallbackDoctors);
+    }
+  }, [backendDoctors]);
 
   // Patient admission status - Mock data for demonstration
   // Only show this data when user is logged in

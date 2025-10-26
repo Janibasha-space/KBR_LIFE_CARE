@@ -100,43 +100,77 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     loadFirebaseData();
   }, []);
 
-  // Load Firebase doctors and services - Now works for everyone
+  // Reload data when AppContext doctors or services change (real-time updates)
+  useEffect(() => {
+    const services = getAllServices();
+    if (doctors?.length > 0 || services?.length > 0) {
+      console.log('🔄 AppContext data changed, reloading real-time data...');
+      console.log('📊 Current AppContext - Doctors:', doctors?.length, 'Services:', services?.length);
+      loadFirebaseData();
+    }
+  }, [doctors]);
+
+  // Load Firebase doctors and services - Now works for everyone with real-time data
   const loadFirebaseData = async () => {
     try {
-      console.log('� Loading Firebase data for all users...');
+      console.log('🔥 Loading real-time data from AppContext and Firebase...');
       setServicesLoading(true);
       
-      // Load doctors from Firebase
-      const doctorsResponse = await firebaseHospitalServices.getDoctors();
-      if (doctorsResponse.success && doctorsResponse.data) {
-        setFirebaseDoctors(doctorsResponse.data);
-        console.log('✅ Loaded Firebase doctors:', doctorsResponse.data.length);
+      // Load doctors from AppContext (real-time) first, then Firebase as fallback
+      let loadedDoctors = [];
+      if (doctors && doctors.length > 0) {
+        loadedDoctors = doctors;
+        console.log('✅ Using real-time doctors from AppContext:', doctors.length);
       } else {
-        console.error('❌ Failed to load doctors:', doctorsResponse.message);
-        setFirebaseDoctors([]);
+        const doctorsResponse = await firebaseHospitalServices.getDoctors();
+        if (doctorsResponse.success && doctorsResponse.data) {
+          loadedDoctors = doctorsResponse.data;
+          console.log('✅ Loaded doctors from Firebase fallback:', doctorsResponse.data.length);
+        } else {
+          console.error('❌ Failed to load doctors:', doctorsResponse.message);
+          loadedDoctors = [];
+        }
       }
+      setFirebaseDoctors(loadedDoctors);
 
-      // Load services with doctors from Firebase  
-      const servicesData = await firebaseHospitalServices.getServicesWithDoctors();
-      if (servicesData && servicesData.success && servicesData.data) {
-        setFirebaseServices(servicesData.data);
-        console.log('✅ Loaded Firebase services with doctors:', servicesData.data.length);
+      // Load services from ServicesContext (real-time) first, then Firebase as fallback
+      let loadedServices = [];
+      const contextServices = getAllServices();
+      if (contextServices && contextServices.length > 0) {
+        loadedServices = contextServices;
+        console.log('✅ Using real-time services from ServicesContext:', contextServices.length);
       } else {
-        console.error('❌ Failed to load services:', servicesData?.message || 'No services found');
-        setFirebaseServices([]);
+        const servicesData = await firebaseHospitalServices.getServicesWithDoctors();
+        if (servicesData && servicesData.success && servicesData.data) {
+          loadedServices = servicesData.data;
+          console.log('✅ Loaded services from Firebase fallback:', servicesData.data.length);
+        } else {
+          console.error('❌ Failed to load services:', servicesData?.message || 'No services found');
+          loadedServices = [];
+        }
       }
+      setFirebaseServices(loadedServices);
       
-      // Load tests from Firebase
-      const testsResponse = await firebaseHospitalServices.getTests();
-      if (testsResponse.success && testsResponse.data) {
-        setFirebaseTests(testsResponse.data);
-        console.log('✅ Loaded Firebase tests:', testsResponse.data.length);
+      // Load tests from AppContext (real-time) first, then Firebase as fallback
+      let loadedTests = [];
+      if (tests && tests.length > 0) {
+        loadedTests = tests;
+        console.log('✅ Using real-time tests from AppContext:', tests.length);
       } else {
-        console.error('❌ Failed to load tests:', testsResponse.message);
-        setFirebaseTests([]);
+        const testsResponse = await firebaseHospitalServices.getTests();
+        if (testsResponse.success && testsResponse.data) {
+          loadedTests = testsResponse.data;
+          console.log('✅ Loaded tests from Firebase fallback:', testsResponse.data.length);
+        } else {
+          console.error('❌ Failed to load tests:', testsResponse.message);
+          loadedTests = [];
+        }
       }
+      setFirebaseTests(loadedTests);
+      
+      console.log('📊 Final data loaded - Doctors:', loadedDoctors.length, 'Services:', loadedServices.length, 'Tests:', loadedTests.length);
     } catch (error) {
-      console.error('❌ Error loading Firebase data:', error);
+      console.error('❌ Error loading real-time data:', error);
       setFirebaseDoctors([]);
       setFirebaseServices([]);
       setFirebaseTests([]);
@@ -297,8 +331,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     return services;
   })();
   
-  // Get doctors by service from Firebase data
+  // Get doctors by service from Firebase data (now uses real-time AppContext data)
   const getDoctorsByService = (serviceName) => {
+    console.log('🔍 getDoctorsByService called for:', serviceName);
+    console.log('📋 Available firebaseServices:', firebaseServices?.length || 0);
+    console.log('👨‍⚕️ Available firebaseDoctors:', firebaseDoctors?.length || 0);
+    
     // Ensure firebaseServices is an array before using find()
     if (!Array.isArray(firebaseServices)) {
       console.warn('Firebase services is not an array:', firebaseServices);
@@ -509,7 +547,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
   // Handle doctor selection (Step 2)
   const handleDoctorSelect = (doctor) => {
-    setBookingData(prev => ({ ...prev, doctor }));
+    console.log('👨‍⚕️ Doctor selected:', doctor);
+    setBookingData(prev => {
+      const newData = { ...prev, doctor };
+      console.log('📋 Updated booking data with doctor:', newData);
+      return newData;
+    });
     goToNextStep();
   };
 
@@ -591,8 +634,62 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     }
   };
 
+  // Validate booking data completeness
+  const validateBookingData = () => {
+    console.log('🔍 Validating booking data:', bookingData);
+    const validationErrors = [];
+
+    if (!bookingData.service) {
+      validationErrors.push('Service selection is required');
+      console.log('❌ Service missing:', bookingData.service);
+    }
+
+    if (!bookingData.doctor) {
+      validationErrors.push('Doctor selection is required');
+      console.log('❌ Doctor missing:', bookingData.doctor);
+    }
+
+    if (!bookingData.date) {
+      validationErrors.push('Appointment date is required');
+      console.log('❌ Date missing:', bookingData.date);
+    }
+
+    if (!bookingData.time) {
+      validationErrors.push('Appointment time is required');
+      console.log('❌ Time missing:', bookingData.time);
+    }
+
+    if (!bookingData.patientDetails || !bookingData.patientDetails.name) {
+      validationErrors.push('Patient name is required');
+      console.log('❌ Patient name missing:', bookingData.patientDetails?.name);
+    }
+
+    if (!bookingData.patientDetails || !bookingData.patientDetails.mobile) {
+      validationErrors.push('Patient mobile number is required');
+      console.log('❌ Patient mobile missing:', bookingData.patientDetails?.mobile);
+    }
+
+    const result = {
+      isValid: validationErrors.length === 0,
+      errors: validationErrors
+    };
+    
+    console.log('✅ Validation result:', result);
+    return result;
+  };
+
   // Handle payment method selection (Step 6)
   const handlePaymentSelect = (method) => {
+    // Validate before processing payment
+    const validation = validateBookingData();
+    if (!validation.isValid) {
+      Alert.alert(
+        'Incomplete Information', 
+        `Please complete the following:\n• ${validation.errors.join('\n• ')}`
+      );
+      return;
+    }
+
     setBookingData(prev => ({ ...prev, paymentMethod: method }));
     processBooking(method);
   };
@@ -603,6 +700,13 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     try {
       console.log('🚀 NEW processBooking started - No Conflicts!');
       console.log('🔐 Authentication status:', { isLoggedIn, userData });
+      console.log('📋 Booking data validation:', { 
+        hasService: !!bookingData.service,
+        hasDoctor: !!bookingData.doctor,
+        hasDate: !!bookingData.date,
+        hasTime: !!bookingData.time,
+        hasPatientDetails: !!bookingData.patientDetails
+      });
       
       // Check authentication first
       if (!isLoggedIn) {
@@ -610,16 +714,48 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         setLoading(false);
         return;
       }
+
+      // Validate required booking data
+      if (!bookingData.service) {
+        Alert.alert('Missing Information', 'Please select a service before booking.');
+        setLoading(false);
+        return;
+      }
+
+      if (!bookingData.doctor) {
+        Alert.alert('Missing Information', 'Please select a doctor before booking.');
+        setLoading(false);
+        return;
+      }
+
+      if (!bookingData.date || !bookingData.time) {
+        Alert.alert('Missing Information', 'Please select date and time before booking.');
+        setLoading(false);
+        return;
+      }
+
+      if (!bookingData.patientDetails || !bookingData.patientDetails.name || !bookingData.patientDetails.mobile) {
+        Alert.alert('Missing Information', 'Please fill in patient details before booking.');
+        setLoading(false);
+        return;
+      }
       
+      // Additional safety checks for properties
+      const doctorFees = (bookingData.doctor && bookingData.doctor.fees) || 0;
+      const serviceId = (bookingData.service && bookingData.service.id) || 'unknown-service';
+      const doctorId = (bookingData.doctor && bookingData.doctor.id) || 'unknown-doctor';
+      const serviceName = (bookingData.service && bookingData.service.name) || 'Unknown Service';
+      const doctorName = (bookingData.doctor && bookingData.doctor.name) || 'Unknown Doctor';
+
       const finalBookingData = {
         id: `apt-${Date.now()}`,
-        serviceId: bookingData.service.id,
-        doctorId: bookingData.doctor.id,
+        serviceId: serviceId,
+        doctorId: doctorId,
         appointmentDate: `${bookingData.date} ${bookingData.time}`,
         date: bookingData.date,
         time: bookingData.time,
-        serviceName: bookingData.service.name,
-        doctorName: bookingData.doctor.name,
+        serviceName: serviceName,
+        doctorName: doctorName,
         patientName: bookingData.patientDetails.name,
         contactNumber: bookingData.patientDetails.mobile,
         email: bookingData.patientDetails.email || userData?.email,
@@ -628,9 +764,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         paymentType: paymentMethod === 'razorpay' ? 'online' : 'hospital',
         paymentMethod: paymentMethod === 'razorpay' ? 'Online Payment' : 'Cash/Card at Hospital',
         paymentStatus: paymentMethod === 'razorpay' ? 'Paid' : 'Pending',
-        amount: bookingData.doctor.fees,
-        consultationFee: bookingData.doctor.fees,
-        totalAmount: bookingData.doctor.fees,
+        amount: doctorFees,
+        consultationFee: doctorFees,
+        totalAmount: doctorFees,
         status: 'confirmed',
         type: 'consultation',
         notes: `Appointment booked via mobile app`,
@@ -1649,9 +1785,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
               marginRight: 16,
               overflow: 'hidden'
             }}>
-              {bookingData.doctor?.avatar && (bookingData.doctor.avatar.startsWith('http') || bookingData.doctor.avatar.startsWith('file://')) ? (
+              {bookingData.doctor?.avatar && (bookingData.doctor?.avatar.startsWith('http') || bookingData.doctor?.avatar.startsWith('file://')) ? (
                 <Image 
-                  source={{ uri: bookingData.doctor.avatar }} 
+                  source={{ uri: bookingData.doctor?.avatar }} 
                   style={{
                     width: 70,
                     height: 70,
