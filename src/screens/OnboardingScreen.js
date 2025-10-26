@@ -61,57 +61,6 @@ const OnboardingScreen = ({ navigation }) => {
     navigation.replace('PatientMain');
   };
 
-  const handleAdminLogin = () => {
-    setShowAuthModal(true);
-  };
-
-  const handleQuickAdminLogin = async () => {
-    try {
-      Alert.alert(
-        'Admin Login',
-        'Would you like to login as admin?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Login',
-            onPress: async () => {
-              try {
-                console.log('🔐 Quick admin login attempt...');
-                const response = await login({
-                  email: 'thukaram2388@gmail.com',
-                  password: 'Diya@7701'
-                });
-                
-                console.log('📱 Admin login response:', {
-                  success: response.success,
-                  role: response.data?.user?.role,
-                  email: response.data?.user?.email
-                });
-                
-                if (response.success) {
-                  Alert.alert('Success', 'Logged in as admin!', [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        console.log('🚀 Navigating to AdminMain from onboarding');
-                        navigation.navigate('AdminMain');
-                      }
-                    }
-                  ]);
-                }
-              } catch (error) {
-                console.error('❌ Admin login failed:', error);
-                Alert.alert('Login Failed', 'Please make sure the admin account exists in Firebase with the correct credentials.\n\nError: ' + error.message);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Admin login error:', error);
-    }
-  };
-
   // Render function now inline in FlatList
 
   const renderDots = () => {
