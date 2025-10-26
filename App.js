@@ -17,7 +17,7 @@ import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
 import { UnifiedAuthProvider, useUnifiedAuth } from './src/contexts/UnifiedAuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AppProvider } from './src/contexts/AppContext';
+import { AppProvider, useApp } from './src/contexts/AppContext';
 
 // Import services
 import NetworkService from './src/services/networkService';
@@ -73,6 +73,7 @@ const Drawer = createDrawerNavigator();
 // Custom Drawer Content with Profile and Logout
 function CustomDrawerContent(props) {
   const { logout } = useUnifiedAuth(); // Import the logout function from UnifiedAuthContext
+  const { clearUserData, forceCleanupListeners } = useApp(); // Import cleanup functions from AppContext
   
   const handleLogout = () => {
     Alert.alert(
@@ -88,10 +89,21 @@ function CustomDrawerContent(props) {
           style: 'destructive',
           onPress: async () => {
             try {
-              // First, log out from all authentication contexts
+              console.log('🚪 Starting comprehensive logout process...');
+              
+              // First, force cleanup all listeners immediately
+              console.log('🚨 Force cleaning up all real-time listeners...');
+              forceCleanupListeners();
+              
+              // Then, clear AppContext data and listeners
+              console.log('🧹 Clearing AppContext data...');
+              clearUserData();
+              
+              // Finally, log out from authentication contexts
+              console.log('🔐 Logging out from authentication context...');
               await logout();
               
-              // Then navigate to login/onboarding screen
+              // Navigate to login/onboarding screen
               props.navigation.reset({
                 index: 0,
                 routes: [{ name: 'Onboarding' }],
@@ -99,10 +111,21 @@ function CustomDrawerContent(props) {
               
               // Show success message
               Alert.alert('Success', 'You have been logged out successfully from all accounts.');
+              console.log('✅ Comprehensive logout completed successfully');
             } catch (error) {
               console.error('Logout error:', error);
               
-              // Even if logout fails, still navigate to onboarding
+              // Even if logout fails, ensure comprehensive cleanup
+              try {
+                console.log('🚨 Error during logout - performing force cleanup...');
+                forceCleanupListeners();
+                clearUserData();
+                console.log('✅ Force cleanup completed');
+              } catch (clearError) {
+                console.error('Error during force cleanup:', clearError);
+              }
+              
+              // Still navigate to onboarding
               props.navigation.reset({
                 index: 0,
                 routes: [{ name: 'Onboarding' }],

@@ -252,7 +252,7 @@ export const UnifiedAuthProvider = ({ children }) => {
         console.warn('⚠️ Error clearing storage:', storageError);
       }
       
-      // Clear local state completely
+      // Clear local state completely FIRST to trigger auth state change immediately
       setAuthState({
         isAuthenticated: false,
         isLoading: false,
@@ -265,6 +265,12 @@ export const UnifiedAuthProvider = ({ children }) => {
       setTokenCounter(9);
       
       console.log('✅ Unified logout completed successfully - all user sessions cleared');
+      
+      // Add a small delay to ensure the auth state change is processed
+      setTimeout(() => {
+        console.log('🔄 Auth state change should have triggered listener cleanup');
+      }, 100);
+      
       return { success: true, message: 'Logged out successfully from all accounts' };
     } catch (error) {
       console.error('❌ Logout error:', error);
@@ -286,23 +292,38 @@ export const UnifiedAuthProvider = ({ children }) => {
   // Update user profile
   const updateUserProfile = async (profileData) => {
     try {
+      console.log('🔄 UnifiedAuth: Starting profile update...', {
+        authMode: authState.authMode,
+        userId: authState.user?.id,
+        hasProfileImage: !!profileData.profileImage
+      });
+
       if (authState.authMode === 'firebase' && authState.user?.id) {
         // Update Firebase profile
-        await AuthService.updateUserProfile?.(authState.user.id, profileData);
+        console.log('🔥 Updating Firebase profile...');
+        await AuthService.updateUserProfile(authState.user.id, profileData);
+        console.log('✅ Firebase profile updated successfully');
       }
       
-      // Update local state
-      setAuthState(prev => ({
-        ...prev,
-        user: {
-          ...prev.user,
+      // Update local state with merged data
+      const updatedUser = {
+        ...authState.user,
+        userData: {
+          ...authState.user?.userData,
           ...profileData
         }
+      };
+
+      setAuthState(prev => ({
+        ...prev,
+        user: updatedUser
       }));
+      
+      console.log('✅ Local auth state updated successfully');
       
       return { success: true };
     } catch (error) {
-      console.error('Profile update error:', error);
+      console.error('❌ Profile update error:', error);
       throw error;
     }
   };

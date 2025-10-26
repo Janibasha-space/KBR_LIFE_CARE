@@ -487,6 +487,9 @@ export const AppProvider = ({ children }) => {
   // Flag to prevent duplicate listener setup
   const [listenersActive, setListenersActive] = useState(false);
   
+  // Flag to completely disable Firebase operations when not authenticated
+  const [firebaseOperationsEnabled, setFirebaseOperationsEnabled] = useState(false);
+  
   // Rate limiting for error logs
   const [lastLogTime, setLastLogTime] = useState({});
 
@@ -561,7 +564,8 @@ export const AppProvider = ({ children }) => {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
           userFromCredentials = userDoc.data();
-          console.log('👤 User credentials from backend:', userFromCredentials);
+          console.log('👤 User credentials from backend:', userFromCredentials.name);
+          console.log('🖼️ Profile image from credentials:', userFromCredentials.profileImage);
         }
       } catch (credError) {
         console.log('⚠️ Could not fetch user credentials:', credError.message);
@@ -582,10 +586,13 @@ export const AppProvider = ({ children }) => {
             name: userFromCredentials?.name || currentPatient.name,
             email: userFromCredentials?.email || currentPatient.email,
             phone: userFromCredentials?.phone || currentPatient.phone,
-            role: userFromCredentials?.role || 'patient'
+            role: userFromCredentials?.role || 'patient',
+            // Prioritize profile image from user credentials, then patient record
+            profileImage: userFromCredentials?.profileImage || currentPatient.profileImage
           };
           
           console.log('✅ Found patient data with credentials:', enhancedPatient.name);
+          console.log('🖼️ Enhanced patient profile image:', enhancedPatient.profileImage);
           setAppState(prev => ({
             ...prev,
             currentPatient: enhancedPatient,
@@ -611,7 +618,8 @@ export const AppProvider = ({ children }) => {
                 name: userFromCredentials.name,
                 email: userFromCredentials.email,
                 phone: userFromCredentials.phone || '',
-                role: userFromCredentials.role || 'patient'
+                role: userFromCredentials.role || 'patient',
+                profileImage: userFromCredentials.profileImage
               }
             }));
             console.log('✅ Using user credentials as patient data:', userFromCredentials.name);
@@ -714,6 +722,34 @@ export const AppProvider = ({ children }) => {
   // Clear user data on logout
   const clearUserData = () => {
     console.log('🚪 Clearing user data on logout');
+    
+    // IMMEDIATELY disable all Firebase operations
+    setFirebaseOperationsEnabled(false);
+    console.log('🚫 Firebase operations disabled');
+    
+    // Immediately clean up all real-time listeners
+    console.log('🧹 Cleaning up real-time listeners on logout...');
+    const listenerTypes = Object.keys(unsubscribeFunctions);
+    console.log('📋 Active listeners to cleanup:', listenerTypes);
+    
+    Object.entries(unsubscribeFunctions).forEach(([type, unsubscribe]) => {
+      if (typeof unsubscribe === 'function') {
+        try {
+          console.log(`🗑️ Cleaning up ${type} listener...`);
+          unsubscribe();
+          console.log(`✅ ${type} listener cleaned up successfully`);
+        } catch (error) {
+          console.log(`⚠️ Error cleaning up ${type} listener:`, error.message);
+        }
+      } else {
+        console.log(`⚠️ ${type} listener is not a function:`, typeof unsubscribe);
+      }
+    });
+    
+    setUnsubscribeFunctions({});
+    setListenersActive(false);
+    console.log('🧹 All real-time listeners cleanup completed');
+    
     setAppState(prev => ({
       ...prev,
       currentUser: null,
@@ -725,8 +761,60 @@ export const AppProvider = ({ children }) => {
       medicalReports: [],
       invoices: [],
       payments: [],
-      discharges: []
+      discharges: [],
+      // Clear real-time data to prevent stale data
+      rooms: [],
+      patients: []
     }));
+    
+    console.log('✅ User data cleared completely');
+  };
+
+  // Force cleanup function that can be called multiple times safely
+  const forceCleanupListeners = () => {
+    console.log('🚨 Force cleanup of all real-time listeners...');
+    
+    // IMMEDIATELY disable all Firebase operations
+    setFirebaseOperationsEnabled(false);
+    console.log('🚫 Firebase operations forcefully disabled');
+    
+    // Get current listeners
+    const currentListeners = Object.keys(unsubscribeFunctions);
+    console.log('🔍 Current active listeners:', currentListeners);
+    
+    if (currentListeners.length === 0) {
+      console.log('✅ No active listeners to cleanup');
+    } else {
+      // Cleanup each listener with enhanced error handling
+      Object.entries(unsubscribeFunctions).forEach(([type, unsubscribe]) => {
+        if (typeof unsubscribe === 'function') {
+          try {
+            console.log(`🚨 Force cleaning up ${type} listener...`);
+            unsubscribe();
+            console.log(`✅ ${type} listener force cleaned up`);
+          } catch (error) {
+            console.error(`❌ Force cleanup error for ${type}:`, error);
+          }
+        }
+      });
+    }
+    
+    // Clear all references
+    setUnsubscribeFunctions({});
+    setListenersActive(false);
+    
+    // Clear all real-time data
+    setAppState(prev => ({
+      ...prev,
+      invoices: [],
+      rooms: [],
+      patients: [],
+      // Keep static data like services and doctors
+      services: prev.services,
+      doctors: prev.doctors.filter(doc => doc.id && doc.id.startsWith('dr-')) // Keep only local doctors
+    }));
+    
+    console.log('🚨 Force cleanup completed - all listeners should be inactive');
   };
 
   // Initialize data from Firebase - handle both authenticated and unauthenticated access
@@ -813,8 +901,8 @@ export const AppProvider = ({ children }) => {
     const { auth } = require('../config/firebase.config');
     const currentUser = auth.currentUser;
     
-    if (!useBackend || !currentUser) {
-      console.log('🚫 Skipping real-time listeners - backend disabled or user not authenticated');
+    if (!useBackend || !currentUser || !firebaseOperationsEnabled) {
+      console.log('🚫 Skipping real-time listeners - backend disabled, user not authenticated, or Firebase operations disabled');
       return;
     }
     
@@ -843,6 +931,13 @@ export const AppProvider = ({ children }) => {
       // Real-time rooms listener
       console.log('🔄 Setting up rooms real-time listener...');
       const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
+        // Add authentication check and Firebase operations check
+        const { auth } = require('../config/firebase.config');
+        if (!auth.currentUser || !firebaseOperationsEnabled) {
+          console.log('🚫 Rooms listener: User not authenticated or Firebase operations disabled, ignoring update');
+          return;
+        }
+        
         if (result.success) {
           if (result.data.length > 0) {
             console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
@@ -869,6 +964,13 @@ export const AppProvider = ({ children }) => {
       // Real-time patients listener  
       console.log('🔄 Setting up patients real-time listener...');
       const patientsUnsubscribe = FirebasePatientService.subscribeToPatients((result) => {
+        // Add authentication check and Firebase operations check
+        const { auth } = require('../config/firebase.config');
+        if (!auth.currentUser || !firebaseOperationsEnabled) {
+          console.log('🚫 Patients listener: User not authenticated or Firebase operations disabled, ignoring update');
+          return;
+        }
+        
         if (result.success) {
           if (result.data.length > 0) {
             console.log(`👥 Real-time patients update: ${result.data.length} patients`);
@@ -895,6 +997,13 @@ export const AppProvider = ({ children }) => {
       // Real-time doctors listener
       console.log('🔄 Setting up doctors real-time listener...');
       const doctorsUnsubscribe = FirebaseDoctorService.subscribeToDoctors((result) => {
+        // Add authentication check and Firebase operations check
+        const { auth } = require('../config/firebase.config');
+        if (!auth.currentUser || !firebaseOperationsEnabled) {
+          console.log('🚫 Doctors listener: User not authenticated or Firebase operations disabled, ignoring update');
+          return;
+        }
+        
         if (result.success) {
           if (result.data.length > 0) {
             console.log(`👨‍⚕️ Real-time doctors update: ${result.data.length} doctors`);
@@ -915,9 +1024,16 @@ export const AppProvider = ({ children }) => {
       });
       if (doctorsUnsubscribe) newUnsubscribeFunctions.doctors = doctorsUnsubscribe;
 
-      // Real-time invoices listener
+      // Real-time invoices listener with enhanced authentication checks
       console.log('🔄 Setting up invoices real-time listener...');
       const invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
+        // Add authentication check and Firebase operations check - this is crucial for preventing permission errors
+        const { auth } = require('../config/firebase.config');
+        if (!auth.currentUser || !firebaseOperationsEnabled) {
+          console.log('🚫 Invoices listener: User not authenticated or Firebase operations disabled, ignoring update');
+          return;
+        }
+        
         if (result.success) {
           if (result.data.length > 0) {
             console.log(`🧾 Real-time invoices update: ${result.data.length} invoices`);
@@ -944,7 +1060,7 @@ export const AppProvider = ({ children }) => {
       // Store unsubscribe functions
       setUnsubscribeFunctions(newUnsubscribeFunctions);
       
-      console.log('✅ Real-time listeners setup complete');
+      console.log('✅ Real-time listeners setup complete with authentication guards');
     } catch (error) {
       console.error('❌ Error setting up real-time listeners:', error);
     }
@@ -977,7 +1093,11 @@ export const AppProvider = ({ children }) => {
     
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        throttledLog('auth-success', '✅ User authenticated - setting up real-time listeners...', 3000);
+        throttledLog('auth-success', '✅ User authenticated - enabling Firebase operations and setting up real-time listeners...', 3000);
+        
+        // Enable Firebase operations first
+        setFirebaseOperationsEnabled(true);
+        console.log('✅ Firebase operations enabled for authenticated user');
         
         // Set current user with backend credentials
         await setCurrentUser(user);
@@ -985,30 +1105,42 @@ export const AppProvider = ({ children }) => {
         // User is signed in, setup real-time listeners
         setupRealTimeListeners();
       } else {
-        console.log('👤 User signed out - cleaning up real-time listeners...');
+        console.log('👤 User signed out - immediately disabling Firebase operations and cleaning up real-time listeners...');
         
-        // Clear user data
-        await setCurrentUser(null);
+        // IMMEDIATELY disable Firebase operations
+        setFirebaseOperationsEnabled(false);
+        console.log('🚫 Firebase operations disabled for unauthenticated user');
         
-        // User is signed out, cleanup listeners
+        // Immediately clean up all listeners to prevent permission errors
+        console.log('🧹 Force cleaning up all real-time listeners...');
         Object.values(unsubscribeFunctions).forEach(unsubscribe => {
           if (typeof unsubscribe === 'function') {
             try {
               unsubscribe();
+              console.log('✅ Real-time listener force cleaned up');
             } catch (error) {
-              console.log('⚠️ Error cleaning up listener:', error.message);
+              console.log('⚠️ Error force cleaning up listener:', error.message);
             }
           }
         });
         setUnsubscribeFunctions({});
         setListenersActive(false);
         
-        // Clear real-time data when user logs out
+        // Clear user data
+        await setCurrentUser(null);
+        
+        // Clear real-time data when user logs out to prevent stale data
         setAppState(prev => ({
           ...prev,
           rooms: [],
-          patients: []
+          patients: [],
+          invoices: [],
+          // Keep other data that doesn't require authentication
+          doctors: prev.doctors || [], // Keep doctors as they might be public
+          services: prev.services // Keep services as they're static
         }));
+        
+        console.log('✅ All real-time listeners cleaned up, Firebase operations disabled, and data cleared');
       }
     });
 
@@ -2867,6 +2999,7 @@ export const AppProvider = ({ children }) => {
     fetchCurrentPatientData,
     fetchUserSpecificData,
     clearUserData,
+    forceCleanupListeners,
     debugAuthState,
     
     // Admin Stats (real-time calculated)

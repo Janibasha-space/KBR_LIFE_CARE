@@ -1985,11 +1985,33 @@ class FirebaseInvoiceService {
     try {
       console.log('🔄 Setting up real-time invoices listener...');
       
+      // Check authentication before setting up listener
+      const { auth } = require('../config/firebase.config');
+      if (!auth.currentUser) {
+        console.log('🚫 Cannot setup invoices listener: User not authenticated');
+        callback({
+          success: true,
+          data: [],
+          warning: 'User not authenticated - listener not setup'
+        });
+        return null;
+      }
+      
       const invoicesRef = collection(db, this.collectionName);
       const q = query(invoicesRef, orderBy('createdAt', 'desc'));
       
+      // Create a flag to track if this listener should be active
+      let isListenerActive = true;
+      
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         try {
+          // Triple check authentication on each callback
+          const { auth } = require('../config/firebase.config');
+          if (!auth.currentUser || !isListenerActive) {
+            console.log('🚫 Invoices listener callback: User not authenticated or listener inactive, ignoring update');
+            return;
+          }
+          
           const invoices = [];
           querySnapshot.forEach((doc) => {
             invoices.push({
@@ -2015,6 +2037,9 @@ class FirebaseInvoiceService {
         console.error('❌ Invoices real-time listener error:', error);
         
         if (error.code === 'permission-denied') {
+          console.log('🔒 Permission denied for invoices - user likely logged out');
+          // Mark listener as inactive
+          isListenerActive = false;
           callback({
             success: true,
             data: [],
@@ -2029,7 +2054,18 @@ class FirebaseInvoiceService {
         }
       });
       
-      return unsubscribe;
+      // Return a wrapped unsubscribe function that also marks listener as inactive
+      return () => {
+        try {
+          console.log('🗑️ Unsubscribing from invoices listener and marking as inactive');
+          isListenerActive = false;
+          if (unsubscribe) {
+            unsubscribe();
+          }
+        } catch (error) {
+          console.error('❌ Error during invoices listener unsubscribe:', error);
+        }
+      };
     } catch (error) {
       console.error('❌ Error setting up invoices real-time listener:', error);
       callback({

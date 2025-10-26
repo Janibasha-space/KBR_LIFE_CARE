@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,25 +18,65 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
+import { useAuth, usePatientData } from '../../contexts/AppContext';
 import { Colors } from '../../constants/theme';
 
 const EditProfileScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const { user, updateUser } = useUnifiedAuth();
-  const userProfile = user?.userData || {};
+  const { currentUser, currentPatient, fetchCurrentPatientData } = useAuth();
+  const { patient } = usePatientData();
+  
+  // Determine the current profile data from multiple sources
+  const getInitialProfileData = () => {
+    const profileSources = currentPatient || patient || user?.userData || {};
+    console.log('🔍 Getting initial profile data from:', {
+      source: currentPatient ? 'currentPatient' : patient ? 'patient' : user?.userData ? 'user.userData' : 'none',
+      name: profileSources?.name,
+      email: profileSources?.email,
+      profileImage: profileSources?.profileImage
+    });
+    
+    return {
+      name: profileSources?.name || '',
+      email: profileSources?.email || '',
+      phone: profileSources?.phone || '',
+      dateOfBirth: profileSources?.dateOfBirth || '',
+      bloodGroup: profileSources?.bloodGroup || '',
+      address: profileSources?.address || '',
+      emergencyContact: profileSources?.emergencyContact || '',
+      profileImage: profileSources?.profileImage || null,
+    };
+  };
   
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [profileImage, setProfileImage] = useState(userProfile?.profileImage || null);
   
-  const [formData, setFormData] = useState({
-    name: userProfile?.name || '',
-    email: userProfile?.email || '',
-    phone: userProfile?.phone || '',
-    dateOfBirth: userProfile?.dateOfBirth || '',
-    bloodGroup: userProfile?.bloodGroup || '', // Keep blood group in form data
-    address: userProfile?.address || '',
-    emergencyContact: userProfile?.emergencyContact || '',
+  // Initialize with profile data
+  const initialData = getInitialProfileData();
+  const [profileImage, setProfileImage] = useState(initialData.profileImage);
+  const [formData, setFormData] = useState(initialData);
+
+  // Update form data when profile data changes
+  useEffect(() => {
+    const updatedData = getInitialProfileData();
+    console.log('🔄 Profile data updated:', {
+      newName: updatedData.name,
+      newImage: updatedData.profileImage,
+      currentFormName: formData.name,
+      currentImage: profileImage
+    });
+    
+    setFormData(updatedData);
+    setProfileImage(updatedData.profileImage);
+  }, [currentPatient, patient, user]);
+
+  console.log('📋 EditProfileScreen initialized with data:', {
+    hasCurrentPatient: !!currentPatient,
+    hasPatient: !!patient,
+    hasUser: !!user,
+    formDataName: formData.name,
+    profileImage: !!profileImage
   });
 
   const isValidBloodGroup = (bloodGroup) => {
@@ -63,8 +103,24 @@ const EditProfileScreen = ({ navigation, route }) => {
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setProfileImage(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets[0]) {
+      const imageUri = result.assets[0].uri;
+      console.log('📸 Image selected:', {
+        uri: imageUri,
+        size: result.assets[0].fileSize,
+        width: result.assets[0].width,
+        height: result.assets[0].height
+      });
+      
+      setProfileImage(imageUri);
+      
+      // Also update form data to include the image
+      setFormData(prev => ({
+        ...prev,
+        profileImage: imageUri
+      }));
+    } else {
+      console.log('📸 Image selection cancelled or failed');
     }
   };
 
@@ -98,23 +154,57 @@ const EditProfileScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      // Update user data
+      console.log('💾 Starting profile save...', {
+        formData: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          hasImage: !!profileImage
+        },
+        profileImageUri: profileImage,
+        userId: currentUser?.uid || user?.id
+      });
+
+      // Prepare updated user data - make sure to include the profile image
       const updatedUserData = {
-        ...userProfile,
         ...formData,
-        profileImage,
+        profileImage: profileImage, // Ensure image is included
+        updatedAt: new Date().toISOString(),
       };
-      
+
+      console.log('🔄 About to save profile data:', {
+        keys: Object.keys(updatedUserData),
+        name: updatedUserData.name,
+        hasProfileImage: !!updatedUserData.profileImage
+      });
+
+      // Update user profile through UnifiedAuth
       await updateUser(updatedUserData);
+      
+      console.log('✅ Profile updated successfully in UnifiedAuth');
+      
+      // Add a small delay to ensure Firebase update completes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force refresh AppContext to get updated Firebase data
+      if (currentUser?.uid && fetchCurrentPatientData) {
+        console.log('🔄 Refreshing AppContext patient data...');
+        await fetchCurrentPatientData(currentUser.uid);
+        console.log('✅ AppContext patient data refreshed');
+      }
       
       Alert.alert('Success', 'Profile updated successfully!', [
         {
           text: 'OK',
-          onPress: () => navigation.goBack(),
+          onPress: () => {
+            console.log('📱 Navigating back to profile screen...');
+            navigation.goBack();
+          },
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      console.error('❌ Profile save error:', error);
+      Alert.alert('Error', `Failed to update profile: ${error.message || 'Please try again.'}`);
     } finally {
       setLoading(false);
     }

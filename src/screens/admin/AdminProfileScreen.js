@@ -45,6 +45,13 @@ const AdminProfileScreen = ({ navigation }) => {
       if (result.success) {
         setAdminData(result.data);
         setEditData(result.data);
+        
+        // Set profile image if it exists in saved data
+        if (result.data.profileImage) {
+          setProfileImage(result.data.profileImage);
+          console.log('📸 Profile image loaded from backend:', result.data.profileImage);
+        }
+        
         console.log('✅ Admin profile loaded:', result.data.name);
       } else {
         throw new Error('Failed to load admin profile');
@@ -80,9 +87,12 @@ const AdminProfileScreen = ({ navigation }) => {
       if (result.success) {
         setAdminData(saveData);
         setIsEditing(false);
-        setProfileImage(null); // Clear the selected image after successful save
+        
+        // Don't clear profileImage - keep it so it stays visible
+        // The image is now saved to backend and should persist
+        console.log('✅ Admin profile saved successfully with image:', saveData.profileImage ? 'included' : 'not included');
+        
         Alert.alert('Success', 'Profile updated successfully');
-        console.log('✅ Admin profile saved successfully');
       } else {
         throw new Error('Failed to save profile');
       }
@@ -97,6 +107,15 @@ const AdminProfileScreen = ({ navigation }) => {
   const handleCancel = () => {
     setEditData(adminData || {});
     setIsEditing(false);
+    
+    // Reset profile image to the saved state
+    if (adminData?.profileImage) {
+      setProfileImage(adminData.profileImage);
+    } else {
+      setProfileImage(null);
+    }
+    
+    console.log('📝 Edit cancelled - reverted to saved state');
   };
 
   // Request camera permissions

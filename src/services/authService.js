@@ -141,6 +141,38 @@ export class AuthService {
     }
   }
 
+  // Update user profile
+  static async updateUserProfile(userId, profileData) {
+    try {
+      if (ApiService.useFirebase) {
+        return await FirebaseAuthService.updateUserProfile(userId, profileData);
+      }
+      
+      // Fallback to REST API
+      const response = await ApiService.put(`/users/${userId}`, profileData);
+      return response;
+    } catch (error) {
+      console.error('Update user profile failed:', error);
+      throw error;
+    }
+  }
+
+  // Get user profile
+  static async getUserProfile(userId) {
+    try {
+      if (ApiService.useFirebase) {
+        return await FirebaseAuthService.getUserProfile(userId);
+      }
+      
+      // Fallback to REST API
+      const response = await ApiService.get(`/users/${userId}`);
+      return response;
+    } catch (error) {
+      console.error('Get user profile failed:', error);
+      throw error;
+    }
+  }
+
   // Listen to authentication state changes (Firebase only)
   static onAuthStateChanged(callback) {
     if (ApiService.useFirebase) {

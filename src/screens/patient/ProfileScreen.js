@@ -208,6 +208,30 @@ const ProfileScreen = ({ navigation }) => {
     }
   }, [isAuthenticated, isFirebaseAuth, user, currentUser, currentPatient]);
 
+  // Listen for navigation focus to refresh data when returning from EditProfile
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log('📱 ProfileScreen focused - refreshing profile data...');
+      if (isAuthenticated || isFirebaseAuth) {
+        fetchProfileData();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isAuthenticated, isFirebaseAuth]);
+
+  // Listen for navigation focus to refresh data when returning from EditProfile
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log('📱 ProfileScreen focused - refreshing profile data...');
+      if (isAuthenticated || isFirebaseAuth) {
+        fetchProfileData();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isAuthenticated, isFirebaseAuth]);
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -372,15 +396,34 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.profileCard}>
           <View style={styles.profileImageContainer}>
             <View style={styles.profileImage}>
-              {profileData?.profileImage || user?.userData?.profileImage ? (
-                <Image 
-                  source={{ uri: profileData?.profileImage || user?.userData?.profileImage }} 
-                  style={styles.profileImagePhoto}
-                  onError={() => console.log('Profile image failed to load')}
-                />
-              ) : (
-                <Ionicons name="person" size={40} color={Colors.kbrBlue} />
-              )}
+              {(() => {
+                // Debug profile image sources
+                const sources = {
+                  currentPatient: currentPatient?.profileImage,
+                  patient: patient?.profileImage,
+                  profileData: profileData?.profileImage,
+                  userData: user?.userData?.profileImage
+                };
+                console.log('🖼️ Profile image sources:', sources);
+                
+                const profileImageUri = currentPatient?.profileImage || patient?.profileImage || profileData?.profileImage || user?.userData?.profileImage;
+                console.log('🖼️ Selected profile image URI:', profileImageUri);
+                
+                return profileImageUri ? (
+                  <Image 
+                    source={{ uri: profileImageUri }} 
+                    style={styles.profileImagePhoto}
+                    onError={(error) => {
+                      console.log('❌ Profile image failed to load:', error.nativeEvent.error);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Profile image loaded successfully');
+                    }}
+                  />
+                ) : (
+                  <Ionicons name="person" size={40} color={Colors.kbrBlue} />
+                );
+              })()}
             </View>
           </View>
           
