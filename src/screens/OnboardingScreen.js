@@ -61,8 +61,6 @@ const OnboardingScreen = ({ navigation }) => {
     navigation.replace('PatientMain');
   };
 
-
-
   // Render function now inline in FlatList
 
   const renderDots = () => {
