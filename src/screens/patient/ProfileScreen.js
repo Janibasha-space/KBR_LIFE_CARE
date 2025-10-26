@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
+import { useAuth, usePatientData } from '../../contexts/AppContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Colors, Sizes } from '../../constants/theme';
 import { PatientService, AppointmentService } from '../../services/hospitalServices';
@@ -22,6 +23,8 @@ import { useApp } from '../../contexts/AppContext';
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logoutUser, isAuthenticated } = useUnifiedAuth();
+  const { currentUser, currentPatient, isAuthenticated: isFirebaseAuth, clearUserData } = useAuth();
+  const { patient, appointments, medicalReports } = usePatientData();
   const { theme } = useTheme();
   const { reports } = useApp();
   
@@ -37,49 +40,147 @@ const ProfileScreen = ({ navigation }) => {
     try {
       setIsLoading(true);
       
-      if (!user?.userData?.id && !user?.id) {
-        console.log('No user ID available');
+      console.log('🔍 Starting profile data fetch...');
+      
+      // Priority 1: Use currentPatient data if available (from AppContext authentication)
+      if (currentPatient && currentPatient.name) {
+        console.log('✅ Using currentPatient data:', currentPatient.name);
+        setProfileData(currentPatient);
+        await fetchAppointmentCounts(currentPatient.id || currentPatient.userId);
         return;
       }
-
-      const userId = user?.userData?.id || user?.id;
       
-      // Fetch user profile with error handling
-      try {
-        const profile = await PatientService.getProfile(userId);
-        setProfileData(profile);
-      } catch (profileError) {
-        console.error('Error fetching profile:', profileError);
-        // Use existing user data as fallback
-        setProfileData(user?.userData || null);
+      // Priority 2: Use patient data from usePatientData hook
+      if (patient && patient.name) {
+        console.log('✅ Using patient data from hook:', patient.name);
+        setProfileData(patient);
+        await fetchAppointmentCounts(patient.id || patient.userId);
+        return;
       }
+      
+      // Priority 3: Create profile from user credentials if no patient record exists
+      if (currentUser) {
+        console.log('📋 Creating profile from user credentials:', currentUser.email);
+        
+        const userProfileData = {
+          id: currentUser.uid,
+          name: currentUser.userData?.name || currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+          email: currentUser.userData?.email || currentUser.email,
+          phone: currentUser.userData?.phone || '',
+          role: currentUser.userData?.role || 'patient',
+          userId: currentUser.uid,
+          // Add default values for missing fields
+          bloodGroup: 'Not specified',
+          address: '',
+          emergencyContact: '',
+          createdAt: new Date().toISOString()
+        };
+        
+        setProfileData(userProfileData);
+        console.log('✅ Profile created from user credentials:', userProfileData.name);
+        
+        // Try to fetch appointments with user ID
+        await fetchAppointmentCounts(currentUser.uid);
+        return;
+      }
+      
+      // Priority 4: Fallback to UnifiedAuth user data
+      if (user?.userData) {
+        console.log('📋 Using UnifiedAuth user data as fallback');
+        const fallbackProfile = {
+          id: user.userData.id || user.id,
+          name: user.userData.name || 'User',
+          email: user.userData.email || '',
+          phone: user.userData.phone || '',
+          role: 'patient',
+          bloodGroup: 'Not specified',
+          address: '',
+          emergencyContact: ''
+        };
+        
+        setProfileData(fallbackProfile);
+        await fetchAppointmentCounts(fallbackProfile.id);
+        return;
+      }
+      
+      // If no user data is available
+      console.log('⚠️ No user data available from any source');
+      setProfileData(null);
+      
+    } catch (error) {
+      console.error('Error in fetchProfileData:', error);
+      // Create a minimal profile even if everything fails
+      if (currentUser || user) {
+        const fallbackProfile = {
+          id: currentUser?.uid || user?.id || 'unknown',
+          name: currentUser?.email?.split('@')[0] || user?.userData?.name || 'User',
+          email: currentUser?.email || user?.userData?.email || '',
+          phone: '',
+          role: 'patient',
+          bloodGroup: 'Not specified',
+          address: '',
+          emergencyContact: ''
+        };
+        setProfileData(fallbackProfile);
+        console.log('📋 Using minimal fallback profile');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      // Fetch appointment counts with error handling
-      try {
-        const appointments = await AppointmentService.getAppointments(userId);
-        const now = new Date();
-        const upcomingCount = appointments.filter(apt => {
+  // Separate function to fetch appointment counts
+  const fetchAppointmentCounts = async (userId) => {
+    try {
+      // Use appointments from usePatientData if available, otherwise fetch
+      let userAppointments = [];
+      
+      if (appointments && appointments.length > 0) {
+        userAppointments = appointments;
+        console.log('📅 Using appointments from usePatientData:', appointments.length);
+      } else if (userId) {
+        try {
+          const fetchedAppointments = await AppointmentService.getAppointments(userId);
+          userAppointments = Array.isArray(fetchedAppointments) ? fetchedAppointments : [];
+          console.log('📅 Fetched appointments from service:', userAppointments.length);
+        } catch (appointmentError) {
+          console.log('⚠️ Could not fetch appointments:', appointmentError.message);
+          userAppointments = [];
+        }
+      }
+      
+      const now = new Date();
+      const upcomingCount = userAppointments.filter(apt => {
+        try {
           const aptDate = new Date(apt.appointmentDate || apt.date + ' ' + apt.time);
           return aptDate > now && apt.status !== 'cancelled';
-        }).length;
-        
-        setAppointmentCount({
-          upcoming: upcomingCount,
-          past: appointments.length - upcomingCount
-        });
-      } catch (appointmentError) {
-        console.error('Error fetching appointments:', appointmentError);
-        // Set default counts on error
-        setAppointmentCount({ upcoming: 0, past: 0 });
-      }
-
-      // Set medical history count from reports data
-      if (reports && Array.isArray(reports)) {
-        // Count reports that are sent to this patient
+        } catch (dateError) {
+          return false;
+        }
+      }).length;
+      
+      const pastCount = userAppointments.filter(apt => {
+        try {
+          const aptDate = new Date(apt.appointmentDate || apt.date + ' ' + apt.time);
+          return aptDate <= now || apt.status === 'completed';
+        } catch (dateError) {
+          return true; // Default to past if date parsing fails
+        }
+      }).length;
+      
+      setAppointmentCount({ upcoming: upcomingCount, past: pastCount });
+      
+      // Count medical reports
+      if (medicalReports && Array.isArray(medicalReports)) {
+        // Use medical reports from usePatientData (already filtered for current patient)
+        setMedicalHistoryCount(medicalReports.length);
+        console.log('📄 Using medical reports from usePatientData:', medicalReports.length);
+      } else if (reports && Array.isArray(reports)) {
+        // Fallback: Count reports that are sent to this patient
         const userReports = reports.filter(report => {
           const matchesUser = report.patientId === userId || 
-                             report.patientEmail === (profileData?.email || user?.userData?.email) ||
-                             report.patientPhone === (profileData?.phone || user?.userData?.phone);
+                             report.patientEmail === (currentPatient?.email || currentUser?.email || user?.userData?.email) ||
+                             report.patientPhone === (currentPatient?.phone || user?.userData?.phone);
           return matchesUser && report.sentToPatient;
         });
         setMedicalHistoryCount(userReports.length);
@@ -88,12 +189,10 @@ const ProfileScreen = ({ navigation }) => {
       }
       
     } catch (error) {
-      console.error('Error fetching profile data:', error);
-      // Don't show alert for profile fetch errors, just log and continue
-      // The individual error handling above will manage partial data loading
-      console.log('Profile data loading completed with some errors - using fallback data');
-    } finally {
-      setIsLoading(false);
+      console.log('⚠️ Error fetching appointment counts:', error.message);
+      // Set default values if fetching fails
+      setAppointmentCount({ upcoming: 0, past: 0 });
+      setMedicalHistoryCount(0);
     }
   };
 
@@ -104,10 +203,10 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated || isFirebaseAuth) {
       fetchProfileData();
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, isFirebaseAuth, user, currentUser, currentPatient]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -120,7 +219,19 @@ const ProfileScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Clear both authentication systems
               await logoutUser();
+              clearUserData();
+              
+              // Also clear Firebase auth if available
+              try {
+                const { auth, signOut } = require('../../config/firebase.config');
+                await signOut(auth);
+                console.log('✅ Firebase logout completed');
+              } catch (firebaseError) {
+                console.log('⚠️ Firebase logout error (expected if not using Firebase):', firebaseError.message);
+              }
+              
               navigation.navigate('PatientMain', { screen: 'Home' });
             } catch (error) {
               Alert.alert('Error', 'Failed to logout. Please try again.');
@@ -274,11 +385,11 @@ const ProfileScreen = ({ navigation }) => {
           </View>
           
           <Text style={styles.userName}>
-            {profileData?.name || user?.userData?.name || 'Guest User'}
+            {currentPatient?.name || patient?.name || profileData?.name || currentUser?.displayName || currentUser?.email?.split('@')[0] || user?.userData?.name || 'Patient User'}
           </Text>
           
           <Text style={styles.userEmail}>
-            {profileData?.email || user?.userData?.email || 'guest@example.com'}
+            {currentPatient?.email || patient?.email || profileData?.email || currentUser?.email || user?.userData?.email || 'No email available'}
           </Text>
 
           {(profileData?.phone || user?.userData?.phone) && (

@@ -80,6 +80,28 @@ export class PatientService {
     return ApiService.get(`/patients/${patientId}`);
   }
 
+  // Get or create patient profile from user credentials
+  static async getOrCreateProfileFromUser(userId) {
+    if (ApiService.useFirebase) {
+      const result = await FirebasePatientService.getOrCreateProfileFromUser(userId);
+      return result.data;
+    }
+    
+    // Fallback for REST API
+    try {
+      return await this.getProfile(userId);
+    } catch (error) {
+      // If profile doesn't exist, return minimal user profile
+      return {
+        id: userId,
+        name: 'User',
+        email: '',
+        phone: '',
+        role: 'patient'
+      };
+    }
+  }
+
   // Update patient profile
   static async updateProfile(patientId, profileData) {
     if (ApiService.useFirebase) {

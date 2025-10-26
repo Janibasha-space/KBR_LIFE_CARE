@@ -9,7 +9,6 @@ import {
   FlatList,
   Alert,
   StatusBar,
-  Modal,
   Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
 import { Colors } from '../../constants/theme';
+import DischargeSummaryModal from '../../components/DischargeSummaryModal';
+import PatientSelectionModal from '../../components/PatientSelectionModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -34,7 +35,6 @@ const DischargeManagementScreen = ({ navigation }) => {
   const [showDischargeSummaryModal, setShowDischargeSummaryModal] = useState(false);
   const [selectedPatientForSummary, setSelectedPatientForSummary] = useState(null);
   const [showPatientSelectionModal, setShowPatientSelectionModal] = useState(false);
-  const [dischargeSummaryData, setDischargeSummaryData] = useState(null);
   const [dischargeStats, setDischargeStats] = useState({ totalDischarges: 0, thisMonth: 0 });
   const [loading, setLoading] = useState(false);
 
@@ -71,92 +71,20 @@ const DischargeManagementScreen = ({ navigation }) => {
     setShowPatientSelectionModal(true);
   };
 
-  const selectPatientForSummary = async (patient) => {
-    try {
-      setLoading(true);
-      setSelectedPatientForSummary(patient);
-      setShowPatientSelectionModal(false);
-      
-      // Check if discharge summary already exists
-      const existingDischarges = await getDischargesByPatient(patient.id);
-      
-      if (existingDischarges && existingDischarges.length > 0) {
-        // Use the most recent discharge summary
-        setDischargeSummaryData(existingDischarges[0]);
-      } else {
-        // Generate comprehensive discharge summary
-        const summary = generateComprehensiveSummary(patient);
-        setDischargeSummaryData(summary);
-      }
-      
-      setShowDischargeSummaryModal(true);
-    } catch (error) {
-      console.error('Error loading discharge summary:', error);
-      Alert.alert('Error', 'Failed to load discharge summary. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateComprehensiveSummary = (patient) => {
-    const totalCost = calculateTotalCost(patient);
-    return {
-      patient: patient,
-      totalCost: totalCost,
-      summary: {
-        patientInfo: {
-          name: patient.name,
-          id: patient.id,
-          age: patient.age,
-          gender: patient.gender,
-          phone: patient.phone,
-          address: patient.address,
-          emergencyContact: patient.emergencyContact
-        },
-        admissionDetails: {
-          doctor: patient.doctor,
-          department: patient.department,
-          condition: patient.condition,
-          admissionDate: patient.admissionDate,
-          dischargeDate: patient.dischargeDate
-        },
-        treatments: patient.treatments || [],
-        diagnosticTests: patient.tests || [],
-        roomCharges: patient.rooms || [],
-        followUpAppointments: patient.appointments || [],
-        financialSummary: patient.payments || [],
-        totalAmount: totalCost
-      }
-    };
-  };
-
-  const calculateTotalCost = (patient) => {
-    let total = 0;
-    
-    // Room charges
-    if (patient.rooms) {
-      patient.rooms.forEach(room => total += room.cost || 0);
-    }
-    
-    // Test charges
-    if (patient.tests) {
-      patient.tests.forEach(test => total += test.cost || 0);
-    }
-    
-    // Medication charges
-    if (patient.medications) {
-      patient.medications.forEach(med => total += med.cost || 0);
-    }
-    
-    return total;
+  const selectPatientForSummary = (patient) => {
+    setSelectedPatientForSummary(patient);
+    setShowPatientSelectionModal(false);
+    setShowDischargeSummaryModal(true);
   };
 
   const handleSaveDischargeSummary = async (summaryData) => {
     try {
       setLoading(true);
+      
+      // Create the discharge summary
       await createDischargeSummary(selectedPatientForSummary.id, summaryData);
       
-      // Also process the patient discharge
+      // Process the patient discharge
       await processPatientDischarge(selectedPatientForSummary.id, {
         roomId: selectedPatientForSummary.roomId,
         dischargeDate: new Date().toISOString(),
@@ -165,6 +93,7 @@ const DischargeManagementScreen = ({ navigation }) => {
       
       Alert.alert('Success', 'Discharge summary created and patient discharged successfully!');
       setShowDischargeSummaryModal(false);
+      setSelectedPatientForSummary(null);
       loadDischargeStats(); // Refresh stats
     } catch (error) {
       console.error('Error saving discharge summary:', error);
@@ -186,63 +115,118 @@ const DischargeManagementScreen = ({ navigation }) => {
           navigation={navigation}
         />
 
-      {/* Patient List with Header */}
-      <FlatList
-        data={filteredPatients}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.patientCard}
-            onPress={() => selectPatientForSummary(item)}
-          >
-            <Text style={styles.patientName}>{item.name}</Text>
-            <Text style={styles.patientId}>{item.id}</Text>
-            <Text style={styles.patientStatus}>{item.status}</Text>
-          </TouchableOpacity>
-        )}
-        ListHeaderComponent={() => (
-          <View style={styles.content}>
-            {/* Stats Cards */}
-            <View style={styles.statsContainer}>
-              <View style={[styles.statCard, { backgroundColor: '#DBEAFE' }]}>
-                <Text style={styles.statCount}>{dischargeStats.totalDischarges}</Text>
-                <Text style={styles.statTitle}>Total Discharges</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#DCFCE7' }]}>
-                <Text style={styles.statCount}>{dischargeStats.thisMonth}</Text>
-                <Text style={styles.statTitle}>This Month</Text>
-              </View>
-            </View>
-
-            {/* Search */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={20} color="#9CA3AF" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search by patient name or ID..."
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-            </View>
-
-            {/* Create Discharge Summary Button */}
+        {/* Patient List with Header */}
+        <FlatList
+          data={filteredPatients}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
             <TouchableOpacity 
-              style={styles.createButton}
-              onPress={handleCreateDischargeSummary}
+              style={styles.patientCard}
+              onPress={() => selectPatientForSummary(item)}
             >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>Create Discharge Summary</Text>
+              <View style={styles.patientHeader}>
+                <View style={styles.patientInfo}>
+                  <Text style={styles.patientName}>{item.name}</Text>
+                  <Text style={styles.patientId}>ID: {item.id}</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+                  <Text style={styles.statusText}>{item.status}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.patientDetails}>
+                <Text style={styles.patientDetail}>
+                  <Ionicons name="medical-outline" size={14} color="#6B7280" /> {item.condition || 'N/A'}
+                </Text>
+                <Text style={styles.patientDetail}>
+                  <Ionicons name="person-outline" size={14} color="#6B7280" /> Dr. {item.doctor || 'Unassigned'}
+                </Text>
+                {item.room && (
+                  <Text style={styles.patientDetail}>
+                    <Ionicons name="bed-outline" size={14} color="#6B7280" /> Room: {item.room}
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
-          </View>
-        )}
-        contentContainerStyle={styles.patientList}
-        showsVerticalScrollIndicator={false}
-      />
+          )}
+          ListHeaderComponent={() => (
+            <View style={styles.content}>
+              {/* Stats Cards */}
+              <View style={styles.statsContainer}>
+                <View style={[styles.statCard, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.statCount}>{dischargeStats.totalDischarges}</Text>
+                  <Text style={styles.statTitle}>Total Discharges</Text>
+                </View>
+                <View style={[styles.statCard, { backgroundColor: '#DCFCE7' }]}>
+                  <Text style={styles.statCount}>{dischargeStats.thisMonth}</Text>
+                  <Text style={styles.statTitle}>This Month</Text>
+                </View>
+              </View>
+
+              {/* Search */}
+              <View style={styles.searchContainer}>
+                <View style={styles.searchBox}>
+                  <Ionicons name="search" size={20} color="#9CA3AF" />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by patient name or ID..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                </View>
+              </View>
+
+              {/* Create Discharge Summary Button */}
+              <TouchableOpacity 
+                style={styles.createButton}
+                onPress={handleCreateDischargeSummary}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Text style={styles.createButtonText}>Create Discharge Summary</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          contentContainerStyle={styles.patientList}
+          showsVerticalScrollIndicator={false}
+        />
+
+        {/* Patient Selection Modal */}
+        <PatientSelectionModal
+          visible={showPatientSelectionModal}
+          onClose={() => setShowPatientSelectionModal(false)}
+          patients={patients}
+          onSelectPatient={selectPatientForSummary}
+        />
+
+        {/* Discharge Summary Modal */}
+        <DischargeSummaryModal
+          visible={showDischargeSummaryModal}
+          onClose={() => {
+            setShowDischargeSummaryModal(false);
+            setSelectedPatientForSummary(null);
+          }}
+          patient={selectedPatientForSummary}
+          onSave={handleSaveDischargeSummary}
+        />
       </SafeAreaView>
     </View>
   );
+
+  // Helper function for status colors
+  function getStatusColor(status) {
+    switch (status) {
+      case 'Ready for Discharge':
+        return '#10B981';
+      case 'Under Observation':
+        return '#F59E0B';
+      case 'Discharged':
+        return '#6B7280';
+      case 'Admitted':
+        return '#4A90E2';
+      default:
+        return '#6B7280';
+    }
+  }
 };
 
 const styles = StyleSheet.create({
@@ -323,21 +307,52 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  patientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  patientInfo: {
+    flex: 1,
   },
   patientName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 2,
   },
   patientId: {
     fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
   },
-  patientStatus: {
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  patientDetails: {
+    gap: 6,
+  },
+  patientDetail: {
     fontSize: 14,
-    color: '#10B981',
-    marginTop: 4,
+    color: '#4B5563',
+    lineHeight: 20,
   },
 });
 

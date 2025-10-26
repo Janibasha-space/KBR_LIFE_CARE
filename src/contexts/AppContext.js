@@ -485,6 +485,232 @@ export const AppProvider = ({ children }) => {
     return false;
   };
 
+  // Authentication state management
+  const setCurrentUser = async (user, role = 'patient') => {
+    console.log('👤 Setting current user:', user?.uid || 'null', 'Role:', role);
+    
+    // If user is provided, fetch their credentials from backend first
+    if (user && user.uid) {
+      try {
+        const { doc, getDoc } = require('firebase/firestore');
+        const { db } = require('../config/firebase.config');
+        
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userCredentials = userDoc.data();
+          console.log('🔐 Retrieved user credentials:', userCredentials.name);
+          
+          // Enhance user object with backend credentials
+          user = {
+            ...user,
+            displayName: userCredentials.name || user.displayName,
+            userData: userCredentials
+          };
+        }
+      } catch (error) {
+        console.log('⚠️ Could not fetch user credentials during login:', error.message);
+      }
+    }
+    
+    setAppState(prev => ({
+      ...prev,
+      currentUser: user,
+      isAuthenticated: !!user,
+      userRole: role,
+      // Reset user-specific data when user changes
+      currentPatient: null
+    }));
+    
+    // Fetch user-specific data if user is authenticated
+    if (user) {
+      fetchCurrentPatientData(user.uid);
+    }
+  };
+
+  // Get current patient data for the logged-in user
+  const fetchCurrentPatientData = async (userId) => {
+    if (!userId || !useBackend) return;
+    
+    try {
+      console.log('🔍 Fetching patient data for user:', userId);
+      
+      // First, get user credentials from Firestore 'users' collection
+      const { doc, getDoc } = require('firebase/firestore');
+      const { db } = require('../config/firebase.config');
+      
+      let userFromCredentials = null;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          userFromCredentials = userDoc.data();
+          console.log('👤 User credentials from backend:', userFromCredentials);
+        }
+      } catch (credError) {
+        console.log('⚠️ Could not fetch user credentials:', credError.message);
+      }
+      
+      // Try to get patient record by user ID
+      const patients = await FirebasePatientService.getAllPatients();
+      if (patients.success) {
+        const currentPatient = patients.data.find(p => 
+          p.userId === userId || p.id === userId || p.email === appState.currentUser?.email
+        );
+        
+        if (currentPatient) {
+          // Merge patient data with user credentials to get the real name
+          const enhancedPatient = {
+            ...currentPatient,
+            // Prioritize name from user credentials, then patient record
+            name: userFromCredentials?.name || currentPatient.name,
+            email: userFromCredentials?.email || currentPatient.email,
+            phone: userFromCredentials?.phone || currentPatient.phone,
+            role: userFromCredentials?.role || 'patient'
+          };
+          
+          console.log('✅ Found patient data with credentials:', enhancedPatient.name);
+          setAppState(prev => ({
+            ...prev,
+            currentPatient: enhancedPatient,
+            // Also update currentUser with credentials name if available
+            currentUser: prev.currentUser ? {
+              ...prev.currentUser,
+              displayName: userFromCredentials?.name || prev.currentUser.displayName,
+              userData: userFromCredentials || prev.currentUser.userData
+            } : prev.currentUser
+          }));
+          
+          // Fetch user-specific data
+          await fetchUserSpecificData(enhancedPatient.id);
+        } else {
+          console.log('⚠️ No patient record found for user:', userId);
+          
+          // Even if no patient record, store user credentials for name display
+          if (userFromCredentials) {
+            setAppState(prev => ({
+              ...prev,
+              currentPatient: {
+                id: userId,
+                name: userFromCredentials.name,
+                email: userFromCredentials.email,
+                phone: userFromCredentials.phone || '',
+                role: userFromCredentials.role || 'patient'
+              }
+            }));
+            console.log('✅ Using user credentials as patient data:', userFromCredentials.name);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching current patient data:', error);
+    }
+  };
+
+  // Fetch only data belonging to the current patient
+  const fetchUserSpecificData = async (patientId) => {
+    if (!patientId || !useBackend) return;
+    
+    try {
+      console.log('📊 Fetching user-specific data for patient:', patientId);
+      
+      // Fetch appointments for this patient only
+      const appointmentResult = await FirebaseAppointmentService.getAppointments(patientId);
+      if (appointmentResult.success) {
+        setAppState(prev => ({
+          ...prev,
+          appointments: appointmentResult.data
+        }));
+        console.log(`✅ Loaded ${appointmentResult.data.length} appointments for patient`);
+      }
+      
+      // Fetch medical reports for this patient only
+      if (ReportService && ReportService.getReportsByPatient) {
+        const reportsResult = await ReportService.getReportsByPatient(patientId);
+        if (reportsResult) {
+          setAppState(prev => ({
+            ...prev,
+            medicalReports: Array.isArray(reportsResult) ? reportsResult : reportsResult.data || []
+          }));
+          console.log(`✅ Loaded medical reports for patient`);
+        }
+      }
+      
+      // Fetch invoices for this patient only
+      if (InvoiceService && InvoiceService.getInvoicesByPatient) {
+        const invoicesResult = await InvoiceService.getInvoicesByPatient(patientId);
+        if (invoicesResult) {
+          setAppState(prev => ({
+            ...prev,
+            invoices: Array.isArray(invoicesResult) ? invoicesResult : invoicesResult.data || []
+          }));
+          console.log(`✅ Loaded invoices for patient`);
+        }
+      }
+      
+      // Fetch payments for this patient only
+      if (PaymentService && PaymentService.getPaymentsByPatient) {
+        const paymentsResult = await PaymentService.getPaymentsByPatient(patientId);
+        if (paymentsResult) {
+          setAppState(prev => ({
+            ...prev,
+            payments: Array.isArray(paymentsResult) ? paymentsResult : paymentsResult.data || []
+          }));
+          console.log(`✅ Loaded payments for patient`);
+        }
+      }
+      
+      // Fetch discharge records for this patient only
+      if (DischargeService && DischargeService.getDischargesByPatient) {
+        const dischargesResult = await DischargeService.getDischargesByPatient(patientId);
+        if (dischargesResult) {
+          setAppState(prev => ({
+            ...prev,
+            discharges: Array.isArray(dischargesResult) ? dischargesResult : dischargesResult.data || []
+          }));
+          console.log(`✅ Loaded discharge records for patient`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error fetching user-specific data:', error);
+    }
+  };
+
+  // Debug function to check authentication state
+  const debugAuthState = () => {
+    console.log('🔍 DEBUG: Current Authentication State');
+    console.log('- Current User:', appState.currentUser?.uid, appState.currentUser?.displayName || appState.currentUser?.email);
+    console.log('- Current Patient:', appState.currentPatient?.name, appState.currentPatient?.email);
+    console.log('- Is Authenticated:', appState.isAuthenticated);
+    console.log('- User Role:', appState.userRole);
+    if (appState.currentUser?.userData) {
+      console.log('- Backend Credentials:', appState.currentUser.userData);
+    }
+    return {
+      currentUser: appState.currentUser,
+      currentPatient: appState.currentPatient,
+      isAuthenticated: appState.isAuthenticated,
+      userRole: appState.userRole
+    };
+  };
+
+  // Clear user data on logout
+  const clearUserData = () => {
+    console.log('🚪 Clearing user data on logout');
+    setAppState(prev => ({
+      ...prev,
+      currentUser: null,
+      currentPatient: null,
+      isAuthenticated: false,
+      userRole: null,
+      // Clear user-specific data
+      appointments: [],
+      medicalReports: [],
+      invoices: [],
+      payments: [],
+      discharges: []
+    }));
+  };
+
   // Initialize data from Firebase - handle both authenticated and unauthenticated access
   const initializeFirebaseData = async () => {
     if (!useBackend) return;
@@ -678,13 +904,21 @@ export const AppProvider = ({ children }) => {
     setUnsubscribeFunctions({});
     setListenersActive(false);
     
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         throttledLog('auth-success', '✅ User authenticated - setting up real-time listeners...', 3000);
+        
+        // Set current user with backend credentials
+        await setCurrentUser(user);
+        
         // User is signed in, setup real-time listeners
         setupRealTimeListeners();
       } else {
         console.log('👤 User signed out - cleaning up real-time listeners...');
+        
+        // Clear user data
+        await setCurrentUser(null);
+        
         // User is signed out, cleanup listeners
         Object.values(unsubscribeFunctions).forEach(unsubscribe => {
           if (typeof unsubscribe === 'function') {
@@ -1690,7 +1924,7 @@ export const AppProvider = ({ children }) => {
   const createDischargeSummary = async (patientId, dischargeData) => {
     if (useBackend) {
       try {
-        const dischargeSummary = await DischargeService.createDischargeSummary(patientId, dischargeData);
+        const dischargeSummary = await DischargeService.createDischargeSummary(dischargeData);
         return dischargeSummary;
       } catch (error) {
         console.error('Error creating discharge summary:', error);
@@ -1814,6 +2048,39 @@ export const AppProvider = ({ children }) => {
           } : p
         )
       }));
+    }
+  };
+
+  // ==== PATIENT DATA MANAGEMENT ====
+  const getPatientMedicalHistory = async (patientId) => {
+    if (useBackend) {
+      try {
+        // Fetch medical history from Firebase or backend
+        const patient = appState.patients.find(p => p.id === patientId);
+        return patient?.medicalHistory || [];
+      } catch (error) {
+        console.error('Error getting patient medical history:', error);
+        return [];
+      }
+    } else {
+      const patient = appState.patients.find(p => p.id === patientId);
+      return patient?.medicalHistory || [];
+    }
+  };
+
+  const getRoomsByPatient = async (patientId) => {
+    if (useBackend) {
+      try {
+        // Get rooms associated with the patient
+        const patientRooms = appState.rooms.filter(room => room.patientId === patientId);
+        return patientRooms;
+      } catch (error) {
+        console.error('Error getting patient rooms:', error);
+        return [];
+      }
+    } else {
+      const patientRooms = appState.rooms.filter(room => room.patientId === patientId);
+      return patientRooms;
     }
   };
 
@@ -2204,6 +2471,17 @@ export const AppProvider = ({ children }) => {
     setAppState, // Exposing setAppState to allow direct updates
     refreshData: initializeFirebaseData, // Expose function to reinitialize real-time listeners
     
+    // Authentication State & Methods
+    currentUser: appState.currentUser,
+    currentPatient: appState.currentPatient,
+    isAuthenticated: appState.isAuthenticated,
+    userRole: appState.userRole,
+    setCurrentUser,
+    fetchCurrentPatientData,
+    fetchUserSpecificData,
+    clearUserData,
+    debugAuthState,
+    
     // Admin Stats (real-time calculated)
     adminStats: appState.adminStats,
     
@@ -2299,6 +2577,10 @@ export const AppProvider = ({ children }) => {
     getPendingReports,
     getReportsStats,
 
+    // Patient Data Methods  
+    getPatientMedicalHistory,
+    getRoomsByPatient,
+
     // Utility Methods
     calculateAdminStats,
     initializeFirebaseData,
@@ -2322,6 +2604,56 @@ export const useApp = () => {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
+};
+
+// Hook for user authentication state
+export const useAuth = () => {
+  const { currentUser, currentPatient, isAuthenticated, userRole, setCurrentUser, clearUserData } = useApp();
+  return {
+    currentUser,
+    currentPatient,
+    isAuthenticated,
+    userRole,
+    setCurrentUser,
+    clearUserData
+  };
+};
+
+// Hook for user-specific data (only shows data for logged-in patient)
+export const usePatientData = () => {
+  const { 
+    currentPatient, 
+    isAuthenticated, 
+    appointments, 
+    medicalReports, 
+    invoices, 
+    payments, 
+    discharges,
+    fetchUserSpecificData 
+  } = useApp();
+  
+  // Only return data if user is authenticated and has patient data
+  if (!isAuthenticated || !currentPatient) {
+    return {
+      patient: null,
+      appointments: [],
+      medicalReports: [],
+      invoices: [],
+      payments: [],
+      discharges: [],
+      refreshData: () => console.log('No patient authenticated')
+    };
+  }
+  
+  return {
+    patient: currentPatient,
+    appointments: appointments || [],
+    medicalReports: medicalReports || [],
+    invoices: invoices || [],
+    payments: payments || [],
+    discharges: discharges || [],
+    refreshData: () => fetchUserSpecificData(currentPatient.id)
+  };
 };
 
 export default AppContext;

@@ -528,6 +528,84 @@ export class FirebasePatientService {
     }
   }
 
+  // Get or create patient profile from user credentials
+  static async getOrCreateProfileFromUser(userId) {
+    try {
+      // First try to find existing patient record by userId
+      const patientsRef = collection(db, this.collectionName);
+      const q = query(patientsRef, where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        // Found existing patient record
+        const patientDoc = querySnapshot.docs[0];
+        console.log('✅ Found existing patient record for user:', userId);
+        return {
+          success: true,
+          data: {
+            id: patientDoc.id,
+            ...patientDoc.data()
+          }
+        };
+      }
+      
+      // No patient record found, try to get user credentials and create profile
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          const userCredentials = userDoc.data();
+          console.log('📋 Creating patient profile from user credentials:', userCredentials.name);
+          
+          // Create a patient profile from user credentials
+          const patientProfile = {
+            id: userId,
+            name: userCredentials.name || 'User',
+            email: userCredentials.email || '',
+            phone: userCredentials.phone || '',
+            userId: userId,
+            role: userCredentials.role || 'patient',
+            bloodGroup: 'Not specified',
+            address: '',
+            emergencyContact: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          return {
+            success: true,
+            data: patientProfile,
+            isTemporary: true // Flag to indicate this is created from user credentials
+          };
+        }
+      } catch (userError) {
+        console.log('⚠️ Could not fetch user credentials:', userError.message);
+      }
+      
+      // Return minimal profile if everything fails
+      return {
+        success: true,
+        data: {
+          id: userId,
+          name: 'User',
+          email: '',
+          phone: '',
+          userId: userId,
+          role: 'patient',
+          bloodGroup: 'Not specified',
+          address: '',
+          emergencyContact: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        isTemporary: true
+      };
+      
+    } catch (error) {
+      console.error('Error in getOrCreateProfileFromUser:', error);
+      throw new Error('Failed to get or create user profile');
+    }
+  }
+
   // Update patient profile
   static async updateProfile(patientId, profileData) {
     try {
@@ -1922,8 +2000,9 @@ class FirebaseInvoiceService {
       const invoicesRef = collection(db, this.collectionName);
       const q = query(
         invoicesRef,
-        where('patientId', '==', patientId),
-        orderBy('createdAt', 'desc')
+        where('patientId', '==', patientId)
+        // Temporarily removed orderBy to avoid index requirement
+        // orderBy('createdAt', 'desc')
       );
       const querySnapshot = await getDocs(q);
       
@@ -1933,6 +2012,13 @@ class FirebaseInvoiceService {
           id: doc.id,
           ...doc.data()
         });
+      });
+      
+      // Sort in JavaScript instead of Firestore to avoid index requirement
+      invoices.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return dateB - dateA; // Descending order (newest first)
       });
       
       return {
@@ -2105,8 +2191,9 @@ class FirebasePaymentService {
       const paymentsRef = collection(db, this.collectionName);
       const q = query(
         paymentsRef,
-        where('patientId', '==', patientId),
-        orderBy('paymentDate', 'desc')
+        where('patientId', '==', patientId)
+        // Temporarily removed orderBy to avoid index requirement
+        // orderBy('paymentDate', 'desc')
       );
       const querySnapshot = await getDocs(q);
       
@@ -2116,6 +2203,13 @@ class FirebasePaymentService {
           id: doc.id,
           ...doc.data()
         });
+      });
+      
+      // Sort in JavaScript instead of Firestore to avoid index requirement
+      payments.sort((a, b) => {
+        const dateA = a.paymentDate?.toDate?.() || new Date(a.paymentDate || 0);
+        const dateB = b.paymentDate?.toDate?.() || new Date(b.paymentDate || 0);
+        return dateB - dateA; // Descending order (newest first)
       });
       
       return {
@@ -2167,6 +2261,71 @@ class FirebaseDischargeService {
     return await FirebaseDoctorService.ensureAuth();
   }
 
+  // Helper method to sanitize discharge data and remove undefined values
+  static sanitizeDischargeData(data) {
+    const sanitized = {};
+    
+    // Define default values for required fields
+    const defaults = {
+      patientId: '',
+      patientName: '',
+      admissionDate: null,
+      condition: '',
+      doctor: '',
+      department: '',
+      summaryNotes: '',
+      doctorRecommendations: '',
+      followUpInstructions: '',
+      medications: '',
+      totalCost: 0,
+      costBreakdown: {
+        roomCharges: 0,
+        medicationCharges: 0,
+        testCharges: 0,
+        consultationCharges: 0,
+        miscellaneous: 0
+      },
+      treatmentTimeline: [],
+      comprehensiveData: {}
+    };
+    
+    // Recursively sanitize object to remove undefined values
+    const sanitizeValue = (value) => {
+      if (value === undefined) {
+        return null;
+      } else if (value === null) {
+        return null;
+      } else if (Array.isArray(value)) {
+        return value.map(item => sanitizeValue(item)).filter(item => item !== null);
+      } else if (typeof value === 'object' && value !== null) {
+        const sanitizedObj = {};
+        for (const [key, val] of Object.entries(value)) {
+          const sanitizedVal = sanitizeValue(val);
+          if (sanitizedVal !== null && sanitizedVal !== undefined) {
+            sanitizedObj[key] = sanitizedVal;
+          }
+        }
+        return Object.keys(sanitizedObj).length > 0 ? sanitizedObj : {};
+      } else {
+        return value;
+      }
+    };
+    
+    // Apply defaults and sanitize
+    const merged = { ...defaults, ...data };
+    for (const [key, value] of Object.entries(merged)) {
+      const sanitizedValue = sanitizeValue(value);
+      if (sanitizedValue !== null && sanitizedValue !== undefined) {
+        sanitized[key] = sanitizedValue;
+      } else if (key in defaults) {
+        // Keep default values for required fields
+        sanitized[key] = defaults[key];
+      }
+    }
+    
+    return sanitized;
+  }
+
   // Get all discharge records
   static async getDischarges() {
     try {
@@ -2200,8 +2359,11 @@ class FirebaseDischargeService {
     try {
       await this.ensureAuth();
       
+      // Sanitize data to remove undefined values and ensure all required fields exist
+      const sanitizedData = this.sanitizeDischargeData(dischargeData);
+      
       const discharge = {
-        ...dischargeData,
+        ...sanitizedData,
         dischargeDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -2730,8 +2892,9 @@ class FirebaseReportsService {
       const reportsRef = collection(db, this.collectionName);
       const q = query(
         reportsRef,
-        where('patientId', '==', patientId),
-        orderBy('date', 'desc')
+        where('patientId', '==', patientId)
+        // Temporarily removed orderBy to avoid index requirement
+        // orderBy('date', 'desc')
       );
       const querySnapshot = await getDocs(q);
       
@@ -2741,6 +2904,13 @@ class FirebaseReportsService {
           id: doc.id,
           ...doc.data()
         });
+      });
+      
+      // Sort in JavaScript instead of Firestore to avoid index requirement
+      reports.sort((a, b) => {
+        const dateA = a.date?.toDate?.() || new Date(a.date || 0);
+        const dateB = b.date?.toDate?.() || new Date(b.date || 0);
+        return dateB - dateA; // Descending order (newest first)
       });
       
       return {
