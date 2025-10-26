@@ -76,14 +76,20 @@ const AuthModal = ({ visible, onClose, navigation }) => {
                 handleClose();
                 // Navigate based on user role - fix the data structure path
                 const userRole = response.data?.user?.role || response.user?.role;
-                console.log('🔄 User role detected:', userRole);
+                const userEmail = response.data?.user?.email || response.user?.email;
+                console.log('🔄 Login details:', { 
+                  email: userEmail, 
+                  role: userRole,
+                  fullUser: response.data?.user 
+                });
                 
                 // Trigger data loading after successful authentication
                 console.log('📊 Loading Firebase data after successful login...');
                 initializeFirebaseData();
                 
-                if (userRole === 'admin') {
-                  console.log('🚀 Navigating to Admin Dashboard');
+                // Enhanced admin detection - check both role and email
+                if (userRole === 'admin' || userEmail === 'thukaram2388@gmail.com') {
+                  console.log('🚀 ADMIN LOGIN DETECTED - Navigating to Admin Dashboard');
                   navigation?.navigate('AdminMain');
                 } else {
                   console.log('🏥 Navigating to Patient Dashboard');

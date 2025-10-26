@@ -911,7 +911,7 @@ export const AppProvider = ({ children }) => {
   // ==== ROOM MANAGEMENT ====
   const addRoom = async (roomData) => {
     try {
-      const result = await FirebaseRoomService.addRoom(roomData);
+      const result = await FirebaseRoomService.createRoom(roomData);
       if (result.success) {
         console.log('✅ Room added successfully:', result.data.id);
         // Real-time listener will automatically update the state

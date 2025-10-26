@@ -76,21 +76,32 @@ const OnboardingScreen = ({ navigation }) => {
             text: 'Login',
             onPress: async () => {
               try {
+                console.log('🔐 Quick admin login attempt...');
                 const response = await login({
                   email: 'thukaram2388@gmail.com',
-                  password: 'admin123' // You should set this password in Firebase
+                  password: 'Diya@7701'
+                });
+                
+                console.log('📱 Admin login response:', {
+                  success: response.success,
+                  role: response.data?.user?.role,
+                  email: response.data?.user?.email
                 });
                 
                 if (response.success) {
                   Alert.alert('Success', 'Logged in as admin!', [
                     {
                       text: 'OK',
-                      onPress: () => navigation.navigate('AdminMain')
+                      onPress: () => {
+                        console.log('🚀 Navigating to AdminMain from onboarding');
+                        navigation.navigate('AdminMain');
+                      }
                     }
                   ]);
                 }
               } catch (error) {
-                Alert.alert('Login Failed', 'Please make sure the admin account exists in Firebase with the correct credentials.');
+                console.error('❌ Admin login failed:', error);
+                Alert.alert('Login Failed', 'Please make sure the admin account exists in Firebase with the correct credentials.\n\nError: ' + error.message);
               }
             }
           }

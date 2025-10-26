@@ -45,6 +45,13 @@ export class FirebaseAuthService {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userData = userDoc.exists() ? userDoc.data() : {};
       
+      // Determine user role - special handling for admin email
+      let userRole = userData.role || 'patient';
+      if (email === 'thukaram2388@gmail.com') {
+        userRole = 'admin';
+        console.log('🔐 Admin email detected, setting role to admin');
+      }
+      
       return {
         success: true,
         data: {
@@ -53,7 +60,7 @@ export class FirebaseAuthService {
             id: user.uid,
             name: userData.name || user.displayName,
             email: user.email,
-            role: userData.role || 'patient',
+            role: userRole,
             phone: userData.phone || '',
             ...userData
           }
