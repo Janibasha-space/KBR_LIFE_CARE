@@ -4,7 +4,8 @@ import {
   InvoiceService, 
   PaymentService, 
   DischargeService, 
-  ReportService 
+  ReportService,
+  RoomService 
 } from '../services/hospitalServices';
 import { 
   FirebaseHospitalService, 
@@ -464,6 +465,25 @@ export const AppProvider = ({ children }) => {
 
   // Real-time listeners cleanup functions
   const [unsubscribeFunctions, setUnsubscribeFunctions] = useState({});
+  
+  // Flag to prevent duplicate listener setup
+  const [listenersActive, setListenersActive] = useState(false);
+  
+  // Rate limiting for error logs
+  const [lastLogTime, setLastLogTime] = useState({});
+
+  // Helper function to throttle logs (prevent spam)
+  const throttledLog = (key, message, intervalMs = 5000) => {
+    const now = Date.now();
+    const lastTime = lastLogTime[key] || 0;
+    
+    if (now - lastTime > intervalMs) {
+      console.log(message);
+      setLastLogTime(prev => ({ ...prev, [key]: now }));
+      return true;
+    }
+    return false;
+  };
 
   // Initialize data from Firebase - handle both authenticated and unauthenticated access
   const initializeFirebaseData = async () => {
@@ -484,43 +504,8 @@ export const AppProvider = ({ children }) => {
         }
       });
 
-      // Only set up real-time listeners if user is authenticated
-      const newUnsubscribeFunctions = {};
-      
-      if (currentUser) {
-        console.log('🔄 Setting up real-time listeners for authenticated user...');
-        
-        // Real-time rooms listener
-        console.log('🔄 Setting up rooms real-time listener...');
-        const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
-          if (result.success) {
-            console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
-            setAppState(prev => ({
-              ...prev,
-              rooms: removeDuplicatesById(result.data, 'rooms')
-            }));
-          }
-        });
-        if (roomsUnsubscribe) newUnsubscribeFunctions.rooms = roomsUnsubscribe;
-
-        // Real-time patients listener  
-        console.log('🔄 Setting up patients real-time listener...');
-        const patientsUnsubscribe = FirebasePatientService.subscribeToPatients((result) => {
-          if (result.success) {
-            console.log(`👥 Real-time patients update: ${result.data.length} patients`);
-            setAppState(prev => ({
-              ...prev,
-              patients: removeDuplicatesById(result.data, 'patients')
-            }));
-          }
-        });
-        if (patientsUnsubscribe) newUnsubscribeFunctions.patients = patientsUnsubscribe;
-
-        // Store unsubscribe functions
-        setUnsubscribeFunctions(newUnsubscribeFunctions);
-      } else {
-        console.log('👤 User not authenticated - skipping real-time listeners, using one-time fetch');
-      }
+      // Real-time listeners are now managed by the auth state change listener
+      console.log('� Loading one-time data that doesn\'t require real-time updates...');
 
       // Load other data that doesn't need real-time updates (one-time fetch)
       const results = await Promise.allSettled([
@@ -580,15 +565,28 @@ export const AppProvider = ({ children }) => {
     const { auth } = require('../config/firebase.config');
     const currentUser = auth.currentUser;
     
-    if (!useBackend || !currentUser) return;
+    if (!useBackend || !currentUser) {
+      console.log('🚫 Skipping real-time listeners - backend disabled or user not authenticated');
+      return;
+    }
+    
+    if (listenersActive) {
+      console.log('🔄 Real-time listeners already active - skipping duplicate setup');
+      return;
+    }
     
     console.log('🔄 Setting up real-time listeners for authenticated user...');
+    setListenersActive(true);
     
     try {
       // Clean up existing listeners first
       Object.values(unsubscribeFunctions).forEach(unsubscribe => {
         if (typeof unsubscribe === 'function') {
-          unsubscribe();
+          try {
+            unsubscribe();
+          } catch (error) {
+            console.log('⚠️ Error cleaning up existing listener:', error.message);
+          }
         }
       });
 
@@ -598,11 +596,24 @@ export const AppProvider = ({ children }) => {
       console.log('🔄 Setting up rooms real-time listener...');
       const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
         if (result.success) {
-          console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
+          if (result.data.length > 0) {
+            console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
+          } else {
+            throttledLog('rooms-empty', '🏠 Real-time rooms update: 0 rooms (permission denied)', 10000);
+          }
           setAppState(prev => ({
             ...prev,
             rooms: removeDuplicatesById(result.data, 'rooms')
           }));
+        } else if (result.warning) {
+          throttledLog('rooms-warning', '⚠️ Rooms listener warning: ' + result.warning, 10000);
+          // Set empty rooms on permission error
+          setAppState(prev => ({
+            ...prev,
+            rooms: []
+          }));
+        } else {
+          throttledLog('rooms-error', '❌ Rooms listener error: ' + result.error, 5000);
         }
       });
       if (roomsUnsubscribe) newUnsubscribeFunctions.rooms = roomsUnsubscribe;
@@ -611,11 +622,24 @@ export const AppProvider = ({ children }) => {
       console.log('🔄 Setting up patients real-time listener...');
       const patientsUnsubscribe = FirebasePatientService.subscribeToPatients((result) => {
         if (result.success) {
-          console.log(`👥 Real-time patients update: ${result.data.length} patients`);
+          if (result.data.length > 0) {
+            console.log(`👥 Real-time patients update: ${result.data.length} patients`);
+          } else {
+            throttledLog('patients-empty', '👥 Real-time patients update: 0 patients (permission denied)', 10000);
+          }
           setAppState(prev => ({
             ...prev,
             patients: removeDuplicatesById(result.data, 'patients')
           }));
+        } else if (result.warning) {
+          throttledLog('patients-warning', '⚠️ Patients listener warning: ' + result.warning, 10000);
+          // Set empty patients on permission error
+          setAppState(prev => ({
+            ...prev,
+            patients: []
+          }));
+        } else {
+          throttledLog('patients-error', '❌ Patients listener error: ' + result.error, 5000);
         }
       });
       if (patientsUnsubscribe) newUnsubscribeFunctions.patients = patientsUnsubscribe;
@@ -629,22 +653,88 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Initialize on mount
+  // Authentication state listener to manage real-time listeners
   useEffect(() => {
-    if (useBackend) {
-      initializeFirebaseData();
+    if (!useBackend) {
+      console.log('🚫 Backend disabled - skipping auth listener setup');
+      return;
     }
+
+    const { auth, onAuthStateChanged } = require('../config/firebase.config');
     
-    // Cleanup listeners on unmount
+    console.log('🔐 Setting up authentication state listener...');
+    
+    // Clean up any existing listeners first
+    Object.values(unsubscribeFunctions).forEach(unsubscribe => {
+      if (typeof unsubscribe === 'function') {
+        try {
+          unsubscribe();
+          console.log('🧹 Cleaned up existing listener during auth setup');
+        } catch (error) {
+          console.log('⚠️ Error cleaning up existing listener during auth setup:', error.message);
+        }
+      }
+    });
+    setUnsubscribeFunctions({});
+    setListenersActive(false);
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        throttledLog('auth-success', '✅ User authenticated - setting up real-time listeners...', 3000);
+        // User is signed in, setup real-time listeners
+        setupRealTimeListeners();
+      } else {
+        console.log('👤 User signed out - cleaning up real-time listeners...');
+        // User is signed out, cleanup listeners
+        Object.values(unsubscribeFunctions).forEach(unsubscribe => {
+          if (typeof unsubscribe === 'function') {
+            try {
+              unsubscribe();
+            } catch (error) {
+              console.log('⚠️ Error cleaning up listener:', error.message);
+            }
+          }
+        });
+        setUnsubscribeFunctions({});
+        setListenersActive(false);
+        
+        // Clear real-time data when user logs out
+        setAppState(prev => ({
+          ...prev,
+          rooms: [],
+          patients: []
+        }));
+      }
+    });
+
+    // Initial data load
+    initializeFirebaseData();
+    
+    // Cleanup on unmount
     return () => {
-      console.log('🧹 Cleaning up real-time listeners...');
+      console.log('🧹 Cleaning up auth listener and real-time listeners...');
+      if (unsubscribeAuth) {
+        try {
+          unsubscribeAuth();
+          console.log('✅ Auth listener cleaned up');
+        } catch (error) {
+          console.log('⚠️ Error cleaning up auth listener:', error.message);
+        }
+      }
+      
       Object.values(unsubscribeFunctions).forEach(unsubscribe => {
         if (typeof unsubscribe === 'function') {
-          unsubscribe();
+          try {
+            unsubscribe();
+            console.log('✅ Real-time listener cleaned up');
+          } catch (error) {
+            console.log('⚠️ Error cleaning up listener during unmount:', error.message);
+          }
         }
       });
+      setListenersActive(false);
     };
-  }, [useBackend]);
+  }, []);
 
   // Calculate real-time admin stats from actual data
   const calculateAdminStats = () => {
