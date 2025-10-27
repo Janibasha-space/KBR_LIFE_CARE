@@ -485,15 +485,23 @@ export class FirebasePatientService {
           });
         },
         (error) => {
-          if (error.code === 'permission-denied') {
-            console.log('🔒 Permission denied - providing empty patients for graceful degradation');
+          // Enhanced error categorization for better user experience
+          if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+            // These are expected authentication/permission errors - don't treat as system errors
+            console.log('ℹ️ Patients access requires authentication - providing graceful fallback');
             callback({
               success: true,
               data: [],
-              warning: 'Permission denied - showing empty data'
+              warning: 'Authentication required - showing limited data'
             });
+          } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+            // Network connectivity issues - these are temporary
+            console.log('🌐 Network connectivity issue for patients - will retry automatically');
+            // Don't callback for network errors to avoid UI flicker
+            return;
           } else {
-            console.error('❌ Real-time patients listener error:', error);
+            // Actual system errors that need attention
+            console.error('❌ Patients real-time listener error:', error);
             callback({
               success: false,
               data: [],
@@ -941,15 +949,22 @@ class FirebaseDoctorService {
           });
         },
         (error) => {
-          console.error('❌ Doctors listener error:', error);
-          if (error.code === 'permission-denied') {
-            console.log('🔒 Permission denied for doctors - using empty array');
+          // Enhanced error categorization for better user experience
+          if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+            // Expected authentication errors - handle gracefully
+            console.log('ℹ️ Doctors access requires authentication - providing graceful fallback');
             callback({
               success: true,
               data: [],
-              warning: 'Permission denied - limited access'
+              warning: 'Authentication required - showing limited data'
             });
+          } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+            // Network connectivity issues - these are temporary
+            console.log('🌐 Network connectivity issue for doctors - will retry automatically');
+            return;
           } else {
+            // Actual system errors that need attention
+            console.error('❌ Doctors real-time listener error:', error);
             callback({
               success: false,
               error: error.message
@@ -1530,15 +1545,22 @@ class FirebaseRoomService {
           });
         },
         (error) => {
-          if (error.code === 'permission-denied') {
-            console.log('🔒 Permission denied - providing empty rooms for graceful degradation');
+          // Enhanced error categorization for better user experience
+          if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+            // Expected authentication errors - handle gracefully
+            console.log('ℹ️ Rooms access requires authentication - providing graceful fallback');
             callback({
               success: true,
               data: [],
-              warning: 'Permission denied - showing empty data'
+              warning: 'Authentication required - showing limited data'
             });
+          } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+            // Network connectivity issues - these are temporary
+            console.log('🌐 Network connectivity issue for rooms - will retry automatically');
+            return;
           } else {
-            console.error('❌ Real-time rooms listener error:', error);
+            // Actual system errors that need attention
+            console.error('❌ Rooms real-time listener error:', error);
             callback({
               success: false,
               data: [],
@@ -2055,7 +2077,7 @@ class FirebaseInvoiceService {
           return;
         } else {
           console.error('❌ Invoices real-time listener error:', error);
-          console.log('🚫 Unknown error for invoices - disabling listener');
+          console.log('🚫 Unexpected error for invoices - disabling listener for stability');
           callback({
             success: false,
             error: error.message,

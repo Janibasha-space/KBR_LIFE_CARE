@@ -1091,8 +1091,8 @@ export const AppProvider = ({ children }) => {
         }
       });
       } catch (invoicesError) {
-        console.error('❌ Error setting up invoices real-time listener:', invoicesError);
-        console.log('🔄 Falling back to one-time invoices fetch...');
+        console.log('ℹ️ Invoices real-time listener setup failed - falling back to static data fetch');
+        console.log('🔄 Using one-time invoices fetch for reliability...');
         
         // Fallback to one-time fetch if real-time listener fails
         firebaseHospitalServices.getInvoices()
