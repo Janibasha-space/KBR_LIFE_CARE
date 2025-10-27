@@ -779,8 +779,8 @@ const PatientHomeScreen = ({ navigation }) => {
         
 
 
-        {/* Patient Treatment Status - Show if patient is admitted */}
-        {renderPatientTreatmentStatus()}
+        {/* Patient Treatment Status - REMOVED as requested by user */}
+        {/* {renderPatientTreatmentStatus()} */}
 
         <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
           {/* Hero Section - Simplified for better loading */}
