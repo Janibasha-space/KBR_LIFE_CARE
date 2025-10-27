@@ -81,6 +81,18 @@ const PaymentManagementScreen = ({ navigation }) => {
     try {
       const allPayments = await aggregateAllPayments();
       setAggregatedPayments(allPayments);
+      
+      // Also update the app state with aggregated payments for revenue calculation
+      if (setAppState) {
+        console.log(`🔄 Updating AppContext aggregatedPayments with ${allPayments.length} payments`);
+        setAppState(prev => ({
+          ...prev,
+          aggregatedPayments: allPayments, // Store aggregated payments for revenue calculation
+        }));
+        console.log('✅ AppContext aggregatedPayments updated successfully');
+      } else {
+        console.warn('⚠️ setAppState is not available - aggregated payments not stored in AppContext');
+      }
     } catch (error) {
       console.error('❌ Error loading aggregated payments:', error);
       setAggregatedPayments(payments || []);
@@ -490,26 +502,32 @@ Search: "${searchQuery || 'none'}"`,
 
   // Calculate real-time payment statistics from actual payments data
   const paymentStats = useMemo(() => {
-    const totalPayments = payments?.length || 0;
+    // Use aggregatedPayments instead of payments for more accurate calculations
+    const paymentsToUse = aggregatedPayments?.length > 0 ? aggregatedPayments : payments || [];
+    const totalPayments = paymentsToUse.length;
+    
+    console.log(`📊 Payment stats calculating from ${totalPayments} payments (aggregated: ${aggregatedPayments?.length || 0}, direct: ${payments?.length || 0})`);
     
     // Calculate total revenue from actual amounts paid
-    const totalRevenue = (payments || []).reduce((sum, payment) => {
-      const actualPaid = payment.actualAmountPaid || payment.paidAmount || 
+    const totalRevenue = paymentsToUse.reduce((sum, payment) => {
+      const actualPaid = payment.paidAmount || payment.actualAmountPaid || 
                         (payment.status === 'paid' ? payment.amount : 0) || 0;
       return sum + actualPaid;
     }, 0);
     
     // Calculate pending amounts using full amounts and due amounts
-    const totalPending = (payments || []).reduce((sum, payment) => {
+    const totalPending = paymentsToUse.reduce((sum, payment) => {
       const dueAmount = payment.dueAmount || 
-                       (payment.fullAmount ? payment.fullAmount - (payment.actualAmountPaid || 0) : 
+                       (payment.totalAmount ? payment.totalAmount - (payment.paidAmount || 0) : 
                         payment.status === 'pending' ? payment.amount : 0) || 0;
       return sum + dueAmount;
     }, 0);
     
-    const fullyPaidCount = (payments || []).filter(p => p.status === 'paid').length;
-    const pendingCount = (payments || []).filter(p => p.status === 'pending').length;
-    const partiallyPaidCount = (payments || []).filter(p => p.status === 'partial').length;
+    const fullyPaidCount = paymentsToUse.filter(p => p.status === 'paid' || p.paymentStatus === 'Paid').length;
+    const pendingCount = paymentsToUse.filter(p => p.status === 'pending' || p.paymentStatus === 'Pending').length;
+    const partiallyPaidCount = paymentsToUse.filter(p => p.status === 'partial' || p.paymentStatus === 'Partially Paid').length;
+    
+    console.log(`💰 Payment stats calculated: Revenue=₹${totalRevenue}, Pending=₹${totalPending}, FullyPaid=${fullyPaidCount}, Partial=${partiallyPaidCount}`);
 
     return {
       totalRevenue,
@@ -519,7 +537,7 @@ Search: "${searchQuery || 'none'}"`,
       pendingCount,
       totalPatients: totalPayments,
     };
-  }, [payments]);
+  }, [payments, aggregatedPayments]);
 
   // Transform actual payments data for display  
   const paymentList = useMemo(() => {
@@ -760,58 +778,271 @@ Search: "${searchQuery || 'none'}"`,
   }
 
   const handleViewDetails = (payment) => {
-    console.log('🔍 Looking for patient with ID:', payment.patientId);
-    console.log('🔍 Available patients:', patients.map(p => ({ id: p.id, name: p.name })));
+    console.log('🔍 Looking for patient with payment data:', {
+      paymentId: payment.id,
+      patientId: payment.patientId,
+      patientName: payment.patientName,
+      patientPhone: payment.patientPhone,
+      originalId: payment.originalId,
+      appointmentId: payment.appointmentId
+    });
+    console.log('🔍 Available patients count:', patients.length);
+    console.log('🔍 Sample patients:', patients.slice(0, 3).map(p => ({ 
+      id: p.id, 
+      name: p.name, 
+      phone: p.phone || p.contactNumber,
+      firebaseId: p.firebaseId || p.uid
+    })));
     
     // Clean up payment name (remove trailing spaces)
     const cleanPaymentName = payment.patientName?.trim();
     
-    // Try different ways to find the patient
+    // Method 1: Try exact patientId match
     let patient = patients.find(p => p.id === payment.patientId);
-    
-    if (!patient) {
-      // Try exact name match (case sensitive)
-      patient = patients.find(p => p.name === cleanPaymentName);
+    if (patient) {
+      console.log('✅ Found patient by ID match:', patient.name);
+      navigation.navigate('PatientDetails', { patient });
+      return;
     }
     
-    if (!patient) {
-      // Try case-insensitive name match
-      patient = patients.find(p => 
-        p.name?.toLowerCase() === cleanPaymentName?.toLowerCase()
-      );
+    // Method 2: Try Firebase UID/firebaseId match
+    patient = patients.find(p => 
+      p.firebaseId === payment.patientId || 
+      p.uid === payment.patientId ||
+      p.userId === payment.patientId
+    );
+    if (patient) {
+      console.log('✅ Found patient by Firebase ID match:', patient.name);
+      navigation.navigate('PatientDetails', { patient });
+      return;
     }
     
-    if (!patient) {
-      // Try partial name matching (if payment name contains patient name or vice versa)
-      patient = patients.find(p => {
-        const patientName = p.name?.toLowerCase();
-        const paymentName = cleanPaymentName?.toLowerCase();
-        return (patientName && paymentName) && 
-               (patientName.includes(paymentName) || paymentName.includes(patientName));
-      });
+    // Method 3: Try exact name match (case sensitive)
+    patient = patients.find(p => p.name === cleanPaymentName);
+    if (patient) {
+      console.log('✅ Found patient by exact name match:', patient.name);
+      navigation.navigate('PatientDetails', { patient });
+      return;
     }
     
-    if (!patient) {
-      // Try to find by Firebase UID stored in patient record
-      patient = patients.find(p => 
-        p.firebaseId === payment.patientId || 
-        p.uid === payment.patientId ||
-        p.userId === payment.patientId
-      );
+    // Method 4: Try case-insensitive name match
+    patient = patients.find(p => 
+      p.name?.toLowerCase() === cleanPaymentName?.toLowerCase()
+    );
+    if (patient) {
+      console.log('✅ Found patient by case-insensitive name match:', patient.name);
+      navigation.navigate('PatientDetails', { patient });
+      return;
     }
     
-    if (!patient) {
-      // Try to find by phone number if available
+    // Method 5: Try phone number match
+    if (payment.patientPhone) {
       patient = patients.find(p => 
         p.phone === payment.patientPhone || 
         p.contactNumber === payment.patientPhone
       );
+      if (patient) {
+        console.log('✅ Found patient by phone match:', patient.name);
+        navigation.navigate('PatientDetails', { patient });
+        return;
+      }
     }
     
+    // Method 6: Try partial name matching
+    patient = patients.find(p => {
+      const patientName = p.name?.toLowerCase();
+      const paymentName = cleanPaymentName?.toLowerCase();
+      return (patientName && paymentName) && 
+             (patientName.includes(paymentName) || paymentName.includes(patientName));
+    });
     if (patient) {
-      console.log('✅ Found patient:', patient.name, 'via matching logic');
+      console.log('✅ Found patient by partial name match:', patient.name);
       navigation.navigate('PatientDetails', { patient });
-    } else {
+      return;
+    }
+    
+    // Method 7: Try fuzzy name matching (for typos like "Jyothi" vs "Jothi")
+    patient = patients.find(p => {
+      const patientName = p.name?.toLowerCase().replace(/[^a-z]/g, '');
+      const paymentName = cleanPaymentName?.toLowerCase().replace(/[^a-z]/g, '');
+      
+      if (!patientName || !paymentName) return false;
+      
+      // Check if names are similar (allowing for 1-2 character differences)
+      const minLength = Math.min(patientName.length, paymentName.length);
+      const maxLength = Math.max(patientName.length, paymentName.length);
+      
+      // If length difference is too much, skip
+      if (maxLength - minLength > 2) return false;
+      
+      // Check character similarity
+      let matchingChars = 0;
+      const shorterName = patientName.length <= paymentName.length ? patientName : paymentName;
+      const longerName = patientName.length > paymentName.length ? patientName : paymentName;
+      
+      for (let i = 0; i < shorterName.length; i++) {
+        if (longerName.includes(shorterName[i])) {
+          matchingChars++;
+        }
+      }
+      
+      // If 80% or more characters match, consider it a match
+      return (matchingChars / shorterName.length) >= 0.8;
+    });
+    if (patient) {
+      console.log('✅ Found patient by fuzzy name match:', patient.name, '(for payment name:', cleanPaymentName, ')');
+      Alert.alert(
+        'Similar Patient Found',
+        `Found similar patient "${patient.name}" for payment "${cleanPaymentName}".\n\nIs this the correct patient?`,
+        [
+          { text: 'No, Create New', onPress: () => {
+            // Continue to show the create patient dialog
+            console.log('User chose to create new patient instead of using similar match');
+          }},
+          { text: 'Yes, Use This Patient', onPress: () => {
+            navigation.navigate('PatientDetails', { patient });
+          }}
+        ]
+      );
+      return;
+    }
+    
+    // Method 8: Search in appointments data if patient not found in patients database
+    console.log('🔍 Searching in appointments data...', appointments?.length || 0, 'appointments available');
+    let appointmentPatient = null;
+    
+    if (appointments && appointments.length > 0) {
+      // Try to find appointment with matching patient name
+      const matchingAppointment = appointments.find(apt => 
+        apt.patientName?.toLowerCase() === cleanPaymentName?.toLowerCase() ||
+        apt.patientName?.toLowerCase().trim() === cleanPaymentName?.toLowerCase().trim()
+      );
+      
+      if (matchingAppointment) {
+        console.log('✅ Found matching appointment:', matchingAppointment);
+        
+        // Create a patient-like object from appointment data
+        appointmentPatient = {
+          id: matchingAppointment.patientId || matchingAppointment.id,
+          name: matchingAppointment.patientName,
+          phone: matchingAppointment.patientPhone || matchingAppointment.contactNumber,
+          contactNumber: matchingAppointment.patientPhone || matchingAppointment.contactNumber,
+          age: matchingAppointment.patientAge || '',
+          gender: matchingAppointment.patientGender || '',
+          assignedDoctor: matchingAppointment.doctorName,
+          department: matchingAppointment.department,
+          appointmentDate: matchingAppointment.appointmentDate || matchingAppointment.date,
+          appointmentTime: matchingAppointment.appointmentTime || matchingAppointment.time,
+          appointmentId: matchingAppointment.id,
+          symptoms: matchingAppointment.symptoms,
+          service: matchingAppointment.service,
+          status: matchingAppointment.status,
+          source: 'from-appointment-data'
+        };
+        
+        console.log('✅ Created patient object from appointment data:', appointmentPatient.name);
+        navigation.navigate('PatientDetails', { patient: appointmentPatient });
+        return;
+      }
+    }
+    
+    // If still no patient found, show detailed error
+    console.error('❌ Patient not found after all matching attempts');
+    console.error('❌ Payment data:', { 
+      patientId: payment.patientId, 
+      patientName: payment.patientName,
+      cleanedName: cleanPaymentName,
+      patientPhone: payment.patientPhone,
+      appointmentId: payment.appointmentId
+    });
+    console.error('❌ Available patient IDs:', patients.map(p => p.id));
+    console.error('❌ Available patient names:', patients.map(p => p.name));
+    
+    // No patient found - show enhanced error dialog with auto-create option
+    Alert.alert(
+      'Patient Not Found', 
+      `Patient "${cleanPaymentName}" (ID: ${payment.patientId}) was not found in the patient database.\n\nAvailable patients: ${patients.map(p => p.name).join(', ')}\n\nThis usually happens when:\n• Patient booked appointment but wasn't registered\n• Patient record was deleted\n• Name mismatch between payment and patient records\n\nWould you like to create a patient record automatically?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Show Payment Details', 
+          onPress: () => {
+            Alert.alert(
+              'Payment Information',
+              `Patient: ${cleanPaymentName}\nPatient ID: ${payment.patientId}\nOriginal ID: ${payment.originalId || 'N/A'}\nAppointment ID: ${payment.appointmentId || 'N/A'}\n\nAmount: ₹${payment.totalAmount || 0}\nPaid: ₹${payment.paidAmount || 0}\nDue: ₹${payment.dueAmount || 0}\nStatus: ${payment.status || 'Unknown'}\nMethod: ${payment.paymentMethod || 'Not specified'}\nPhone: ${payment.patientPhone || 'Not specified'}`,
+              [{ text: 'OK' }]
+            );
+          }
+        },
+        {
+          text: 'Auto-Create Patient',
+          onPress: async () => {
+            try {
+              console.log('🏥 Auto-creating patient record for:', cleanPaymentName);
+              
+              // Create patient data from payment information
+              const newPatientData = {
+                name: cleanPaymentName,
+                patientId: payment.patientId,
+                phone: payment.patientPhone || '',
+                contactNumber: payment.patientPhone || '',
+                age: '',
+                gender: '',
+                bloodGroup: '',
+                address: '',
+                emergencyContact: '',
+                assignedDoctor: payment.doctorName || '',
+                department: payment.department || '',
+                registrationDate: new Date().toISOString().split('T')[0],
+                registrationTime: new Date().toLocaleTimeString('en-IN', { 
+                  hour12: false, 
+                  hour: '2-digit', 
+                  minute: '2-digit'
+                }),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                source: 'auto-created-from-payment'
+              };
+              
+              // Use AppContext to add the patient
+              if (addPatient) {
+                const result = await addPatient(newPatientData);
+                
+                if (result && result.success) {
+                  Alert.alert(
+                    'Patient Created Successfully',
+                    `Patient record for "${cleanPaymentName}" has been created.\n\nOpening patient details...`,
+                    [{ 
+                      text: 'OK', 
+                      onPress: () => {
+                        // Navigate to the newly created patient
+                        const createdPatient = {
+                          ...newPatientData,
+                          id: result.patientId || payment.patientId
+                        };
+                        navigation.navigate('PatientDetails', { patient: createdPatient });
+                      }
+                    }]
+                  );
+                } else {
+                  throw new Error(result?.error || 'Failed to create patient');
+                }
+              } else {
+                throw new Error('addPatient function not available');
+              }
+              
+            } catch (error) {
+              console.error('❌ Error auto-creating patient:', error);
+              Alert.alert(
+                'Error Creating Patient',
+                `Failed to create patient record: ${error.message}\n\nPlease create the patient manually from the Patients screen.`,
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        }
+      ]
+    );
       console.error('❌ Patient not found. Payment data:', { 
         patientId: payment.patientId, 
         patientName: payment.patientName,
@@ -839,7 +1070,6 @@ Search: "${searchQuery || 'none'}"`,
           }
         ]
       );
-    }
   };
 
   const handleViewPaymentHistory = (payment) => {

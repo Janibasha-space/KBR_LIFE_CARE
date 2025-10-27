@@ -27,7 +27,16 @@ import { db } from '../../config/firebase.config';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 const AppointmentManagementScreen = ({ navigation }) => {
-  const { refreshAppointmentData, forceRefreshAppointments, initializeFirebaseData } = useApp(); // Get refresh functions from AppContext
+  const { 
+    refreshAppointmentData, 
+    forceRefreshAppointments, 
+    initializeFirebaseData,
+    appState,
+    updatePayment,
+    updatePatient,
+    updateInvoice,
+    updateInvoiceStatus
+  } = useApp(); // Get refresh functions and data from AppContext
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState('All');
@@ -478,6 +487,216 @@ const AppointmentManagementScreen = ({ navigation }) => {
     return `KBR-${nextNumber.toString().padStart(3, '0')}`;
   };
 
+  // Helper function to update existing payment record (prevents duplicates)
+  const updateExistingPaymentRecord = async (appointment, newPaymentStatus, paymentMode) => {
+    try {
+      console.log('🔄 Searching for existing payment record for appointment:', appointment.id);
+      
+      // Search for existing payment linked to this appointment
+      // Check multiple sources: direct payments, patient payment history, appointment payments
+      
+      // Method 1: Check if appointment has linked invoices, then find payments linked to those invoices
+      const { invoices } = appState;
+      const appointmentInvoices = invoices.filter(inv => 
+        inv.appointmentId === appointment.id || 
+        inv.patientId === appointment.patientId
+      );
+      
+      if (appointmentInvoices.length > 0) {
+        console.log('📄 Found', appointmentInvoices.length, 'related invoices');
+        
+        // Find payments linked to these invoices
+        const { payments } = appState;
+        const relatedPayments = payments.filter(payment => 
+          appointmentInvoices.some(inv => inv.id === payment.invoiceId)
+        );
+        
+        if (relatedPayments.length > 0) {
+          console.log('💰 Found', relatedPayments.length, 'existing payment records to update');
+          
+          // Update all related payments
+          for (const payment of relatedPayments) {
+            const updatedPaymentData = {
+              status: newPaymentStatus === 'Paid' ? 'completed' : 'pending',
+              paymentMethod: paymentMode,
+              updatedAt: new Date().toISOString()
+            };
+            
+            await updatePayment(payment.id, updatedPaymentData);
+            console.log('✅ Updated payment record:', payment.id);
+          }
+          
+          return { success: true, updated: relatedPayments.length };
+        }
+      }
+      
+      // Method 2: Check patient payment details for this appointment
+      const { patients } = appState;
+      const patient = patients.find(p => p.id === appointment.patientId);
+      
+      if (patient && patient.paymentDetails) {
+        console.log('👤 Found patient with payment details, updating patient payment record');
+        
+        // Calculate new paid amount based on payment status
+        let newPaidAmount = patient.paymentDetails.totalPaid || 0;
+        let newStatus = 'pending';
+        
+        if (newPaymentStatus === 'Paid') {
+          // If marking as paid, ensure the paid amount includes this appointment
+          const appointmentAmount = appointment.amount || appointment.totalAmount || appointment.consultationFee || 0;
+          newPaidAmount = Math.max(newPaidAmount, appointmentAmount);
+          newStatus = newPaidAmount >= (patient.paymentDetails.totalAmount || 0) ? 'fully_paid' : 'partially_paid';
+        } else {
+          // If marking as pending, recalculate paid amount excluding this appointment
+          const appointmentAmount = appointment.amount || appointment.totalAmount || appointment.consultationFee || 0;
+          newPaidAmount = Math.max(0, newPaidAmount - appointmentAmount);
+          newStatus = newPaidAmount > 0 ? 'partially_paid' : 'pending';
+        }
+        
+        // Update patient payment details
+        const updatedPatient = {
+          ...patient,
+          paymentDetails: {
+            ...patient.paymentDetails,
+            totalPaid: newPaidAmount,
+            status: newStatus,
+            paymentMethod: paymentMode,
+            lastUpdated: new Date().toISOString()
+          }
+        };
+        
+        // Update patient record
+        await updatePatient(patient.id, updatedPatient);
+        console.log('✅ Updated patient payment record - Status:', newStatus, 'Paid:', newPaidAmount);
+        
+        return { success: true, updated: 1 };
+      }
+      
+      console.log('⚠️ No existing payment record found - will be handled by appointment update');
+      return { success: false, message: 'No existing payment found' };
+      
+    } catch (error) {
+      console.error('❌ Error updating existing payment record:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Helper function to update existing invoice status (prevents duplicates)
+  const updateExistingInvoiceStatus = async (appointment, newInvoiceStatus) => {
+    try {
+      console.log('🔄 Searching for existing invoice for appointment:', appointment.id);
+      
+      const { invoices } = appState;
+      
+      // Find existing invoice linked to this appointment
+      const existingInvoice = invoices.find(inv => 
+        inv.appointmentId === appointment.id || 
+        (inv.patientId === appointment.patientId && 
+         inv.patientName === appointment.patientName &&
+         inv.description && inv.description.includes(appointment.serviceName || appointment.service))
+      );
+      
+      if (existingInvoice) {
+        console.log('📄 Found existing invoice:', existingInvoice.invoiceNumber);
+        console.log('🔄 Updating invoice status from', existingInvoice.status, 'to', newInvoiceStatus);
+        
+        const updatedInvoiceData = {
+          status: newInvoiceStatus.toLowerCase(),
+          paymentStatus: newInvoiceStatus.toLowerCase(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // If marking as paid, add payment date
+        if (newInvoiceStatus === 'PAID') {
+          updatedInvoiceData.paymentDate = new Date().toISOString().split('T')[0];
+        }
+        
+        // Update invoice using AppContext method
+        await updateInvoice(existingInvoice.id, updatedInvoiceData);
+        console.log('✅ Invoice status updated successfully');
+        
+        return { 
+          success: true, 
+          invoice: existingInvoice,
+          newStatus: newInvoiceStatus 
+        };
+      } else {
+        console.log('📄 No existing invoice found for this appointment');
+        return { success: false, message: 'No existing invoice found' };
+      }
+      
+    } catch (error) {
+      console.error('❌ Error updating existing invoice status:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Batch function to synchronize all existing invoices (fix inconsistent invoice statuses)
+  const synchronizeAllInvoiceStatuses = async () => {
+    try {
+      console.log('🔄 Starting batch synchronization of invoice statuses...');
+      const { invoices } = appState;
+      
+      let fixedCount = 0;
+      
+      for (const invoice of invoices) {
+        // Check for inconsistent status
+        const hasInconsistentStatus = (
+          invoice.paymentStatus === 'paid' && invoice.status !== 'paid'
+        ) || (
+          invoice.paymentStatus === 'pending' && invoice.status === 'paid'
+        ) || (
+          invoice.paymentStatus === 'draft' && invoice.status === 'paid'
+        );
+        
+        if (hasInconsistentStatus) {
+          console.log(`🔧 Fixing inconsistent invoice: ${invoice.invoiceNumber}`);
+          console.log(`   Current: paymentStatus="${invoice.paymentStatus}", status="${invoice.status}"`);
+          
+          // Fix the inconsistency
+          let newStatus = invoice.paymentStatus;
+          if (invoice.paymentStatus === 'pending' || invoice.paymentStatus === 'draft') {
+            newStatus = 'draft';
+          } else if (invoice.paymentStatus === 'paid') {
+            newStatus = 'paid';
+          }
+          
+          const updateData = {
+            status: newStatus,
+            updatedAt: new Date().toISOString()
+          };
+          
+          if (newStatus === 'paid') {
+            updateData.paymentDate = new Date().toISOString().split('T')[0];
+          }
+          
+          await updateInvoice(invoice.id, updateData);
+          fixedCount++;
+          
+          console.log(`   Fixed: paymentStatus="${invoice.paymentStatus}", status="${newStatus}"`);
+        }
+      }
+      
+      if (fixedCount > 0) {
+        console.log(`✅ Fixed ${fixedCount} inconsistent invoices`);
+        Alert.alert('Success', `Fixed ${fixedCount} invoice status inconsistencies`);
+        
+        // Refresh data to show updates
+        setTimeout(async () => {
+          await initializeFirebaseData();
+          console.log('✅ Data refreshed after batch invoice sync');
+        }, 1000);
+      } else {
+        console.log('✅ All invoices are already synchronized');
+        Alert.alert('Info', 'All invoices are already synchronized');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error synchronizing invoice statuses:', error);
+      Alert.alert('Error', 'Failed to synchronize invoice statuses');
+    }
+  };
+
   // Save edit changes
   const handleSaveEditChanges = async () => {
     if (!editingAppointment) return;
@@ -539,49 +758,99 @@ const AppointmentManagementScreen = ({ navigation }) => {
       if (updateResult.success) {
         console.log('✅ Firebase update successful');
         
-        // Check if payment status changed from Pending to Paid - Auto-generate invoice
+        // Handle payment status changes - Update existing payment/invoice instead of creating new ones
         const originalPaymentStatus = editingAppointment.paymentStatus;
         const wasStatusChangedToPaid = originalPaymentStatus !== 'Paid' && finalPaymentStatus === 'Paid';
+        const wasStatusChangedToPending = originalPaymentStatus === 'Paid' && finalPaymentStatus === 'Pending';
+        
+        console.log('🔍 Payment Status Check:');
+        console.log('   Original:', originalPaymentStatus, '→ New:', finalPaymentStatus);
+        console.log('   Changed to Paid:', wasStatusChangedToPaid);
+        console.log('   Changed to Pending:', wasStatusChangedToPending);
         
         let invoiceMessage = '';
+        
+        // Handle payment status change to PAID
         if (wasStatusChangedToPaid) {
           console.log('💳 Payment status changed from', originalPaymentStatus, 'to', finalPaymentStatus);
-          console.log('📄 Auto-generating invoice for appointment:', editingAppointment.id);
+          console.log('� Updating existing payment and invoice records...');
           
           try {
-            // Create appointment data with updated payment status for invoice generation
-            const appointmentForInvoice = {
-              ...editingAppointment,
-              paymentStatus: finalPaymentStatus,
-              paymentMode: editFormData.paymentMode,
-              status: editFormData.status
-            };
+            // Step 1: Update existing payment record (don't create new one)
+            await updateExistingPaymentRecord(editingAppointment, finalPaymentStatus, editFormData.paymentMode);
             
-            // Generate invoice automatically
-            const invoiceResult = await InvoiceGenerationService.processInvoiceGeneration(appointmentForInvoice);
+            // Step 2: Update existing invoice status from DRAFT to PAID (don't create new one)
+            const invoiceUpdateResult = await updateExistingInvoiceStatus(editingAppointment, 'PAID');
             
-            if (invoiceResult.success) {
-              console.log('✅ Invoice generated successfully:', invoiceResult.invoiceNumber);
-              invoiceMessage = `\n\n🧾 Invoice ${invoiceResult.invoiceNumber} auto-generated for ₹${invoiceResult.invoice.totalAmount}`;
-              
-              // Refresh invoices data immediately to show the new invoice
-              console.log('🔄 Refreshing invoices data to show newly generated invoice...');
-              setTimeout(async () => {
-                try {
-                  await initializeFirebaseData();
-                  console.log('✅ Invoices data refreshed - new invoice should now be visible');
-                } catch (refreshError) {
-                  console.error('❌ Error refreshing invoices data:', refreshError);
-                }
-              }, 1000);
+            if (invoiceUpdateResult.success) {
+              console.log('✅ Invoice status updated to PAID successfully');
+              invoiceMessage = `\n\n🧾 Invoice status updated to PAID`;
             } else {
-              console.error('❌ Invoice generation failed:', invoiceResult.message);
-              invoiceMessage = '\n\n⚠️ Invoice generation failed. Please create invoice manually.';
+              // If no existing invoice found, create new one
+              console.log('📄 No existing invoice found - creating new one...');
+              const appointmentForInvoice = {
+                ...editingAppointment,
+                paymentStatus: finalPaymentStatus,
+                paymentMode: editFormData.paymentMode,
+                status: editFormData.status
+              };
+              
+              const invoiceResult = await InvoiceGenerationService.processInvoiceGeneration(appointmentForInvoice);
+              
+              if (invoiceResult.success) {
+                console.log('✅ New invoice generated successfully:', invoiceResult.invoiceNumber);
+                invoiceMessage = `\n\n🧾 Invoice ${invoiceResult.invoiceNumber} generated for ₹${invoiceResult.invoice.totalAmount}`;
+              } else {
+                console.error('❌ Invoice generation failed:', invoiceResult.message);
+                invoiceMessage = '\n\n⚠️ Invoice generation failed. Please create invoice manually.';
+              }
             }
-          } catch (invoiceError) {
-            console.error('❌ Invoice generation error:', invoiceError);
-            invoiceMessage = '\n\n⚠️ Invoice generation failed. Please create invoice manually.';
+            
+          } catch (error) {
+            console.error('❌ Error updating payment/invoice records:', error);
+            invoiceMessage = '\n\n⚠️ Payment/Invoice update failed. Please check manually.';
           }
+        }
+        
+        // Handle payment status change to PENDING (from PAID)
+        if (wasStatusChangedToPending) {
+          console.log('💳 Payment status changed from PAID to PENDING');
+          console.log('🔄 Updating existing payment and invoice records...');
+          
+          try {
+            // Update existing payment record
+            await updateExistingPaymentRecord(editingAppointment, finalPaymentStatus, editFormData.paymentMode);
+            
+            // Update existing invoice status from PAID back to DRAFT
+            const invoiceUpdateResult = await updateExistingInvoiceStatus(editingAppointment, 'DRAFT');
+            
+            if (invoiceUpdateResult.success) {
+              console.log('✅ Invoice status updated to DRAFT successfully');
+              invoiceMessage = `\n\n🧾 Invoice status updated to DRAFT`;
+            }
+            
+          } catch (error) {
+            console.error('❌ Error updating payment/invoice records:', error);
+            invoiceMessage = '\n\n⚠️ Payment/Invoice update failed. Please check manually.';
+          }
+        }
+        
+        // Refresh data to show updates and trigger payment aggregation
+        if (wasStatusChangedToPaid || wasStatusChangedToPending) {
+          setTimeout(async () => {
+            try {
+              // Refresh all data including payments, invoices, and patients
+              await initializeFirebaseData();
+              console.log('✅ Data refreshed - updated records should now be visible');
+              
+              // Force refresh appointments specifically to trigger real-time updates
+              await forceRefreshAppointments();
+              console.log('✅ Appointments refreshed - payment aggregation will be updated');
+              
+            } catch (refreshError) {
+              console.error('❌ Error refreshing data:', refreshError);
+            }
+          }, 1000);
         }
         
         // Close modal

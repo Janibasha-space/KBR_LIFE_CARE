@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Sizes } from '../../constants/theme';
 import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useFirebaseAuth } from '../../contexts/FirebaseAuthContext';
+import { useApp } from '../../contexts/AppContext';
 import AppHeader from '../../components/AppHeader';
 import { 
   FirebaseAppointmentService,
@@ -30,6 +31,7 @@ const getTransparentColor = (color, opacity) => `${color}${opacity}`;
 
 const AdminDashboardScreen = ({ navigation }) => {
   const { user, isAuthenticated } = useFirebaseAuth();
+  const { appState, adminStats } = useApp();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
     totalUsers: 0,
@@ -75,26 +77,12 @@ const AdminDashboardScreen = ({ navigation }) => {
         // Calculate total registered users (people who have logged into the app)
         const totalRegisteredUsers = users.length;
 
-        // Calculate revenue from payments collection (real payments data)
-        let totalRevenue = 0;
-        payments.forEach(payment => {
-          if (payment.status === 'completed' || payment.status === 'success' || payment.status === 'paid') {
-            totalRevenue += payment.amount || 0;
-          }
-        });
+        // Use revenue from AppContext adminStats (which aggregates from all sources)
+        const totalRevenue = appState.adminStats?.totalRevenue || adminStats?.totalRevenue || 0;
+        console.log('💰 Dashboard using revenue from AppContext:', totalRevenue);
 
-        // If no payments data, fallback to calculating from completed appointments
-        if (totalRevenue === 0) {
-          totalRevenue = appointments
-            .filter(apt => apt.status === 'completed')
-            .reduce((sum, apt) => sum + (apt.consultationFee || apt.amount || 0), 0);
-        }
-
-        // Count active doctors (doctors available today - you can customize this logic)
-        const activeDoctorsToday = doctors.filter(doctor => {
-          // More lenient filtering - count doctors that are not explicitly inactive
-          return doctor.status !== 'inactive' && doctor.isAvailable !== false;
-        }).length;
+        // Use active doctors from AppContext adminStats
+        const activeDoctorsToday = appState.adminStats?.activeDoctors || adminStats?.activeDoctors || doctors.length;
 
         // Get recent appointments (latest 3)
         const recentAppointments = appointments
@@ -110,11 +98,11 @@ const AdminDashboardScreen = ({ navigation }) => {
           }));
 
         const newDashboardData = {
-          totalUsers: totalRegisteredUsers, // Real count of registered users
-          totalAppointments: appointments.length, // Real appointments count from backend
-          totalRevenue: totalRevenue, // Real revenue from payments
-          activeDoctors: activeDoctorsToday, // Real active doctors available today
-          todayAppointments: todayAppointments,
+          totalUsers: appState.adminStats?.totalUsers || adminStats?.totalUsers || totalRegisteredUsers,
+          totalAppointments: appState.adminStats?.totalAppointments || adminStats?.totalAppointments || appointments.length,
+          totalRevenue: totalRevenue, // Use calculated revenue from AppContext
+          activeDoctors: activeDoctorsToday, // Use calculated active doctors from AppContext
+          todayAppointments: appState.adminStats?.todayAppointments || adminStats?.todayAppointments || todayAppointments,
           recentAppointments: recentAppointments,
           pendingInvoicesCount: appointments.filter(apt => apt.status === 'pending').length
         };
@@ -194,7 +182,24 @@ const AdminDashboardScreen = ({ navigation }) => {
       unsubscribeUsers();
       unsubscribePayments();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, appState.adminStats?.totalRevenue, adminStats?.totalRevenue]);
+
+  // Update dashboard data when adminStats change (without refetching from Firebase)
+  useEffect(() => {
+    if (appState.adminStats || adminStats) {
+      console.log('🔄 AdminStats changed - updating dashboard display');
+      console.log('💰 New revenue from adminStats:', appState.adminStats?.totalRevenue || adminStats?.totalRevenue || 0);
+      
+      setDashboardData(prev => ({
+        ...prev,
+        totalRevenue: appState.adminStats?.totalRevenue || adminStats?.totalRevenue || prev.totalRevenue || 0,
+        totalUsers: appState.adminStats?.totalUsers || adminStats?.totalUsers || prev.totalUsers || 0,
+        totalAppointments: appState.adminStats?.totalAppointments || adminStats?.totalAppointments || prev.totalAppointments || 0,
+        activeDoctors: appState.adminStats?.activeDoctors || adminStats?.activeDoctors || prev.activeDoctors || 0,
+        todayAppointments: appState.adminStats?.todayAppointments || adminStats?.todayAppointments || prev.todayAppointments || 0,
+      }));
+    }
+  }, [appState.adminStats, adminStats]);
 
   if (loading) {
     return (

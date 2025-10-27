@@ -1987,14 +1987,14 @@ class FirebaseInvoiceService {
       
       // Check authentication before setting up listener
       const { auth } = require('../config/firebase.config');
-      if (!auth.currentUser) {
-        console.log('🚫 Cannot setup invoices listener: User not authenticated');
-        callback({
-          success: true,
-          data: [],
-          warning: 'User not authenticated - listener not setup'
-        });
-        return null;
+      const currentUser = auth.currentUser;
+      
+      // For now, let's not require authentication for invoices since the rules allow public read
+      // This will prevent permission errors while still allowing the listener to work
+      if (!currentUser) {
+        console.log('⚠️ Setting up invoices listener without authentication (public read access)');
+      } else {
+        console.log('✅ Setting up invoices listener with authenticated user:', currentUser.uid);
       }
       
       const invoicesRef = collection(db, this.collectionName);
@@ -2005,12 +2005,15 @@ class FirebaseInvoiceService {
       
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         try {
-          // Triple check authentication on each callback
-          const { auth } = require('../config/firebase.config');
-          if (!auth.currentUser || !isListenerActive) {
-            console.log('🚫 Invoices listener callback: User not authenticated or listener inactive, ignoring update');
+          // Check if listener is still active
+          if (!isListenerActive) {
+            console.log('🚫 Invoices listener callback: Listener inactive, ignoring update');
             return;
           }
+          
+          // Since invoices have public read access, we don't need to block based on auth
+          const { auth } = require('../config/firebase.config');
+          const currentUser = auth.currentUser;
           
           const invoices = [];
           querySnapshot.forEach((doc) => {
@@ -2020,7 +2023,8 @@ class FirebaseInvoiceService {
             });
           });
           
-          console.log(`🔄 Real-time update: ${invoices.length} invoices`);
+          const userInfo = currentUser ? ` (user: ${currentUser.uid})` : ' (public access)';
+          console.log(`🔄 Real-time update: ${invoices.length} invoices${userInfo}`);
           callback({
             success: true,
             data: invoices
@@ -2034,18 +2038,24 @@ class FirebaseInvoiceService {
           });
         }
       }, (error) => {
-        console.error('❌ Invoices real-time listener error:', error);
+        // Mark listener as inactive immediately to prevent further errors
+        isListenerActive = false;
         
-        if (error.code === 'permission-denied') {
-          console.log('🔒 Permission denied for invoices - user likely logged out');
-          // Mark listener as inactive
-          isListenerActive = false;
+        if (error.code === 'permission-denied' || error.code === 'unauthenticated') {
+          console.log('🔒 Permission/authentication error for invoices - disabling listener');
+          // Don't log as ERROR for expected permission issues
           callback({
             success: true,
             data: [],
-            warning: 'Permission denied - showing empty data'
+            warning: 'Authentication error - listener disabled'
           });
+        } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+          console.log('🌐 Network error for invoices - will retry automatically');
+          // Don't mark as inactive for network errors, but don't spam callbacks
+          return;
         } else {
+          console.error('❌ Invoices real-time listener error:', error);
+          console.log('🚫 Unknown error for invoices - disabling listener');
           callback({
             success: false,
             error: error.message,

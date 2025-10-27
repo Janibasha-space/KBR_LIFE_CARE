@@ -29,6 +29,22 @@ export class InvoiceGenerationService {
       const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
       const totalAmount = subtotal; // Add taxes if needed in the future
       
+      // Determine consistent status based on appointment payment status
+      const appointmentPaymentStatus = appointment.paymentStatus || 'Pending';
+      let invoiceStatus = 'draft'; // Default to draft
+      let invoicePaymentStatus = 'pending'; // Default to pending
+      
+      // Ensure consistent status mapping
+      if (appointmentPaymentStatus === 'Paid' || appointmentPaymentStatus === 'paid') {
+        invoiceStatus = 'paid';
+        invoicePaymentStatus = 'paid';
+      } else if (appointmentPaymentStatus === 'Pending' || appointmentPaymentStatus === 'pending') {
+        invoiceStatus = 'draft';
+        invoicePaymentStatus = 'pending';
+      }
+      
+      console.log(`📄 Creating invoice with consistent status: appointment.paymentStatus="${appointmentPaymentStatus}" → invoice.status="${invoiceStatus}", invoice.paymentStatus="${invoicePaymentStatus}"`);
+      
       // Create invoice data
       const invoiceData = {
         invoiceNumber,
@@ -39,19 +55,19 @@ export class InvoiceGenerationService {
         doctorName: appointment.doctorName,
         department: appointment.department,
         issueDate: currentDate,
-        dueDate: currentDate, // Paid immediately
+        dueDate: invoiceStatus === 'paid' ? currentDate : this.calculateDueDate(currentDate, 30), // Paid immediately or 30 days later
         subtotal,
         totalAmount,
-        status: 'paid',
-        paymentStatus: 'paid',
+        status: invoiceStatus,
+        paymentStatus: invoicePaymentStatus,
         paymentMode: appointment.paymentMode || 'Cash',
-        paymentDate: currentDate,
+        paymentDate: invoiceStatus === 'paid' ? currentDate : null,
         appointmentDate: appointment.appointmentDate || appointment.date,
         appointmentTime: appointment.appointmentTime || appointment.time,
         serviceType: isTest ? 'Test' : 'Service',
         description: this.generateInvoiceDescription(appointment, isTest),
         items,
-        notes: `Invoice auto-generated for appointment ${appointment.id}`,
+        notes: `Invoice auto-generated for appointment ${appointment.id} with status: ${invoiceStatus}`,
         generatedBy: 'system',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -91,6 +107,18 @@ export class InvoiceGenerationService {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const timestamp = Date.now().toString().slice(-6);
     return `KBR-INV-${year}${month}-${timestamp}`;
+  }
+  
+  /**
+   * Calculates due date based on issue date and offset
+   * @param {string} issueDate - Issue date in YYYY-MM-DD format
+   * @param {number} dayOffset - Number of days to add (default: 30)
+   * @returns {string} - Due date in YYYY-MM-DD format
+   */
+  static calculateDueDate(issueDate, dayOffset = 30) {
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + dayOffset);
+    return dueDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
   }
   
   /**
@@ -280,6 +308,96 @@ export class InvoiceGenerationService {
         success: false,
         error: error.message,
         message: 'Failed to complete invoice generation workflow'
+      };
+    }
+  }
+
+  /**
+   * Updates existing invoice status instead of creating new invoice
+   * @param {string} invoiceId - Invoice ID to update
+   * @param {string} newStatus - New status (PAID, DRAFT, etc.)
+   * @param {Object} additionalData - Additional data to update
+   * @returns {Promise<Object>} - Update result
+   */
+  static async updateInvoiceStatus(invoiceId, newStatus, additionalData = {}) {
+    try {
+      console.log('🔄 Updating invoice status:', invoiceId, 'to', newStatus);
+      
+      const updateData = {
+        status: newStatus.toLowerCase(),
+        paymentStatus: newStatus.toLowerCase(),
+        updatedAt: new Date().toISOString(),
+        ...additionalData
+      };
+
+      // If marking as paid, add payment date
+      if (newStatus.toUpperCase() === 'PAID') {
+        updateData.paymentDate = new Date().toISOString().split('T')[0];
+      }
+
+      const result = await firebaseHospitalServices.updateInvoiceStatus(invoiceId, updateData);
+      
+      if (result.success) {
+        console.log('✅ Invoice status updated successfully');
+        return {
+          success: true,
+          message: `Invoice status updated to ${newStatus}`,
+          invoiceId: invoiceId
+        };
+      } else {
+        throw new Error('Failed to update invoice in database');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error updating invoice status:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to update invoice status'
+      };
+    }
+  }
+
+  /**
+   * Finds existing invoice for an appointment
+   * @param {Object} appointment - Appointment data
+   * @returns {Promise<Object>} - Existing invoice or null
+   */
+  static async findExistingInvoiceForAppointment(appointment) {
+    try {
+      console.log('🔍 Searching for existing invoice for appointment:', appointment.id);
+      
+      const invoicesResult = await firebaseHospitalServices.getInvoices();
+      
+      if (invoicesResult.success && invoicesResult.data) {
+        const existingInvoice = invoicesResult.data.find(invoice => 
+          invoice.appointmentId === appointment.id ||
+          (invoice.patientId === appointment.patientId && 
+           invoice.patientName === appointment.patientName &&
+           invoice.description && 
+           invoice.description.includes(appointment.serviceName || appointment.service))
+        );
+        
+        if (existingInvoice) {
+          console.log('📄 Found existing invoice:', existingInvoice.invoiceNumber);
+          return {
+            success: true,
+            invoice: existingInvoice
+          };
+        }
+      }
+      
+      console.log('📄 No existing invoice found');
+      return {
+        success: false,
+        message: 'No existing invoice found'
+      };
+      
+    } catch (error) {
+      console.error('❌ Error finding existing invoice:', error);
+      return {
+        success: false,
+        error: error.message
       };
     }
   }

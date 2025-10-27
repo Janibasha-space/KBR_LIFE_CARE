@@ -17,12 +17,31 @@ import { Colors } from '../../constants/theme';
 
 const PatientDetailsScreen = ({ route, navigation }) => {
   const { patient: initialPatient } = route.params;
-  const { updatePatient, deletePatient, patients } = useApp();
+  const { updatePatient, deletePatient, patients, payments, appointments, invoices, aggregatedPayments } = useApp();
+  
+  // Debug: Log the patient data we received
+  console.log('🔍 [PatientDetails] Received patient data:', {
+    name: initialPatient?.name,
+    id: initialPatient?.id,
+    source: initialPatient?.source,
+    appointmentId: initialPatient?.appointmentId
+  });
+  
+  // Debug: Log context data availability
+  console.log('🔍 [PatientDetails] Context data:', {
+    payments: payments?.length || 0,
+    aggregatedPayments: aggregatedPayments?.length || 0,
+    appointments: appointments?.length || 0,
+    patients: patients?.length || 0
+  });
   
   const [isEditing, setIsEditing] = useState(false);
   const [patient, setPatient] = useState(initialPatient);
   const [originalPatient, setOriginalPatient] = useState(initialPatient);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [patientPayments, setPatientPayments] = useState([]);
+  const [patientAppointments, setPatientAppointments] = useState([]);
+  const [treatmentDetails, setTreatmentDetails] = useState(null);
 
   // Update patient data from context when it changes (for real-time updates)
   React.useEffect(() => {
@@ -34,6 +53,14 @@ const PatientDetailsScreen = ({ route, navigation }) => {
     }
   }, [patients, initialPatient.id]);
 
+  // Initial data fetch on component mount and when data changes
+  React.useEffect(() => {
+    if (aggregatedPayments || payments || appointments) {
+      console.log('🔄 Data available, fetching patient data...');
+      fetchPatientData();
+    }
+  }, [aggregatedPayments, payments, appointments, patient.id, patient.name]);
+
   // Refresh patient data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
@@ -43,8 +70,298 @@ const PatientDetailsScreen = ({ route, navigation }) => {
         setPatient(updatedPatient);
         setOriginalPatient(updatedPatient);
       }
-    }, [patients, initialPatient.id])
+      
+      // Fetch patient payments and related data only if we have data
+      if (aggregatedPayments || payments || appointments) {
+        fetchPatientData();
+      }
+    }, [patients, initialPatient.id, aggregatedPayments, payments, appointments])
   );
+
+  // Function to fetch patient payments and create treatment details
+  const fetchPatientData = () => {
+    console.log('🔍 Fetching patient data for:', patient.name, patient.id);
+    console.log('🔍 Available data - Payments:', payments?.length || 0, 'AggregatedPayments:', aggregatedPayments?.length || 0, 'Appointments:', appointments?.length || 0);
+    
+    // Safety check - ensure we have the required data
+    if (!aggregatedPayments && !payments && !appointments) {
+      console.log('⚠️ No payments or appointments data available yet');
+      return;
+    }
+    
+    // Use aggregatedPayments first, fallback to payments
+    const paymentSource = aggregatedPayments || payments || [];
+    console.log('💰 Using payment source:', aggregatedPayments ? 'aggregatedPayments' : 'payments', '- Count:', paymentSource.length);
+    
+    // Find payments for this patient using STRICT matching to avoid cross-patient data
+    const relatedPayments = paymentSource.filter(payment => {
+      // STRICT ID matching first (most reliable)
+      const exactIdMatch = payment.patientId === patient.id;
+      
+      // STRICT name matching (only if ID doesn't match but names are identical)
+      const exactNameMatch = !exactIdMatch && payment.patientName === patient.name;
+      
+      // Only use phone matching as last resort and only if both name and ID don't match
+      const phoneMatch = !exactIdMatch && !exactNameMatch && 
+                        patient.phone && 
+                        (payment.patientPhone === patient.phone || payment.contactNumber === patient.phone);
+      
+      const matches = exactIdMatch || exactNameMatch || phoneMatch;
+      
+      if (matches) {
+        console.log('💰 Payment match found for', patient.name, ':', {
+          paymentPatientName: payment.patientName,
+          amount: '₹' + (payment.paidAmount || payment.totalPaid || payment.amount || 0),
+          matchType: exactIdMatch ? 'ID' : exactNameMatch ? 'Name' : 'Phone',
+          paymentId: payment.id,
+          patientId: payment.patientId
+        });
+      }
+      
+      return matches;
+    });
+    
+    console.log('💰 Found payments:', relatedPayments.length);
+    
+    // Validate payments to ensure they actually belong to this patient
+    const validatedPayments = relatedPayments.filter(payment => {
+      const isValidPayment = (
+        payment.patientId === patient.id ||
+        payment.patientName === patient.name
+      );
+      
+      if (!isValidPayment) {
+        console.warn('⚠️ Filtered out invalid payment:', {
+          paymentPatient: payment.patientName,
+          currentPatient: patient.name,
+          paymentId: payment.id
+        });
+      }
+      
+      return isValidPayment;
+    });
+    
+    console.log('💰 Validated payments:', validatedPayments.length);
+    console.log('💰 Payment details:', validatedPayments.map(p => ({ 
+      name: p.patientName, 
+      amount: p.paidAmount || p.totalPaid || p.amount, 
+      id: p.patientId 
+    })));
+    
+    // Find appointments for this patient using STRICT matching
+    const relatedAppointments = (appointments || []).filter(appointment => {
+      // STRICT ID matching first
+      const exactIdMatch = appointment.patientId === patient.id;
+      
+      // STRICT name matching (only if ID doesn't match)
+      const exactNameMatch = !exactIdMatch && appointment.patientName === patient.name;
+      
+      // Phone matching as last resort
+      const phoneMatch = !exactIdMatch && !exactNameMatch &&
+                        patient.phone &&
+                        (appointment.patientPhone === patient.phone || appointment.contactNumber === patient.phone);
+      
+      const matches = exactIdMatch || exactNameMatch || phoneMatch;
+      
+      if (matches) {
+        console.log('📅 Appointment match found for', patient.name, ':', {
+          appointmentPatientName: appointment.patientName,
+          paymentStatus: appointment.paymentStatus,
+          matchType: exactIdMatch ? 'ID' : exactNameMatch ? 'Name' : 'Phone'
+        });
+      }
+      
+      return matches;
+    });
+    
+    console.log('📅 Found appointments:', relatedAppointments.length);
+    console.log('📅 Appointment details:', relatedAppointments.map(a => ({ 
+      name: a.patientName, 
+      paymentStatus: a.paymentStatus, 
+      amount: a.amount || a.fee,
+      id: a.patientId 
+    })));
+    setPatientAppointments(relatedAppointments);
+    
+    // Create appointment payments from completed appointments (only for this patient)
+    const appointmentPayments = relatedAppointments
+      .filter(appointment => {
+        const isPaid = appointment.paymentStatus === 'Paid' || appointment.paymentStatus === 'paid';
+        const belongsToPatient = appointment.patientId === patient.id || appointment.patientName === patient.name;
+        return isPaid && belongsToPatient;
+      })
+      .map((appointment, index) => ({
+        id: `appointment-payment-${appointment.id}-${index}`,  // Make unique with index
+        patientId: appointment.patientId,
+        patientName: appointment.patientName,
+        totalAmount: appointment.amount || appointment.fee || 0,
+        paidAmount: appointment.amount || appointment.fee || 0,
+        dueAmount: 0,
+        paymentMethod: appointment.paymentMode || 'Cash',
+        paymentDate: appointment.appointmentDate || appointment.date,
+        status: 'paid',
+        paymentStatus: 'paid',
+        source: 'appointment',
+        service: appointment.service,
+        department: appointment.department,
+        doctorName: appointment.doctorName,
+        createdAt: appointment.createdAt || new Date().toISOString(),
+        description: `Payment for ${appointment.service || 'consultation'} appointment with ${appointment.doctorName}`,
+        appointmentId: appointment.id  // Add original appointment ID for reference
+      }));
+    
+    console.log('🏥 Created appointment payments:', appointmentPayments.length);
+    
+    // Combine VALIDATED payments with appointment payments
+    const allPatientPayments = [...validatedPayments, ...appointmentPayments];
+    
+    // Final validation: Ensure ALL payments belong to THIS patient only
+    const patientOnlyPayments = allPatientPayments.filter(payment => {
+      const belongsToThisPatient = (
+        payment.patientId === patient.id ||
+        payment.patientName === patient.name
+      );
+      
+      if (!belongsToThisPatient) {
+        console.warn('🚫 Removed payment from different patient:', {
+          paymentPatient: payment.patientName,
+          currentPatient: patient.name,
+          amount: payment.paidAmount || payment.totalPaid || payment.amount
+        });
+      }
+      
+      return belongsToThisPatient;
+    });
+    
+    // Remove duplicates based on unique identifiers
+    const uniquePayments = patientOnlyPayments.filter((payment, index, self) => {
+      return index === self.findIndex(p => {
+        // Check for duplicates based on multiple criteria
+        const isSameId = p.id === payment.id;
+        const isSameOriginalId = p.originalId && payment.originalId && p.originalId === payment.originalId;
+        const isSameAppointment = p.appointmentId && payment.appointmentId && p.appointmentId === payment.appointmentId;
+        const isSamePaymentData = (
+          p.patientId === payment.patientId &&
+          p.paidAmount === payment.paidAmount &&
+          p.paymentDate === payment.paymentDate &&
+          p.paymentMethod === payment.paymentMethod
+        );
+        
+        return isSameId || isSameOriginalId || isSameAppointment || isSamePaymentData;
+      });
+    });
+    
+    // Sort by date (newest first)
+    uniquePayments.sort((a, b) => {
+      const dateA = new Date(a.paymentDate || a.createdAt || 0);
+      const dateB = new Date(b.paymentDate || b.createdAt || 0);
+      return dateB - dateA;
+    });
+    
+    console.log('💰 Payment filtering results for', patient.name, ':', {
+      allPayments: allPatientPayments.length,
+      patientOnly: patientOnlyPayments.length,
+      unique: uniquePayments.length
+    });
+    
+    // Debug: Show final payment details
+    console.log('💰 Final payments for', patient.name, ':', uniquePayments.map(p => ({
+      patient: p.patientName,
+      amount: p.paidAmount || p.totalPaid || p.amount,
+      source: p.source || 'regular',
+      id: p.id
+    })));
+    
+    // Debug: Log filtering if payments were removed
+    if (allPatientPayments.length !== uniquePayments.length) {
+      console.log('🔄 Filtered out payments:', allPatientPayments.length - uniquePayments.length);
+    }
+    
+    setPatientPayments(uniquePayments);
+    
+    // Create treatment details based on service/department
+    createTreatmentDetails(patient, relatedAppointments, allPatientPayments);
+  };
+
+  // Function to create treatment details based on service
+  const createTreatmentDetails = (patientData, appointments, payments) => {
+    const service = patientData.service || appointments[0]?.service;
+    const department = patientData.department || appointments[0]?.department;
+    const symptoms = patientData.symptoms || appointments[0]?.symptoms;
+    
+    console.log('🏥 Creating treatment details for service:', service, 'department:', department);
+    
+    let treatmentInfo = {
+      service: service || 'General Consultation',
+      department: department || 'General Medicine',
+      symptoms: symptoms || 'Not specified',
+      recommendedTreatment: '',
+      medications: [],
+      followUpRequired: false,
+      estimatedDuration: '',
+      specialInstructions: ''
+    };
+    
+    // Generate treatment details based on service/department
+    switch (department?.toLowerCase()) {
+      case 'nephrologist':
+      case 'nephrology':
+        treatmentInfo.recommendedTreatment = 'Kidney function assessment and monitoring';
+        treatmentInfo.medications = ['Nephron protective medications', 'Blood pressure management', 'Dietary supplements'];
+        treatmentInfo.followUpRequired = true;
+        treatmentInfo.estimatedDuration = '3-6 months monitoring';
+        treatmentInfo.specialInstructions = 'Maintain low sodium diet, monitor fluid intake, regular BP checks';
+        break;
+        
+      case 'cardiology':
+      case 'cardiologist':
+        treatmentInfo.recommendedTreatment = 'Cardiovascular health evaluation';
+        treatmentInfo.medications = ['Cardiac medications', 'Cholesterol management', 'Blood thinners if needed'];
+        treatmentInfo.followUpRequired = true;
+        treatmentInfo.estimatedDuration = '6 months monitoring';
+        treatmentInfo.specialInstructions = 'Regular exercise, heart-healthy diet, stress management';
+        break;
+        
+      case 'orthopedic':
+      case 'orthopedics':
+        treatmentInfo.recommendedTreatment = 'Musculoskeletal assessment and therapy';
+        treatmentInfo.medications = ['Pain management medication', 'Anti-inflammatory drugs', 'Muscle relaxants'];
+        treatmentInfo.followUpRequired = true;
+        treatmentInfo.estimatedDuration = '4-8 weeks recovery';
+        treatmentInfo.specialInstructions = 'Physical therapy, avoid heavy lifting, proper posture';
+        break;
+        
+      case 'general medicine':
+      case 'general':
+      default:
+        treatmentInfo.recommendedTreatment = 'General health assessment and wellness consultation';
+        treatmentInfo.medications = ['As per symptoms', 'Preventive medications', 'Vitamin supplements'];
+        treatmentInfo.followUpRequired = false;
+        treatmentInfo.estimatedDuration = '1-2 weeks observation';
+        treatmentInfo.specialInstructions = 'Maintain healthy lifestyle, regular check-ups';
+        break;
+    }
+    
+    // Customize based on specific service
+    if (service) {
+      switch (service.toLowerCase()) {
+        case 'sneha':
+          treatmentInfo.service = 'Sneha - Specialized Care Program';
+          treatmentInfo.specialInstructions += ' | Enrolled in Sneha care program for comprehensive treatment';
+          break;
+        case 'consultation':
+          treatmentInfo.service = 'General Consultation';
+          break;
+        case 'emergency':
+          treatmentInfo.service = 'Emergency Care';
+          treatmentInfo.estimatedDuration = 'Immediate care required';
+          treatmentInfo.followUpRequired = true;
+          break;
+      }
+    }
+    
+    setTreatmentDetails(treatmentInfo);
+  };
 
   const handleCall = () => {
     const phoneNumber = patient.phone.replace(/\s/g, '');
@@ -368,122 +685,205 @@ const PatientDetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Payment Information */}
-        {patient.paymentDetails && (
-          <View style={styles.section}>
-            <View style={styles.paymentHeader}>
-              <Text style={styles.sectionTitle}>Payment Information</Text>
-              <TouchableOpacity 
-                style={styles.addPaymentButton}
-                onPress={handleAddPayment}
-              >
-                <Ionicons name="add" size={16} color="#FFFFFF" />
-                <Text style={styles.addPaymentText}>Add Payment</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.sectionContent}>
-              {/* Payment Summary */}
-              <View style={styles.paymentSummaryGrid}>
-                <View style={styles.paymentSummaryItem}>
-                  <Text style={styles.paymentSummaryLabel}>Total Amount</Text>
-                  <Text style={styles.paymentSummaryValue}>
-                    ₹{patient.paymentDetails.totalAmount}
-                  </Text>
-                </View>
-                
-                <View style={styles.paymentSummaryItem}>
-                  <Text style={styles.paymentSummaryLabel}>Total Paid</Text>
-                  <Text style={[styles.paymentSummaryValue, { color: Colors.kbrGreen }]}>
-                    ₹{patient.paymentDetails.totalPaid}
-                  </Text>
-                </View>
-                
-                <View style={styles.paymentSummaryItem}>
-                  <Text style={styles.paymentSummaryLabel}>Due Amount</Text>
-                  <Text style={[
-                    styles.paymentSummaryValue, 
-                    { color: patient.paymentDetails.dueAmount > 0 ? Colors.kbrRed : Colors.kbrGreen }
-                  ]}>
-                    ₹{patient.paymentDetails.dueAmount}
-                  </Text>
-                </View>
-                
-                <View style={styles.paymentSummaryItem}>
-                  <Text style={styles.paymentSummaryLabel}>Payment Status</Text>
-                  <Text style={[
-                    styles.paymentSummaryValue,
-                    { 
-                      color: patient.paymentDetails.dueAmount <= 0 ? Colors.kbrGreen : 
-                             patient.paymentDetails.totalPaid > 0 ? Colors.kbrPurple : Colors.kbrRed 
-                    }
-                  ]}>
-                    {patient.paymentDetails.dueAmount <= 0 ? 'Fully Paid' : 
-                     patient.paymentDetails.totalPaid > 0 ? 'Partially Paid' : 'Pending'}
-                  </Text>
-                </View>
-              </View>
 
-              {/* Payment History */}
-              {patient.paymentDetails.payments && patient.paymentDetails.payments.length > 0 && (
+
+        {/* Payment Information Section */}
+        <View style={styles.section}>
+          <View style={styles.paymentHeader}>
+            <Text style={styles.sectionTitle}>Payment Information</Text>
+            <TouchableOpacity 
+              style={styles.addPaymentButton}
+              onPress={() => setShowPaymentModal(true)}
+            >
+              <Ionicons name="add" size={16} color="#FFFFFF" />
+              <Text style={styles.addPaymentText}>Add Payment</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.sectionContent}>
+            {/* Debug info - remove after testing */}
+            {__DEV__ && (
+              <Text style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
+                Debug: {patientPayments.length} payments found for {patient.name} (ID: {patient.id})
+              </Text>
+            )}
+            
+            {patientPayments.length > 0 ? (
+              <>
+                {/* Payment Summary */}
+                <View style={styles.paymentSummary}>
+                  <View style={styles.paymentSummaryRow}>
+                    <Text style={styles.paymentLabel}>Total Amount:</Text>
+                    <Text style={styles.paymentValue}>
+                      ₹{patientPayments.reduce((sum, p) => sum + (p.totalAmount || p.amount || 0), 0).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.paymentSummaryRow}>
+                    <Text style={styles.paymentLabel}>Amount Paid:</Text>
+                    <Text style={[styles.paymentValue, { color: '#22C55E' }]}>
+                      ₹{patientPayments.reduce((sum, p) => sum + (p.paidAmount || p.totalPaid || p.amount || 0), 0).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.paymentSummaryRow}>
+                    <Text style={styles.paymentLabel}>Due Amount:</Text>
+                    <Text style={[styles.paymentValue, { color: '#EF4444' }]}>
+                      ₹{patientPayments.reduce((sum, p) => sum + (p.dueAmount || p.remainingAmount || ((p.totalAmount || p.amount || 0) - (p.paidAmount || p.totalPaid || 0))), 0).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.paymentSummaryRow}>
+                    <Text style={styles.paymentLabel}>Payment Status:</Text>
+                    <View style={[
+                      styles.statusBadge, 
+                      { backgroundColor: patientPayments.some(p => {
+                        const due = p.dueAmount || p.remainingAmount || ((p.totalAmount || p.amount || 0) - (p.paidAmount || p.totalPaid || 0));
+                        return due > 0;
+                      }) ? '#FEF3C7' : '#D1FAE5' }
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        { color: patientPayments.some(p => {
+                          const due = p.dueAmount || p.remainingAmount || ((p.totalAmount || p.amount || 0) - (p.paidAmount || p.totalPaid || 0));
+                          return due > 0;
+                        }) ? '#D97706' : '#065F46' }
+                      ]}>
+                        {patientPayments.some(p => {
+                          const due = p.dueAmount || p.remainingAmount || ((p.totalAmount || p.amount || 0) - (p.paidAmount || p.totalPaid || 0));
+                          return due > 0;
+                        }) ? 'Partial' : 'Fully Paid'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Payment History */}
                 <View style={styles.paymentHistory}>
-                  <Text style={styles.paymentHistoryTitle}>Payment History</Text>
-                  {patient.paymentDetails.payments.map((payment, index) => (
-                    <View key={payment.id} style={styles.paymentHistoryItem}>
+                  <Text style={styles.subSectionTitle}>Payment History</Text>
+                  {patientPayments.map((payment, index) => (
+                    <View key={`payment-${payment.id || payment.originalId || payment.appointmentId || 'unknown'}-${index}`} style={styles.paymentHistoryItem}>
                       <View style={styles.paymentHistoryHeader}>
-                        <View style={styles.paymentHistoryLeft}>
-                          <Text style={styles.paymentHistoryType}>{payment.type}</Text>
+                        <View style={styles.paymentTitleContainer}>
+                          <Text style={styles.paymentHistoryTitle}>
+                            {payment.source === 'appointment' ? 
+                              `${payment.service || 'Appointment'} Payment` : 
+                              `Payment #${index + 1}`
+                            }
+                          </Text>
+                          {payment.source === 'appointment' && (
+                            <View style={styles.appointmentBadge}>
+                              <Text style={styles.appointmentBadgeText}>Appointment</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.paymentDateContainer}>
                           <Text style={styles.paymentHistoryDate}>
-                            {payment.date} • {payment.time}
+                            {payment.paymentDate || payment.createdAt ? 
+                              new Date(payment.paymentDate || payment.createdAt).toLocaleDateString('en-IN') : 
+                              'Date not specified'
+                            }
+                          </Text>
+                          <Text style={styles.paymentMethod}>
+                            {payment.paymentMethod || 'Cash'}
                           </Text>
                         </View>
-                        <View style={styles.paymentHistoryRight}>
-                          <Text style={styles.paymentHistoryAmount}>₹{payment.amount}</Text>
-                          <Text style={styles.paymentHistoryMethod}>{payment.method}</Text>
+                      </View>
+                      <View style={styles.paymentHistoryDetails}>
+                        <View style={styles.paymentAmountContainer}>
+                          <Text style={styles.paymentHistoryAmount}>
+                            ₹{(payment.paidAmount || payment.totalPaid || payment.amount || 0).toLocaleString()}
+                          </Text>
+                          {payment.source === 'appointment' && payment.doctorName && (
+                            <Text style={styles.paymentDoctorName}>Dr. {payment.doctorName}</Text>
+                          )}
+                        </View>
+                        <View style={styles.paymentStatusContainer}>
+                          <Text style={styles.paymentHistoryStatus}>
+                            {payment.status || payment.paymentStatus || 'Completed'}
+                          </Text>
+                          {payment.department && (
+                            <Text style={styles.paymentDepartment}>{payment.department}</Text>
+                          )}
                         </View>
                       </View>
-                      
                       {payment.description && (
-                        <Text style={styles.paymentHistoryDescription}>
+                        <Text style={styles.paymentDescription}>
                           {payment.description}
-                        </Text>
-                      )}
-                      
-                      {payment.transactionId && (
-                        <Text style={styles.paymentHistoryTransaction}>
-                          Transaction ID: {payment.transactionId}
                         </Text>
                       )}
                     </View>
                   ))}
                 </View>
-              )}
-
-              {/* No Payment Info */}
-              {(!patient.paymentDetails.payments || patient.paymentDetails.payments.length === 0) && (
-                <View style={styles.noPaymentHistory}>
-                  <Ionicons name="card-outline" size={48} color="#D1D5DB" />
-                  <Text style={styles.noPaymentText}>No payment history available</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* No Payment Details */}
-        {!patient.paymentDetails && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Information</Text>
-            <View style={styles.sectionContent}>
+              </>
+            ) : (
               <View style={styles.noPaymentSetup}>
                 <Ionicons name="card-outline" size={48} color="#D1D5DB" />
                 <Text style={styles.noPaymentSetupText}>
-                  No payment information available for this patient
+                  No payment records found for this patient
                 </Text>
                 <Text style={styles.noPaymentSetupSubtext}>
-                  Payment details are set up during patient registration
+                  Payment records will appear here after transactions
                 </Text>
               </View>
+            )}
+          </View>
+        </View>
+
+        {/* Treatment Details Section */}
+        {treatmentDetails && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Treatment Details</Text>
+            <View style={styles.sectionContent}>
+              <InfoRow
+                icon="medical"
+                label="Service"
+                value={treatmentDetails.service}
+              />
+              <InfoRow
+                icon="business"
+                label="Department"
+                value={treatmentDetails.department}
+              />
+              <InfoRow
+                icon="heart"
+                label="Symptoms"
+                value={treatmentDetails.symptoms}
+              />
+              <InfoRow
+                icon="clipboard"
+                label="Recommended Treatment"
+                value={treatmentDetails.recommendedTreatment}
+              />
+              <InfoRow
+                icon="time"
+                label="Estimated Duration"
+                value={treatmentDetails.estimatedDuration}
+              />
+              <InfoRow
+                icon="checkmark-circle"
+                label="Follow-up Required"
+                value={treatmentDetails.followUpRequired ? 'Yes' : 'No'}
+              />
+              
+              {/* Medications */}
+              {treatmentDetails.medications.length > 0 && (
+                <View style={styles.medicationSection}>
+                  <Text style={styles.subSectionTitle}>Recommended Medications</Text>
+                  {treatmentDetails.medications.map((medication, index) => (
+                    <View key={index} style={styles.medicationItem}>
+                      <Ionicons name="medical" size={16} color="#6B7280" />
+                      <Text style={styles.medicationText}>{medication}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              
+              {/* Special Instructions */}
+              {treatmentDetails.specialInstructions && (
+                <View style={styles.instructionsSection}>
+                  <Text style={styles.subSectionTitle}>Special Instructions</Text>
+                  <Text style={styles.instructionsText}>
+                    {treatmentDetails.specialInstructions}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -950,6 +1350,161 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
     textAlign: 'center',
+  },
+  paymentSummary: {
+    marginBottom: 20,
+  },
+  paymentSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  paymentLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  paymentValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  paymentHistory: {
+    marginTop: 20,
+  },
+  subSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  paymentHistoryItem: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  paymentHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  paymentHistoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  paymentHistoryDate: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  paymentHistoryDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentHistoryAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#22C55E',
+  },
+  paymentHistoryStatus: {
+    fontSize: 12,
+    color: '#6B7280',
+    textTransform: 'capitalize',
+  },
+  paymentTitleContainer: {
+    flex: 1,
+    marginRight: 8,
+  },
+  appointmentBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  appointmentBadgeText: {
+    fontSize: 10,
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  paymentDateContainer: {
+    alignItems: 'flex-end',
+  },
+  paymentMethod: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  paymentAmountContainer: {
+    alignItems: 'flex-start',
+  },
+  paymentDoctorName: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  paymentStatusContainer: {
+    alignItems: 'flex-end',
+  },
+  paymentDepartment: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  paymentDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  medicationSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  medicationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  medicationText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    flex: 1,
+  },
+  instructionsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
   },
 });
 

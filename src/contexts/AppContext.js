@@ -488,7 +488,7 @@ export const AppProvider = ({ children }) => {
   const [listenersActive, setListenersActive] = useState(false);
   
   // Flag to completely disable Firebase operations when not authenticated
-  const [firebaseOperationsEnabled, setFirebaseOperationsEnabled] = useState(false);
+  const [firebaseOperationsEnabled, setFirebaseOperationsEnabled] = useState(true); // Enable by default for public data access
   
   // Rate limiting for error logs
   const [lastLogTime, setLastLogTime] = useState({});
@@ -901,8 +901,8 @@ export const AppProvider = ({ children }) => {
     const { auth } = require('../config/firebase.config');
     const currentUser = auth.currentUser;
     
-    if (!useBackend || !currentUser || !firebaseOperationsEnabled) {
-      console.log('🚫 Skipping real-time listeners - backend disabled, user not authenticated, or Firebase operations disabled');
+    if (!useBackend) {
+      console.log('🚫 Skipping real-time listeners - backend disabled');
       return;
     }
     
@@ -911,7 +911,9 @@ export const AppProvider = ({ children }) => {
       return;
     }
     
-    console.log('🔄 Setting up real-time listeners for authenticated user...');
+    // Allow listeners for both authenticated and unauthenticated users since we have public read access
+    const userStatus = currentUser ? `authenticated user: ${currentUser.uid}` : 'unauthenticated (public access)';
+    console.log(`🔄 Setting up real-time listeners for ${userStatus}...`);
     setListenersActive(true);
     
     try {
@@ -931,18 +933,16 @@ export const AppProvider = ({ children }) => {
       // Real-time rooms listener
       console.log('🔄 Setting up rooms real-time listener...');
       const roomsUnsubscribe = FirebaseRoomService.subscribeToRooms((result) => {
-        // Add authentication check and Firebase operations check
+        // Rooms have public read access, so no authentication required
         const { auth } = require('../config/firebase.config');
-        if (!auth.currentUser || !firebaseOperationsEnabled) {
-          console.log('🚫 Rooms listener: User not authenticated or Firebase operations disabled, ignoring update');
-          return;
-        }
+        const currentUser = auth.currentUser;
         
         if (result.success) {
+          const userInfo = currentUser ? ` (user: ${currentUser.uid})` : ' (public)';
           if (result.data.length > 0) {
-            console.log(`🏠 Real-time rooms update: ${result.data.length} rooms`);
+            console.log(`🏠 Real-time rooms update: ${result.data.length} rooms${userInfo}`);
           } else {
-            throttledLog('rooms-empty', '🏠 Real-time rooms update: 0 rooms (permission denied)', 10000);
+            throttledLog('rooms-empty', `🏠 Real-time rooms update: 0 rooms${userInfo}`, 10000);
           }
           setAppState(prev => ({
             ...prev,
@@ -997,18 +997,16 @@ export const AppProvider = ({ children }) => {
       // Real-time doctors listener
       console.log('🔄 Setting up doctors real-time listener...');
       const doctorsUnsubscribe = FirebaseDoctorService.subscribeToDoctors((result) => {
-        // Add authentication check and Firebase operations check
+        // Doctors have public read access, so no authentication required
         const { auth } = require('../config/firebase.config');
-        if (!auth.currentUser || !firebaseOperationsEnabled) {
-          console.log('🚫 Doctors listener: User not authenticated or Firebase operations disabled, ignoring update');
-          return;
-        }
+        const currentUser = auth.currentUser;
         
         if (result.success) {
+          const userInfo = currentUser ? ` (user: ${currentUser.uid})` : ' (public)';
           if (result.data.length > 0) {
-            console.log(`👨‍⚕️ Real-time doctors update: ${result.data.length} doctors`);
+            console.log(`👨‍⚕️ Real-time doctors update: ${result.data.length} doctors${userInfo}`);
           } else {
-            throttledLog('doctors-empty', '👨‍⚕️ Real-time doctors update: 0 doctors (permission denied)', 10000);
+            throttledLog('doctors-empty', `👨‍⚕️ Real-time doctors update: 0 doctors${userInfo}`, 10000);
           }
           setAppState(prev => ({
             ...prev,
@@ -1026,35 +1024,92 @@ export const AppProvider = ({ children }) => {
 
       // Real-time invoices listener with enhanced authentication checks
       console.log('🔄 Setting up invoices real-time listener...');
-      const invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
-        // Add authentication check and Firebase operations check - this is crucial for preventing permission errors
-        const { auth } = require('../config/firebase.config');
-        if (!auth.currentUser || !firebaseOperationsEnabled) {
-          console.log('🚫 Invoices listener: User not authenticated or Firebase operations disabled, ignoring update');
-          return;
-        }
+      
+      // Debug Firebase auth state before setting up listener
+      const { auth } = require('../config/firebase.config');
+      const currentUser = auth.currentUser;
+      console.log('🔍 Firebase auth state for invoices listener:', {
+        hasCurrentUser: !!currentUser,
+        uid: currentUser?.uid,
+        email: currentUser?.email
+      });
+      
+      // Try to set up invoices listener with better error handling
+      let invoicesUnsubscribe;
+      
+      try {
+        invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
+          // Invoices have public read access, so no need to check Firebase operations
         
         if (result.success) {
+          const userInfo = currentUser ? ` (user: ${currentUser.uid})` : ' (public)';
           if (result.data.length > 0) {
-            console.log(`🧾 Real-time invoices update: ${result.data.length} invoices`);
+            console.log(`🧾 Real-time invoices update: ${result.data.length} invoices${userInfo}`);
           } else {
-            throttledLog('invoices-empty', '🧾 Real-time invoices update: 0 invoices (permission denied)', 10000);
+            throttledLog('invoices-empty', `🧾 Real-time invoices update: 0 invoices${userInfo}`, 10000);
           }
           setAppState(prev => ({
             ...prev,
             invoices: removeDuplicatesById(result.data, 'invoices')
           }));
         } else if (result.warning) {
-          throttledLog('invoices-warning', '⚠️ Invoices listener warning: ' + result.warning, 10000);
-          // Set empty invoices on permission error
-          setAppState(prev => ({
-            ...prev,
-            invoices: []
-          }));
+          if (result.warning.includes('Authentication error')) {
+            console.log('🔒 Authentication error in invoices listener - cleaning up');
+            // Clear invoices and don't log repeatedly
+            setAppState(prev => ({
+              ...prev,
+              invoices: []
+            }));
+          } else {
+            throttledLog('invoices-warning', '⚠️ Invoices listener warning: ' + result.warning, 10000);
+            setAppState(prev => ({
+              ...prev,
+              invoices: []
+            }));
+          }
         } else {
-          throttledLog('invoices-error', '❌ Invoices listener error: ' + result.error, 5000);
+          // Check if this is a permissions error that we can handle gracefully
+          if (result.error && result.error.includes('Missing or insufficient permissions')) {
+            console.log('🔒 Permission/authentication error for invoices - disabling listener');
+            // Don't log as ERROR since this is expected when not authenticated
+            
+            // Skip fallback fetch attempt - will be handled by one-time data loading
+            console.log('🔄 Invoices listener disabled due to permissions - data will load via one-time fetch');
+          } else {
+            // Only log non-permissions errors as actual errors
+            console.log('❌ Invoices real-time listener error:', result.error);
+            throttledLog('invoices-error', '❌ Invoices listener error: ' + result.error, 5000);
+          }
+          
+          // Clear invoices on error (only if not handled by fallback)
+          if (!result.error || !result.error.includes('Missing or insufficient permissions')) {
+            setAppState(prev => ({
+              ...prev,
+              invoices: []
+            }));
+          }
         }
       });
+      } catch (invoicesError) {
+        console.error('❌ Error setting up invoices real-time listener:', invoicesError);
+        console.log('🔄 Falling back to one-time invoices fetch...');
+        
+        // Fallback to one-time fetch if real-time listener fails
+        firebaseHospitalServices.getInvoices()
+          .then(invoicesResult => {
+            if (invoicesResult.success) {
+              console.log('✅ Fallback invoices fetch successful:', invoicesResult.data.length, 'invoices');
+              setAppState(prev => ({
+                ...prev,
+                invoices: removeDuplicatesById(invoicesResult.data, 'invoices')
+              }));
+            }
+          })
+          .catch(fallbackError => {
+            console.log('❌ Fallback invoices fetch also failed:', fallbackError);
+          });
+      }
+      
       if (invoicesUnsubscribe) newUnsubscribeFunctions.invoices = invoicesUnsubscribe;
 
       // Store unsubscribe functions
@@ -1105,40 +1160,51 @@ export const AppProvider = ({ children }) => {
         // User is signed in, setup real-time listeners
         setupRealTimeListeners();
       } else {
-        console.log('👤 User signed out - immediately disabling Firebase operations and cleaning up real-time listeners...');
+        console.log('👤 No user authenticated - enabling Firebase operations for public data access...');
         
-        // IMMEDIATELY disable Firebase operations
-        setFirebaseOperationsEnabled(false);
-        console.log('🚫 Firebase operations disabled for unauthenticated user');
+        // Enable Firebase operations for public data even without authentication
+        setFirebaseOperationsEnabled(true);
+        console.log('✅ Firebase operations enabled for public data access');
         
-        // Immediately clean up all listeners to prevent permission errors
-        console.log('🧹 Force cleaning up all real-time listeners...');
-        Object.values(unsubscribeFunctions).forEach(unsubscribe => {
-          if (typeof unsubscribe === 'function') {
-            try {
-              unsubscribe();
-              console.log('✅ Real-time listener force cleaned up');
-            } catch (error) {
-              console.log('⚠️ Error force cleaning up listener:', error.message);
-            }
+        // Clean up user-specific listeners but keep public data listeners
+        console.log('🧹 Cleaning up user-specific listeners...');
+        const currentUnsubscribeFunctions = { ...unsubscribeFunctions };
+        
+        // Only clean up user-specific listeners (patients, rooms with auth requirements)
+        if (currentUnsubscribeFunctions.patients) {
+          try {
+            currentUnsubscribeFunctions.patients();
+            console.log('✅ Patients listener cleaned up');
+          } catch (error) {
+            console.log('⚠️ Error cleaning up patients listener:', error.message);
           }
-        });
-        setUnsubscribeFunctions({});
-        setListenersActive(false);
+        }
+        
+        if (currentUnsubscribeFunctions.rooms) {
+          try {
+            currentUnsubscribeFunctions.rooms();
+            console.log('✅ Rooms listener cleaned up');
+          } catch (error) {
+            console.log('⚠️ Error cleaning up rooms listener:', error.message);
+          }
+        }
         
         // Clear user data
         await setCurrentUser(null);
         
-        // Clear real-time data when user logs out to prevent stale data
+        // Clear only user-specific data, keep public data
         setAppState(prev => ({
           ...prev,
-          rooms: [],
-          patients: [],
-          invoices: [],
-          // Keep other data that doesn't require authentication
-          doctors: prev.doctors || [], // Keep doctors as they might be public
-          services: prev.services // Keep services as they're static
+          patients: [], // Clear user-specific data
+          // Keep public data that doesn't require authentication
+          doctors: prev.doctors || [],
+          services: prev.services || [],
+          invoices: prev.invoices || [], // Keep invoices as they have public read access
         }));
+        
+        // Set up public data listeners for unauthenticated access
+        console.log('🔄 Setting up public data listeners for unauthenticated user...');
+        setupRealTimeListeners();
         
         console.log('✅ All real-time listeners cleaned up, Firebase operations disabled, and data cleared');
       }
@@ -1173,22 +1239,104 @@ export const AppProvider = ({ children }) => {
     };
   }, []);
 
-  // Calculate real-time admin stats from actual data
+  // Calculate real-time admin stats from actual data - including aggregated payments
   const calculateAdminStats = () => {
+    // Calculate revenue from multiple sources since payments are aggregated
+    let totalRevenue = 0;
+    
+    console.log(`📊 AppContext: calculateAdminStats called with ${appState.aggregatedPayments?.length || 0} aggregated payments`);
+    
+    // If we have aggregated payments, use those for more accurate calculation
+    if (appState.aggregatedPayments && appState.aggregatedPayments.length > 0) {
+      // Calculate total revenue from ALL payments (both fully paid and partially paid)
+      // For fully paid: use full amount
+      // For partially paid: use only the paid amount (not due amount)
+      totalRevenue = appState.aggregatedPayments.reduce((sum, payment) => {
+        console.log(`💰 Processing payment: ${payment.patientName} - Status: "${payment.status}" - Amount: ₹${payment.amount || payment.totalAmount || 0} - PaidAmount: ₹${payment.paidAmount || 0}`);
+        
+        if (payment.status === 'fully paid' || payment.status === 'paid' || payment.paymentStatus === 'Paid') {
+          // Fully paid - use total amount
+          const amount = payment.amount || payment.totalAmount || 0;
+          console.log(`✅ Fully paid: Adding ₹${amount}`);
+          return sum + amount;
+        } else if (payment.status === 'partially paid' || payment.status === 'partial' || payment.paymentStatus === 'Partially Paid') {
+          // Partially paid - use only the paid amount (not due amount)
+          const paidAmount = payment.paidAmount || 0;
+          console.log(`🔄 Partially paid: Adding ₹${paidAmount} (out of ₹${payment.amount || payment.totalAmount || 0})`);
+          return sum + paidAmount;
+        }
+        // For pending payments, don't count towards revenue
+        console.log(`⏳ Pending: Skipping ₹${payment.amount || payment.totalAmount || 0}`);
+        return sum;
+      }, 0);
+      
+      console.log(`💰 Revenue calculated from ${appState.aggregatedPayments.length} aggregated payments: ₹${totalRevenue}`);
+    } else {
+      // No aggregated payments available - calculate total PAID amount from individual sources
+      console.log('📊 No aggregated payments - calculating from individual sources with PAID amounts only');
+      
+      // Add revenue from paid appointments (OP payments) - only count fully paid
+      const appointmentRevenue = appState.appointments
+        .filter(apt => apt.paymentStatus === 'Paid')
+        .reduce((sum, apt) => sum + (apt.amount || apt.totalAmount || apt.consultationFee || 0), 0);
+      totalRevenue += appointmentRevenue;
+      console.log(`🏥 Appointment revenue (Paid only): ₹${appointmentRevenue}`);
+      
+      // Add revenue from patient payments (IP payments) - only count the PAID amount
+      const patientRevenue = appState.patients
+        .filter(patient => patient.paymentDetails && patient.paymentDetails.totalPaid > 0)
+        .reduce((sum, patient) => sum + (patient.paymentDetails.totalPaid || 0), 0);
+      totalRevenue += patientRevenue;
+      console.log(`🏨 Patient revenue (Paid amount only): ₹${patientRevenue}`);
+      
+      // Add revenue from invoices that are paid
+      const invoiceRevenue = appState.invoices
+        .filter(invoice => invoice.status === 'Paid' || invoice.paymentStatus === 'Paid')
+        .reduce((sum, invoice) => sum + (invoice.totalAmount || invoice.amount || 0), 0);
+      totalRevenue += invoiceRevenue;
+      console.log(`🧾 Invoice revenue (Paid only): ₹${invoiceRevenue}`);
+      
+      // Add revenue from direct payments collection
+      const directRevenue = appState.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      totalRevenue += directRevenue;
+      console.log(`💰 Direct payments revenue: ₹${directRevenue}`);
+      // Fallback to individual source calculation
+      // Add revenue from direct payments collection
+      totalRevenue += appState.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      
+      // Add revenue from paid appointments (OP payments)
+      totalRevenue += appState.appointments
+        .filter(apt => apt.paymentStatus === 'Paid')
+        .reduce((sum, apt) => sum + (apt.amount || apt.totalAmount || apt.consultationFee || 0), 0);
+      
+      // Add revenue from patient payments (IP payments)
+      totalRevenue += appState.patients
+        .filter(patient => patient.paymentDetails && patient.paymentDetails.totalPaid > 0)
+        .reduce((sum, patient) => sum + (patient.paymentDetails.totalPaid || 0), 0);
+      
+      // Add revenue from invoices that are paid
+      totalRevenue += appState.invoices
+        .filter(invoice => invoice.status === 'Paid' || invoice.paymentStatus === 'Paid')
+        .reduce((sum, invoice) => sum + (invoice.totalAmount || invoice.amount || 0), 0);
+      
+      console.log(`💰 Revenue calculated from individual sources: ₹${totalRevenue}`);
+    }
+
     const stats = {
       totalUsers: appState.patients.length,
       totalAppointments: appState.appointments.length,
-      totalRevenue: appState.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0),
-      activeDoctors: appState.doctors.filter(doc => doc.status === 'Active').length,
+      totalRevenue: totalRevenue,
+      activeDoctors: appState.doctors.filter(doc => doc.status === 'Active' || doc.availability === 'Available').length || appState.doctors.length,
       todayAppointments: appState.appointments.filter(apt => {
         const today = new Date().toISOString().split('T')[0];
-        return apt.date === today;
+        return apt.date === today || apt.appointmentDate === today;
       }).length,
-      confirmedAppointments: appState.appointments.filter(apt => apt.status === 'confirmed').length,
-      pendingAppointments: appState.appointments.filter(apt => apt.status === 'pending').length,
-      completedAppointments: appState.appointments.filter(apt => apt.status === 'completed').length,
+      confirmedAppointments: appState.appointments.filter(apt => apt.status === 'Confirmed' || apt.status === 'confirmed').length,
+      pendingAppointments: appState.appointments.filter(apt => apt.status === 'Pending' || apt.status === 'pending').length,
+      completedAppointments: appState.appointments.filter(apt => apt.status === 'Completed' || apt.status === 'completed').length,
     };
 
+    console.log(`✅ AppContext: Setting adminStats - totalRevenue: ₹${stats.totalRevenue}`);
     setAppState(prev => ({
       ...prev,
       adminStats: stats
@@ -1197,12 +1345,34 @@ export const AppProvider = ({ children }) => {
 
   // Auto-calculate stats when data changes - using lengths to avoid infinite loops
   useEffect(() => {
+    console.log('🔄 AppContext: Data length changed - triggering calculateAdminStats');
     calculateAdminStats();
   }, [
     appState.appointments.length, 
     appState.payments.length, 
     appState.patients.length, 
-    appState.doctors.length
+    appState.doctors.length,
+    appState.invoices.length,
+    appState.aggregatedPayments?.length
+  ]);
+
+  // Dedicated useEffect to watch for aggregatedPayments updates (even if length is same)
+  useEffect(() => {
+    if (appState.aggregatedPayments && appState.aggregatedPayments.length > 0) {
+      console.log('💰 AppContext: AggregatedPayments updated - recalculating admin stats');
+      console.log(`📊 AppContext: Received ${appState.aggregatedPayments.length} aggregated payments`);
+      calculateAdminStats();
+    }
+  }, [appState.aggregatedPayments]);
+
+  // Trigger recalculation when any payment-related data changes for real-time revenue updates
+  useEffect(() => {
+    console.log('📊 Payment data changed - triggering admin stats recalculation');
+    calculateAdminStats();
+  }, [
+    JSON.stringify(appState.appointments.map(a => ({ id: a.id, paymentStatus: a.paymentStatus, amount: a.amount }))),
+    JSON.stringify(appState.patients.map(p => ({ id: p.id, totalPaid: p.paymentDetails?.totalPaid }))),
+    JSON.stringify(appState.invoices.map(i => ({ id: i.id, status: i.status, amount: i.totalAmount })))
   ]);
 
   // ==== APPOINTMENT MANAGEMENT ====
@@ -3009,6 +3179,7 @@ export const AppProvider = ({ children }) => {
     appointments: appState.appointments,
     doctors: appState.doctors,  
     payments: appState.payments,
+    aggregatedPayments: appState.aggregatedPayments,
     invoices: appState.invoices,
     tests: appState.tests,
     patients: appState.patients,
