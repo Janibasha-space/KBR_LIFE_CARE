@@ -600,7 +600,9 @@ export const AppProvider = ({ children }) => {
             currentUser: prev.currentUser ? {
               ...prev.currentUser,
               displayName: userFromCredentials?.name || prev.currentUser.displayName,
-              userData: userFromCredentials || prev.currentUser.userData
+              userData: userFromCredentials || prev.currentUser.userData,
+              // Force profile image update in currentUser as well
+              profileImage: userFromCredentials?.profileImage || enhancedPatient.profileImage
             } : prev.currentUser
           }));
           
@@ -620,9 +622,15 @@ export const AppProvider = ({ children }) => {
                 phone: userFromCredentials.phone || '',
                 role: userFromCredentials.role || 'patient',
                 profileImage: userFromCredentials.profileImage
-              }
+              },
+              // Also update currentUser with the profile image
+              currentUser: prev.currentUser ? {
+                ...prev.currentUser,
+                profileImage: userFromCredentials.profileImage
+              } : prev.currentUser
             }));
             console.log('✅ Using user credentials as patient data:', userFromCredentials.name);
+            console.log('🖼️ Profile image from user credentials:', userFromCredentials.profileImage);
           }
         }
       }

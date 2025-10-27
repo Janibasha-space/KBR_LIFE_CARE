@@ -21,7 +21,7 @@ import { PatientService, AppointmentService } from '../../services/hospitalServi
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
 
-const ProfileScreen = ({ navigation }) => {
+const ProfileScreen = ({ navigation, route }) => {
   const { user, logoutUser, isAuthenticated } = useUnifiedAuth();
   const { currentUser, currentPatient, isAuthenticated: isFirebaseAuth, clearUserData } = useAuth();
   const { patient, appointments, medicalReports } = usePatientData();
@@ -34,6 +34,7 @@ const ProfileScreen = ({ navigation }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [appointmentCount, setAppointmentCount] = useState({ upcoming: 0, past: 0 });
   const [medicalHistoryCount, setMedicalHistoryCount] = useState(0);
+  const [imageRefreshKey, setImageRefreshKey] = useState(Date.now()); // Force image refresh
 
   // Fetch profile data from backend
   const fetchProfileData = async () => {
@@ -42,8 +43,15 @@ const ProfileScreen = ({ navigation }) => {
       
       console.log('🔍 Starting profile data fetch...');
       
+      // Add timeout to prevent indefinite loading
+      const fetchTimeout = setTimeout(() => {
+        console.log('⏰ Profile fetch timeout, setting loading to false');
+        setIsLoading(false);
+      }, 10000); // 10 second timeout
+      
       // Priority 1: Use currentPatient data if available (from AppContext authentication)
       if (currentPatient && currentPatient.name) {
+        clearTimeout(fetchTimeout);
         console.log('✅ Using currentPatient data:', currentPatient.name);
         setProfileData(currentPatient);
         await fetchAppointmentCounts(currentPatient.id || currentPatient.userId);
@@ -52,6 +60,7 @@ const ProfileScreen = ({ navigation }) => {
       
       // Priority 2: Use patient data from usePatientData hook
       if (patient && patient.name) {
+        clearTimeout(fetchTimeout);
         console.log('✅ Using patient data from hook:', patient.name);
         setProfileData(patient);
         await fetchAppointmentCounts(patient.id || patient.userId);
@@ -60,6 +69,7 @@ const ProfileScreen = ({ navigation }) => {
       
       // Priority 3: Create profile from user credentials if no patient record exists
       if (currentUser) {
+        clearTimeout(fetchTimeout);
         console.log('📋 Creating profile from user credentials:', currentUser.email);
         
         const userProfileData = {
@@ -86,6 +96,7 @@ const ProfileScreen = ({ navigation }) => {
       
       // Priority 4: Fallback to UnifiedAuth user data
       if (user?.userData) {
+        clearTimeout(fetchTimeout);
         console.log('📋 Using UnifiedAuth user data as fallback');
         const fallbackProfile = {
           id: user.userData.id || user.id,
@@ -104,6 +115,7 @@ const ProfileScreen = ({ navigation }) => {
       }
       
       // If no user data is available
+      clearTimeout(fetchTimeout);
       console.log('⚠️ No user data available from any source');
       setProfileData(null);
       
@@ -203,8 +215,20 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
+    console.log('🚀 ProfileScreen mounted with auth states:', {
+      isAuthenticated,
+      isFirebaseAuth,
+      hasUser: !!user,
+      hasCurrentUser: !!currentUser,
+      hasCurrentPatient: !!currentPatient,
+      hasPatient: !!patient
+    });
+    
     if (isAuthenticated || isFirebaseAuth) {
       fetchProfileData();
+    } else {
+      console.log('⚠️ User not authenticated on mount, setting loading to false');
+      setIsLoading(false);
     }
   }, [isAuthenticated, isFirebaseAuth, user, currentUser, currentPatient]);
 
@@ -212,25 +236,64 @@ const ProfileScreen = ({ navigation }) => {
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       console.log('📱 ProfileScreen focused - refreshing profile data...');
+      console.log('🔍 Auth states:', {
+        isAuthenticated,
+        isFirebaseAuth,
+        hasUser: !!user,
+        hasCurrentUser: !!currentUser,
+        hasCurrentPatient: !!currentPatient,
+        hasPatient: !!patient
+      });
+      
+      // Force refresh whenever screen gains focus (especially after EditProfile)
+      setImageRefreshKey(Date.now()); // Force image refresh
+      
       if (isAuthenticated || isFirebaseAuth) {
         fetchProfileData();
+      } else {
+        console.log('⚠️ User not authenticated, cannot fetch profile data');
       }
     });
 
     return unsubscribe;
   }, [navigation, isAuthenticated, isFirebaseAuth]);
 
-  // Listen for navigation focus to refresh data when returning from EditProfile
+  // Additional listener for profile data changes (when returning from EditProfile)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('📱 ProfileScreen focused - refreshing profile data...');
-      if (isAuthenticated || isFirebaseAuth) {
-        fetchProfileData();
-      }
+    console.log('🔄 Profile data changed, checking for updates...', {
+      currentPatientName: currentPatient?.name,
+      currentPatientImage: !!currentPatient?.profileImage,
+      patientName: patient?.name,
+      patientImage: !!patient?.profileImage,
+      profileDataName: profileData?.name,
+      profileDataImage: !!profileData?.profileImage,
+      userLastUpdated: user?.lastUpdated,
+      userLastProfileUpdate: user?.userData?.lastProfileUpdate
     });
+    
+    // Force refresh if we detect any changes in the context data or if user was recently updated
+    if ((currentPatient || patient || user?.lastUpdated || user?.userData?.lastProfileUpdate) && (isAuthenticated || isFirebaseAuth)) {
+      // Force image refresh when user data is updated
+      if (user?.lastUpdated || user?.userData?.lastProfileUpdate) {
+        setImageRefreshKey(user?.lastUpdated || user?.userData?.lastProfileUpdate || Date.now());
+      }
+      fetchProfileData();
+    }
+  }, [currentPatient?.profileImage, patient?.profileImage, currentPatient?.name, patient?.name, user?.lastUpdated, user?.userData?.lastProfileUpdate]);
 
-    return unsubscribe;
-  }, [navigation, isAuthenticated, isFirebaseAuth]);
+  // Specific watcher for user profile image changes
+  useEffect(() => {
+    console.log('🖼️ User profile image changed:', {
+      userDataImage: user?.userData?.profileImage,
+      userProfileImage: user?.profileImage,
+      lastUpdated: user?.lastUpdated
+    });
+    
+    if (user?.userData?.profileImage || user?.profileImage) {
+      console.log('📸 Forcing image refresh due to user context change');
+      setImageRefreshKey(Date.now());
+    }
+  }, [user?.userData?.profileImage, user?.profileImage]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -350,6 +413,7 @@ const ProfileScreen = ({ navigation }) => {
   ];
 
   if (isLoading && !profileData) {
+    console.log('🔄 ProfileScreen is loading, showing loading screen...');
     return (
       <View style={styles.loadingContainer}>
         <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" />
@@ -362,6 +426,33 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.loadingContent}>
           <ActivityIndicator size="large" color={Colors.kbrBlue} />
           <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!profileData && !isLoading) {
+    console.log('⚠️ No profile data available and not loading, showing error state...');
+    return (
+      <View style={styles.container}>
+        <StatusBar backgroundColor={Colors.kbrBlue} barStyle="light-content" />
+        <AppHeader 
+          title="Profile"
+          showBackButton={true}
+          navigation={navigation}
+          useSimpleAdminHeader={true}
+        />
+        <View style={styles.loadingContent}>
+          <Text style={styles.loadingText}>Unable to load profile data</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              console.log('🔄 Retry button pressed, refetching profile data...');
+              fetchProfileData();
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -399,19 +490,26 @@ const ProfileScreen = ({ navigation }) => {
               {(() => {
                 // Debug profile image sources
                 const sources = {
+                  userDataImage: user?.userData?.profileImage,
+                  userProfileImage: user?.profileImage,
                   currentPatient: currentPatient?.profileImage,
                   patient: patient?.profileImage,
-                  profileData: profileData?.profileImage,
-                  userData: user?.userData?.profileImage
+                  profileData: profileData?.profileImage
                 };
                 console.log('🖼️ Profile image sources:', sources);
                 
-                const profileImageUri = currentPatient?.profileImage || patient?.profileImage || profileData?.profileImage || user?.userData?.profileImage;
+                // Prioritize user context first (most recent), then other sources
+                const profileImageUri = user?.userData?.profileImage || 
+                                       user?.profileImage ||
+                                       currentPatient?.profileImage || 
+                                       patient?.profileImage || 
+                                       profileData?.profileImage;
+                                       
                 console.log('🖼️ Selected profile image URI:', profileImageUri);
                 
                 return profileImageUri ? (
                   <Image 
-                    source={{ uri: profileImageUri }} 
+                    source={{ uri: `${profileImageUri}?t=${imageRefreshKey}` }} // Add cache-busting parameter
                     style={styles.profileImagePhoto}
                     onError={(error) => {
                       console.log('❌ Profile image failed to load:', error.nativeEvent.error);
@@ -419,6 +517,8 @@ const ProfileScreen = ({ navigation }) => {
                     onLoad={() => {
                       console.log('✅ Profile image loaded successfully');
                     }}
+                    // Force image refresh by adding timestamp to prevent caching issues
+                    key={`profile-image-${profileImageUri}-${imageRefreshKey}`}
                   />
                 ) : (
                   <Ionicons name="person" size={40} color={Colors.kbrBlue} />
@@ -659,6 +759,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#EF4444',
+  },
+  retryButton: {
+    backgroundColor: Colors.kbrBlue,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

@@ -29,13 +29,35 @@ const EditProfileScreen = ({ navigation, route }) => {
   
   // Determine the current profile data from multiple sources
   const getInitialProfileData = () => {
-    const profileSources = currentPatient || patient || user?.userData || {};
+    // Prioritize user context first (same as ProfileScreen), then other sources
+    let profileSources = {};
+    let source = 'none';
+    
+    if (user?.userData && (user?.userData?.name || user?.userData?.email)) {
+      profileSources = user.userData;
+      source = 'user.userData';
+    } else if (user && (user?.name || user?.email)) {
+      profileSources = user;
+      source = 'user';
+    } else if (currentPatient && currentPatient.name) {
+      profileSources = currentPatient;
+      source = 'currentPatient';
+    } else if (patient && patient.name) {
+      profileSources = patient;
+      source = 'patient';
+    }
+    
     console.log('🔍 Getting initial profile data from:', {
-      source: currentPatient ? 'currentPatient' : patient ? 'patient' : user?.userData ? 'user.userData' : 'none',
+      source: source,
       name: profileSources?.name,
       email: profileSources?.email,
       profileImage: profileSources?.profileImage
     });
+    
+    // Also check for profile image in user context specifically (same priority as ProfileScreen)
+    const profileImageUri = user?.userData?.profileImage || 
+                           user?.profileImage ||
+                           profileSources?.profileImage;
     
     return {
       name: profileSources?.name || '',
@@ -45,7 +67,7 @@ const EditProfileScreen = ({ navigation, route }) => {
       bloodGroup: profileSources?.bloodGroup || '',
       address: profileSources?.address || '',
       emergencyContact: profileSources?.emergencyContact || '',
-      profileImage: profileSources?.profileImage || null,
+      profileImage: profileImageUri || null,
     };
   };
   
@@ -67,9 +89,63 @@ const EditProfileScreen = ({ navigation, route }) => {
       currentImage: profileImage
     });
     
-    setFormData(updatedData);
-    setProfileImage(updatedData.profileImage);
-  }, [currentPatient, patient, user]);
+    // Only update if the data has actually changed to prevent unnecessary re-renders
+    if (updatedData.profileImage !== profileImage || updatedData.name !== formData.name) {
+      setFormData(updatedData);
+      setProfileImage(updatedData.profileImage);
+      console.log('✅ Form data updated with new profile information');
+    }
+  }, [currentPatient, patient, user, user?.userData, user?.profileImage]);
+
+  // Force re-render when image is updated locally
+  useEffect(() => {
+    console.log('📸 Profile image updated in EditProfile:', profileImage);
+  }, [profileImage]);
+
+  // Watch for user context profile image changes specifically
+  useEffect(() => {
+    console.log('🖼️ EditProfile: User context image sources changed:', {
+      userDataImage: user?.userData?.profileImage,
+      userProfileImage: user?.profileImage,
+      currentImage: profileImage
+    });
+    
+    // If user context has a different image than what's currently shown, update it
+    const contextImage = user?.userData?.profileImage || user?.profileImage;
+    if (contextImage && contextImage !== profileImage) {
+      console.log('🔄 Updating EditProfile image from user context');
+      setProfileImage(contextImage);
+      setFormData(prev => ({
+        ...prev,
+        profileImage: contextImage
+      }));
+    }
+  }, [user?.userData?.profileImage, user?.profileImage]);
+
+  // Listen for navigation focus to refresh data when entering EditProfile
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log('📱 EditProfileScreen focused - refreshing profile data...');
+      console.log('🔍 Current auth states:', {
+        hasUser: !!user,
+        hasCurrentUser: !!currentUser,
+        hasCurrentPatient: !!currentPatient,
+        hasPatient: !!patient
+      });
+      
+      // Refresh profile data when screen gains focus
+      const refreshedData = getInitialProfileData();
+      setFormData(refreshedData);
+      setProfileImage(refreshedData.profileImage);
+      
+      console.log('✅ EditProfile data refreshed on focus:', {
+        name: refreshedData.name,
+        hasImage: !!refreshedData.profileImage
+      });
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   console.log('📋 EditProfileScreen initialized with data:', {
     hasCurrentPatient: !!currentPatient,
@@ -183,8 +259,19 @@ const EditProfileScreen = ({ navigation, route }) => {
       
       console.log('✅ Profile updated successfully in UnifiedAuth');
       
+      // Force immediate update of profile image in local state
+      setProfileImage(profileImage);
+      
+      // Update form data to reflect saved changes immediately
+      setFormData(prev => ({
+        ...prev,
+        profileImage: profileImage
+      }));
+      
+      console.log('🔄 Local state updated with new profile image:', profileImage);
+      
       // Add a small delay to ensure Firebase update completes
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Force refresh AppContext to get updated Firebase data
       if (currentUser?.uid && fetchCurrentPatientData) {
@@ -193,12 +280,50 @@ const EditProfileScreen = ({ navigation, route }) => {
         console.log('✅ AppContext patient data refreshed');
       }
       
+      // Force a re-render with updated profile image
+      console.log('🔄 Forcing profile data refresh with new image...');
+      
+      // Update local form data to reflect saved changes
+      const updatedData = getInitialProfileData();
+      setFormData({
+        ...updatedData,
+        profileImage: profileImage // Ensure the latest image is included
+      });
+      setProfileImage(profileImage); // Force the image state
+      
+      console.log('📸 Profile image state updated:', {
+        formImage: profileImage,
+        localImage: profileImage,
+        finalImage: profileImage
+      });
+      
       Alert.alert('Success', 'Profile updated successfully!', [
         {
           text: 'OK',
-          onPress: () => {
+          onPress: async () => {
             console.log('📱 Navigating back to profile screen...');
-            navigation.goBack();
+            
+            try {
+              // Force update the context with the new image before going back
+              console.log('🔄 Forcing final context update with new profile image...');
+              
+              // Make sure to call updateUser again with just the profile image to ensure it's updated
+              if (profileImage && typeof updateUser === 'function') {
+                await updateUser({ 
+                  profileImage: profileImage,
+                  lastProfileUpdate: Date.now() // Add timestamp to trigger re-render
+                });
+                console.log('✅ Final profile image update completed');
+              }
+              
+              // Small delay to ensure state propagation
+              await new Promise(resolve => setTimeout(resolve, 200));
+              
+            } catch (error) {
+              console.log('⚠️ Error in final update:', error);
+            } finally {
+              navigation.goBack();
+            }
           },
         },
       ]);
@@ -232,7 +357,11 @@ const EditProfileScreen = ({ navigation, route }) => {
           <View style={styles.imageSection}>
             <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.profileImage} />
+                <Image 
+                  source={{ uri: profileImage }} 
+                  style={styles.profileImage}
+                  key={`edit-profile-image-${profileImage}-${Date.now()}`} // Force refresh on image change
+                />
               ) : (
                 <View style={styles.placeholderImage}>
                   <Ionicons name="person" size={40} color={theme.primary} />
