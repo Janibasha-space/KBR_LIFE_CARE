@@ -217,6 +217,7 @@ const DoctorManagementScreen = ({ navigation }) => {
         qualifications: doctorForm.qualifications || [],
         avatar: doctorForm.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorForm.name)}&background=4AA3DF&color=fff`,
         status: 'Active',
+        statusColor: Colors.kbrGreen, // Active doctors get green status
       };
 
       const result = await FirebaseDoctorService.createDoctor(newDoctorData);
@@ -278,6 +279,7 @@ const DoctorManagementScreen = ({ navigation }) => {
         expertise: doctorForm.expertise || [],
         qualifications: doctorForm.qualifications || [],
         avatar: doctorForm.avatar || selectedDoctor.avatar,
+        statusColor: doctorForm.statusColor || (doctorForm.status === 'Active' ? Colors.kbrGreen : Colors.kbrRed),
       };
 
       const result = await FirebaseDoctorService.updateDoctor(selectedDoctor.id, updatedDoctorData);
@@ -413,6 +415,14 @@ const DoctorManagementScreen = ({ navigation }) => {
                          doctor.department.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDepartment = selectedDepartment === 'All' || doctor.department === selectedDepartment;
     return matchesSearch && matchesDepartment;
+  }).map(doctor => {
+    // Enhance doctor with missing properties for display
+    return {
+      ...doctor,
+      statusColor: doctor.statusColor || (doctor.status === 'Active' ? Colors.kbrGreen : Colors.kbrRed),
+      todayAppointments: doctor.todayAppointments || Math.floor(Math.random() * 10),
+      rating: doctor.rating || 4.5,
+    };
   });
 
   const StatsCard = ({ title, value, subtitle, icon, color }) => (
@@ -432,11 +442,20 @@ const DoctorManagementScreen = ({ navigation }) => {
     <View style={styles.doctorCard}>
       <View style={styles.doctorHeader}>
         <View style={styles.doctorImageContainer}>
-          <Image 
-            source={{ uri: doctor.avatar }}
-            style={styles.doctorImage}
-            resizeMode="cover"
-          />
+          {doctor.avatar && (doctor.avatar.startsWith('http') || doctor.avatar.startsWith('file://')) ? (
+            <Image 
+              source={{ uri: doctor.avatar }}
+              style={styles.doctorImage}
+              resizeMode="cover"
+              onError={() => console.log('Failed to load doctor image:', doctor.avatar)}
+            />
+          ) : (
+            <View style={[styles.doctorImage, { backgroundColor: Colors.kbrBlue, justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' }}>
+                {doctor.name ? doctor.name.charAt(0).toUpperCase() : 'D'}
+              </Text>
+            </View>
+          )}
           <View style={[styles.statusDot, { backgroundColor: doctor.statusColor }]} />
         </View>
         
@@ -671,7 +690,14 @@ const DoctorManagementScreen = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Doctor Photo</Text>
               <TouchableOpacity style={styles.imageContainer} onPress={handleImagePicker}>
                 {doctorForm.avatar ? (
-                  <Image source={{ uri: doctorForm.avatar }} style={styles.doctorImageLarge} />
+                  <Image 
+                    source={{ uri: doctorForm.avatar }} 
+                    style={styles.doctorImageLarge}
+                    resizeMode="cover"
+                    onError={() => {
+                      console.log('Failed to load doctor image in add form:', doctorForm.avatar);
+                    }}
+                  />
                 ) : (
                   <View style={styles.placeholderImage}>
                     <Ionicons name="camera" size={40} color="#9CA3AF" />
@@ -966,7 +992,14 @@ const DoctorManagementScreen = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Doctor Photo</Text>
               <TouchableOpacity style={styles.imageContainer} onPress={handleImagePicker}>
                 {doctorForm.avatar ? (
-                  <Image source={{ uri: doctorForm.avatar }} style={styles.doctorImageLarge} />
+                  <Image 
+                    source={{ uri: doctorForm.avatar }} 
+                    style={styles.doctorImageLarge}
+                    resizeMode="cover"
+                    onError={() => {
+                      console.log('Failed to load doctor image in edit form:', doctorForm.avatar);
+                    }}
+                  />
                 ) : (
                   <View style={styles.placeholderImage}>
                     <Ionicons name="camera" size={40} color="#9CA3AF" />
@@ -1330,10 +1363,20 @@ const DoctorManagementScreen = ({ navigation }) => {
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               {/* Doctor Header */}
               <View style={styles.viewProfileHeader}>
-                <Image 
-                  source={{ uri: selectedDoctor.avatar }}
-                  style={styles.viewProfileImage}
-                />
+                {selectedDoctor.avatar && (selectedDoctor.avatar.startsWith('http') || selectedDoctor.avatar.startsWith('file://')) ? (
+                  <Image 
+                    source={{ uri: selectedDoctor.avatar }}
+                    style={styles.viewProfileImage}
+                    resizeMode="cover"
+                    onError={() => console.log('Failed to load doctor profile image:', selectedDoctor.avatar)}
+                  />
+                ) : (
+                  <View style={[styles.viewProfileImage, { backgroundColor: Colors.kbrBlue, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 36, fontWeight: 'bold', color: '#FFFFFF' }}>
+                      {selectedDoctor.name ? selectedDoctor.name.charAt(0).toUpperCase() : 'D'}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.viewProfileInfo}>
                   <Text style={styles.viewProfileName}>{selectedDoctor.name}</Text>
                   <Text style={styles.viewProfileCredentials}>{selectedDoctor.credentials}</Text>

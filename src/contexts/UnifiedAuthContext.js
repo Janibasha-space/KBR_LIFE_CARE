@@ -305,13 +305,19 @@ export const UnifiedAuthProvider = ({ children }) => {
         console.log('✅ Firebase profile updated successfully');
       }
       
-      // Update local state with merged data
+      // Update local state with merged data - ensure image is accessible from multiple paths
       const updatedUser = {
         ...authState.user,
         userData: {
           ...authState.user?.userData,
-          ...profileData
-        }
+          ...profileData,
+          // Ensure profile image is at userData level
+          profileImage: profileData.profileImage || authState.user?.userData?.profileImage
+        },
+        // Also update profile image at the top level for immediate access
+        profileImage: profileData.profileImage || authState.user?.profileImage,
+        // Add timestamp to trigger re-renders
+        lastUpdated: Date.now()
       };
 
       setAuthState(prev => ({
@@ -319,7 +325,14 @@ export const UnifiedAuthProvider = ({ children }) => {
         user: updatedUser
       }));
       
-      console.log('✅ Local auth state updated successfully');
+      console.log('✅ Local auth state updated successfully with profile image:', {
+        topLevel: updatedUser.profileImage,
+        userData: updatedUser.userData?.profileImage,
+        lastUpdated: updatedUser.lastUpdated
+      });
+      
+      // Force a small delay to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       return { success: true };
     } catch (error) {
