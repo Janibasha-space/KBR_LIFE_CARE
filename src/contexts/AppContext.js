@@ -18,6 +18,13 @@ import {
 } from '../services/firebaseHospitalServices';
 import { SimpleBookingService } from '../services/simpleBookingService';
 
+// Feature flags for optional functionality
+const FEATURE_FLAGS = {
+  ENABLE_INVOICES_LISTENER: false, // Temporarily disabled to prevent permission errors
+  ENABLE_ADMIN_ONLY_FEATURES: true,
+  ENABLE_REAL_TIME_UPDATES: true
+};
+
 // Central App Context for Admin-Patient Integration
 // This context manages all shared data between admin and patient dashboards
 
@@ -1032,38 +1039,49 @@ export const AppProvider = ({ children }) => {
       });
       if (doctorsUnsubscribe) newUnsubscribeFunctions.doctors = doctorsUnsubscribe;
 
-      // Real-time invoices listener with enhanced authentication checks
-      console.log('🔄 Setting up invoices real-time listener...');
-      const invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
-        // Add authentication check and Firebase operations check - this is crucial for preventing permission errors
+      // Invoices real-time listener - controlled by feature flag
+      if (FEATURE_FLAGS.ENABLE_INVOICES_LISTENER) {
         const { auth } = require('../config/firebase.config');
-        if (!auth.currentUser || !firebaseOperationsEnabled) {
-          console.log('🚫 Invoices listener: User not authenticated or Firebase operations disabled, ignoring update');
-          return;
-        }
+        const currentUser = auth.currentUser;
+        const isAdmin = currentUser && (
+          currentUser.email === 'thukaram2388@gmail.com' || 
+          currentUser.displayName?.toLowerCase().includes('admin')
+        );
         
-        if (result.success) {
-          if (result.data.length > 0) {
-            console.log(`🧾 Real-time invoices update: ${result.data.length} invoices`);
-          } else {
-            throttledLog('invoices-empty', '🧾 Real-time invoices update: 0 invoices (permission denied)', 10000);
-          }
-          setAppState(prev => ({
-            ...prev,
-            invoices: removeDuplicatesById(result.data, 'invoices')
-          }));
-        } else if (result.warning) {
-          throttledLog('invoices-warning', '⚠️ Invoices listener warning: ' + result.warning, 10000);
-          // Set empty invoices on permission error
-          setAppState(prev => ({
-            ...prev,
-            invoices: []
-          }));
+        if (isAdmin) {
+          console.log('🔄 Setting up invoices real-time listener for admin...');
+          const invoicesUnsubscribe = firebaseHospitalServices.subscribeToInvoices((result) => {
+            // Add authentication check and Firebase operations check
+            const { auth } = require('../config/firebase.config');
+            if (!auth.currentUser || !firebaseOperationsEnabled) {
+              console.log('� Invoices listener: User not authenticated or Firebase operations disabled, ignoring update');
+              return;
+            }
+            
+            if (result.success) {
+              if (result.data.length > 0) {
+                console.log(`🧾 Real-time invoices update: ${result.data.length} invoices`);
+              }
+              setAppState(prev => ({
+                ...prev,
+                invoices: removeDuplicatesById(result.data, 'invoices')
+              }));
+            } else if (result.warning) {
+              console.log('⚠️ Invoices listener warning: ' + result.warning);
+              setAppState(prev => ({ ...prev, invoices: [] }));
+            } else {
+              console.log('❌ Invoices listener error: ' + result.error);
+            }
+          });
+          if (invoicesUnsubscribe) newUnsubscribeFunctions.invoices = invoicesUnsubscribe;
         } else {
-          throttledLog('invoices-error', '❌ Invoices listener error: ' + result.error, 5000);
+          console.log('📋 Skipping invoices listener setup - user is not admin');
+          setAppState(prev => ({ ...prev, invoices: [] }));
         }
-      });
-      if (invoicesUnsubscribe) newUnsubscribeFunctions.invoices = invoicesUnsubscribe;
+      } else {
+        console.log('📋 Invoices real-time listener disabled by feature flag');
+        setAppState(prev => ({ ...prev, invoices: [] }));
+      }
 
       // Store unsubscribe functions
       setUnsubscribeFunctions(newUnsubscribeFunctions);

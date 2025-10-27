@@ -1997,6 +1997,17 @@ class FirebaseInvoiceService {
         return null;
       }
       
+      // Additional check for Firebase initialization
+      if (!db) {
+        console.log('🚫 Cannot setup invoices listener: Firebase not initialized');
+        callback({
+          success: true,
+          data: [],
+          warning: 'Firebase not initialized - listener not setup'
+        });
+        return null;
+      }
+      
       const invoicesRef = collection(db, this.collectionName);
       const q = query(invoicesRef, orderBy('createdAt', 'desc'));
       
@@ -2037,7 +2048,7 @@ class FirebaseInvoiceService {
         console.error('❌ Invoices real-time listener error:', error);
         
         if (error.code === 'permission-denied') {
-          console.log('🔒 Permission denied for invoices - user likely logged out');
+          console.log('🔒 Permission denied for invoices - disabling listener');
           // Mark listener as inactive
           isListenerActive = false;
           callback({
