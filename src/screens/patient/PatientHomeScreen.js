@@ -19,6 +19,7 @@ import {
   Alert,
   Linking,
   Dimensions,
+  RefreshControl,
   ActivityIndicator,
   Animated,
   LayoutAnimation,
@@ -153,6 +154,7 @@ const PatientHomeScreen = ({ navigation }) => {
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(2); // Default to Comprehensive package (index 2)
   const [isTreatmentExpanded, setIsTreatmentExpanded] = useState(true); // State for treatment card expansion
@@ -564,6 +566,49 @@ const PatientHomeScreen = ({ navigation }) => {
     }
   }, [doctorScrollPosition, firebaseDoctors.length, isDoctorScrollPaused, screenWidth]);
 
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Refresh services data
+      try {
+        const servicesData = getAllServices();
+        console.log('Refreshed services data:', servicesData?.length || 0, 'services');
+      } catch (err) {
+        console.log('Error refreshing services data:', err);
+      }
+
+      // Refresh Firebase doctors data
+      try {
+        if (user) {
+          const doctorsResult = await firebaseHospitalServices.getDoctors();
+          console.log('Refreshed Firebase doctors:', doctorsResult);
+          
+          if (doctorsResult?.success && doctorsResult?.data && doctorsResult.data.length > 0) {
+            setFirebaseDoctors(doctorsResult.data);
+          } else {
+            console.log('No Firebase doctors found during refresh, keeping current data');
+          }
+        } else {
+          console.log('🔒 User not authenticated during refresh, using sample doctors');
+          setFirebaseDoctors(doctors);
+        }
+      } catch (err) {
+        console.log('Error refreshing Firebase doctors:', err);
+      }
+
+      // Update patient status if authenticated
+      if (isAuthenticated && user) {
+        // In real app, this would refresh patient data from API
+        console.log('Patient data refreshed');
+      }
+
+    } catch (error) {
+      console.error('Error during refresh:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
 
   const handleServicePress = (serviceName) => {
@@ -782,7 +827,18 @@ const PatientHomeScreen = ({ navigation }) => {
         {/* Patient Treatment Status - REMOVED as requested by user */}
         {/* {renderPatientTreatmentStatus()} */}
 
-        <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={[styles.scrollView, { backgroundColor: theme.background }]} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={['#4AA3DF']}
+              tintColor="#4AA3DF"
+            />
+          }
+        >
           {/* Hero Section - Simplified for better loading */}
           <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
             <Image 

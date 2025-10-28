@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +34,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const { user, isAuthenticated } = useFirebaseAuth();
   const { appState, adminStats } = useApp();
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     totalUsers: 0,
@@ -206,6 +208,54 @@ const AdminDashboardScreen = ({ navigation }) => {
     };
   }, [isAuthenticated]); // Removed problematic dependencies
 
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('📱 AdminDashboard: Refreshing dashboard data...');
+      
+      // Fetch all data from Firebase collections
+      const [doctorsResult, appointmentsResult, usersResult, paymentsResult] = await Promise.all([
+        FirebaseDoctorService.getDoctors(),
+        FirebaseAppointmentService.getAppointments(),
+        FirebasePatientService.getAllUsers(),
+        FirebasePaymentService.getPayments()
+      ]);
+
+      const doctors = doctorsResult?.success ? doctorsResult.data : [];
+      const appointments = appointmentsResult?.success ? appointmentsResult.data : [];
+      const users = usersResult?.success ? usersResult.data : [];
+      const payments = paymentsResult?.success ? paymentsResult.data : [];
+      
+      // Recalculate dashboard stats
+      const today = new Date().toISOString().split('T')[0];
+      const todayAppointments = appointments.filter(apt => 
+        apt.appointmentDate && apt.appointmentDate.startsWith(today)
+      ).length;
+
+      const recentAppointments = appointments
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 3);
+
+      // Update dashboard data
+      setDashboardData({
+        totalUsers: users.length,
+        totalAppointments: appointments.length,
+        totalRevenue: appState.adminStats?.totalRevenue || 0,
+        activeDoctors: doctors.length,
+        todayAppointments: todayAppointments,
+        recentAppointments: recentAppointments,
+        pendingInvoicesCount: payments.filter(p => p.status === 'pending').length
+      });
+
+      console.log('✅ AdminDashboard data refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error during admin dashboard refresh:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Memoize adminStats to prevent unnecessary re-renders
   const memoizedAdminStats = useMemo(() => {
     return {
@@ -331,7 +381,18 @@ const AdminDashboardScreen = ({ navigation }) => {
           hideProfileButton={true}
         />
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={['#4AA3DF']}
+              tintColor="#4AA3DF"
+            />
+          }
+        >
         {/* Stats Cards */}
         <View style={styles.statsSection}>
           <View style={styles.statsGrid}>

@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,6 +48,7 @@ const ServicesScreen = ({ navigation, route }) => {
   // State for Firebase services with doctors
   const [firebaseServices, setFirebaseServices] = useState([]);
   const [loadingFirebaseServices, setLoadingFirebaseServices] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // State for Firebase tests
   const [firebaseTests, setFirebaseTests] = useState([]);
@@ -261,6 +263,40 @@ const ServicesScreen = ({ navigation, route }) => {
           animated: true
         });
       }, 300);
+    }
+  };
+  
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('📱 ServicesScreen: Refreshing data...');
+      
+      // Refresh services data
+      setLoadingFirebaseServices(true);
+      const servicesResult = await firebaseHospitalServices.getServicesWithDoctors();
+      if (servicesResult.success) {
+        setFirebaseServices(servicesResult.data);
+        console.log('✅ Refreshed services:', servicesResult.data.length);
+      }
+      setLoadingFirebaseServices(false);
+      
+      // Refresh tests data  
+      setLoadingFirebaseTests(true);
+      if (typeof firebaseHospitalServices.getTests === 'function') {
+        const testsResult = await firebaseHospitalServices.getTests();
+        if (testsResult && testsResult.success) {
+          setFirebaseTests(testsResult.data || []);
+          console.log('✅ Refreshed tests:', (testsResult.data || []).length);
+        }
+      }
+      setLoadingFirebaseTests(false);
+      
+      console.log('📱 ServicesScreen: Data refresh completed');
+    } catch (error) {
+      console.error('❌ Error during refresh:', error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
   
@@ -927,7 +963,16 @@ const ServicesScreen = ({ navigation, route }) => {
       <ScrollView 
         ref={scrollViewRef}
         style={[styles.scrollView, { backgroundColor: theme.background }]} 
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={['#4AA3DF']}
+            tintColor="#4AA3DF"
+          />
+        }
+      >
         {/* Page Title */}
         <View style={[styles.titleSection, { backgroundColor: theme.background }]}>
           <View style={styles.titleRow}>

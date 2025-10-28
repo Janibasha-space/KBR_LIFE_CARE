@@ -16,6 +16,7 @@ import {
   FlatList,
   Linking,
   PermissionsAndroid,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
@@ -44,6 +45,7 @@ const MedicalReportsScreen = ({ navigation }) => {
   // Real-time Firebase reports state
   const [userReports, setUserReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   // Debug logging
@@ -143,6 +145,54 @@ const MedicalReportsScreen = ({ navigation }) => {
       }
     };
   }, [userData?.id, userData?.uid, userData?.email, userData?.phone, contextReports]);
+
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      console.log('📱 MedicalReports: Refreshing reports data...');
+      
+      // The real-time listener will automatically update the data
+      // We just need to trigger a manual refresh of the query
+      if (userData?.id || userData?.uid || userData?.email || userData?.phone) {
+        setLoading(true);
+        
+        // Re-trigger the useEffect logic manually
+        const userId = userData.id || userData.uid;
+        const userEmail = userData.email;
+        const userPhone = userData.phone || userData.phoneNumber;
+        
+        // Force a new snapshot to refresh data
+        const reportsRef = collection(db, 'reports');
+        const snapshot = await getDocs(reportsRef);
+        
+        const userSpecificReports = [];
+        snapshot.forEach((doc) => {
+          const reportData = doc.data();
+          const matchesId = reportData.patientId === userId;
+          const matchesEmail = reportData.patientEmail === userEmail || reportData.email === userEmail;
+          const matchesPhone = reportData.patientPhone === userPhone || 
+                              reportData.phone === userPhone ||
+                              reportData.sentToPhoneNumber === userPhone;
+          
+          if ((matchesId || matchesEmail || matchesPhone) && reportData.sentToPatient) {
+            userSpecificReports.push({
+              id: doc.id,
+              ...reportData
+            });
+          }
+        });
+        
+        setUserReports(userSpecificReports);
+        setLoading(false);
+        console.log('✅ Reports refreshed:', userSpecificReports.length);
+      }
+    } catch (error) {
+      console.error('❌ Error during refresh:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Helper function to get color for category
   const getCategoryColor = (category) => {
@@ -699,7 +749,18 @@ const MedicalReportsScreen = ({ navigation }) => {
           showBackButton={true}
         />
 
-        <ScrollView style={[styles.scrollView, { backgroundColor: theme?.background || Colors.background }]} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={[styles.scrollView, { backgroundColor: theme?.background || Colors.background }]} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={['#4AA3DF']}
+              tintColor="#4AA3DF"
+            />
+          }
+        >
           {/* Title Section */}
           <View style={[styles.titleSection, { backgroundColor: theme?.background || Colors.background }]}>
             <Text style={styles.mainTitle}>Medical Reports</Text>

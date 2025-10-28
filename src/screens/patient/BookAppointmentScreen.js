@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   FlatList,
   BackHandler,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -211,6 +212,19 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     }
   };
 
+  // Refresh function for pull-to-refresh
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadFirebaseData();
+      console.log('📱 BookAppointment data refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error during refresh:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Control tab bar visibility based on booking state
   useEffect(() => {
     if (bookingStarted) {
@@ -269,6 +283,7 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
   // UI state
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showUserRegistration, setShowUserRegistration] = useState(false);
   const [otpVerification, setOtpVerification] = useState({
     show: false,
@@ -1073,7 +1088,18 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           </View>
         )}
         
-        <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={{flex: 1}} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={['#4AA3DF']}
+              tintColor="#4AA3DF"
+            />
+          }
+        >
           {servicesLoading ? (
             <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
               <LoadingOverlay visible={true} message="Loading services from database..." />
@@ -1177,7 +1203,18 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           </Text>
         </View>
         
-        <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={{flex: 1}} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={['#4AA3DF']}
+              tintColor="#4AA3DF"
+            />
+          }
+        >
           {doctors.length > 0 ? (
             doctors.map((doctor) => (
               <TouchableOpacity
