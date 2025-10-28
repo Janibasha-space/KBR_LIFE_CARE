@@ -508,18 +508,38 @@ Search: "${searchQuery || 'none'}"`,
     
     console.log(`📊 Payment stats calculating from ${totalPayments} payments (aggregated: ${aggregatedPayments?.length || 0}, direct: ${payments?.length || 0})`);
     
-    // Calculate total revenue from actual amounts paid
+    // Calculate total revenue from actual amounts paid - ensuring proper number conversion
     const totalRevenue = paymentsToUse.reduce((sum, payment) => {
-      const actualPaid = payment.paidAmount || payment.actualAmountPaid || 
-                        (payment.status === 'paid' ? payment.amount : 0) || 0;
+      // Convert to number properly and handle undefined/null values
+      let actualPaid = 0;
+      
+      if (payment.paidAmount !== undefined && payment.paidAmount !== null) {
+        actualPaid = parseFloat(payment.paidAmount) || 0;
+      } else if (payment.actualAmountPaid !== undefined && payment.actualAmountPaid !== null) {
+        actualPaid = parseFloat(payment.actualAmountPaid) || 0;
+      } else if (payment.status === 'paid' && payment.amount !== undefined && payment.amount !== null) {
+        actualPaid = parseFloat(payment.amount) || 0;
+      }
+      
+      console.log(`💰 Payment ${payment.patientName}: actualPaid=₹${actualPaid} (paidAmount: ${payment.paidAmount}, actualAmountPaid: ${payment.actualAmountPaid}, amount: ${payment.amount}, status: ${payment.status})`);
       return sum + actualPaid;
     }, 0);
     
-    // Calculate pending amounts using full amounts and due amounts
+    // Calculate pending amounts using full amounts and due amounts - ensuring proper number conversion
     const totalPending = paymentsToUse.reduce((sum, payment) => {
-      const dueAmount = payment.dueAmount || 
-                       (payment.totalAmount ? payment.totalAmount - (payment.paidAmount || 0) : 
-                        payment.status === 'pending' ? payment.amount : 0) || 0;
+      let dueAmount = 0;
+      
+      if (payment.dueAmount !== undefined && payment.dueAmount !== null) {
+        dueAmount = parseFloat(payment.dueAmount) || 0;
+      } else if (payment.totalAmount !== undefined && payment.totalAmount !== null && payment.paidAmount !== undefined && payment.paidAmount !== null) {
+        const total = parseFloat(payment.totalAmount) || 0;
+        const paid = parseFloat(payment.paidAmount) || 0;
+        dueAmount = Math.max(0, total - paid);
+      } else if (payment.status === 'pending' && payment.amount !== undefined && payment.amount !== null) {
+        dueAmount = parseFloat(payment.amount) || 0;
+      }
+      
+      console.log(`💰 Payment ${payment.patientName}: dueAmount=₹${dueAmount} (totalAmount: ${payment.totalAmount}, paidAmount: ${payment.paidAmount}, status: ${payment.status})`);
       return sum + dueAmount;
     }, 0);
     
@@ -530,8 +550,8 @@ Search: "${searchQuery || 'none'}"`,
     console.log(`💰 Payment stats calculated: Revenue=₹${totalRevenue}, Pending=₹${totalPending}, FullyPaid=${fullyPaidCount}, Partial=${partiallyPaidCount}`);
 
     return {
-      totalRevenue,
-      totalPending,
+      totalRevenue: Math.round(totalRevenue * 100) / 100, // Round to 2 decimal places to avoid floating point issues
+      totalPending: Math.round(totalPending * 100) / 100, // Round to 2 decimal places to avoid floating point issues
       fullyPaidCount,
       partiallyPaidCount,
       pendingCount,
@@ -1501,7 +1521,18 @@ Search: "${searchQuery || 'none'}"`,
   };
 
   const formatCurrency = (amount) => {
-    return `₹${(amount || 0).toLocaleString('en-IN')}`;
+    // Ensure we have a valid number
+    const numAmount = parseFloat(amount) || 0;
+    
+    // Handle edge cases and ensure proper formatting
+    if (isNaN(numAmount) || !isFinite(numAmount)) {
+      return '₹0';
+    }
+    
+    // Round to 2 decimal places to avoid floating point issues
+    const roundedAmount = Math.round(numAmount * 100) / 100;
+    
+    return `₹${roundedAmount.toLocaleString('en-IN')}`;
   };
 
   const RevenueCard = ({ title, amount, icon, color, subtitle }) => (
@@ -1886,7 +1917,7 @@ Search: "${searchQuery || 'none'}"`,
                     <View style={[styles.statsCard, { backgroundColor: '#E8F5E8' }]}>
                       <Text style={styles.statsTitle}>Total Revenue</Text>
                       <Text style={[styles.statsAmount, { color: '#22C55E' }]}>
-                        ₹{paymentStats.totalRevenue.toLocaleString()}
+                        {formatCurrency(paymentStats.totalRevenue)}
                       </Text>
                       <Text style={styles.statsSubtitle}>{paymentStats.fullyPaidCount} fully paid</Text>
                     </View>
@@ -1894,7 +1925,7 @@ Search: "${searchQuery || 'none'}"`,
                     <View style={[styles.statsCard, { backgroundColor: '#FFF3CD' }]}>
                       <Text style={styles.statsTitle}>Pending Dues</Text>
                       <Text style={[styles.statsAmount, { color: '#EF4444' }]}>
-                        ₹{paymentStats.totalPending.toLocaleString()}
+                        {formatCurrency(paymentStats.totalPending)}
                       </Text>
                       <Text style={styles.statsSubtitle}>{paymentStats.pendingCount} pending</Text>
                     </View>

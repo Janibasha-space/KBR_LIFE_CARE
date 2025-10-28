@@ -1241,12 +1241,12 @@ export const AppProvider = ({ children }) => {
         
         if (payment.status === 'fully paid' || payment.status === 'paid' || payment.paymentStatus === 'Paid') {
           // Fully paid - use total amount
-          const amount = payment.amount || payment.totalAmount || 0;
+          const amount = parseFloat(payment.amount || payment.totalAmount) || 0;
           console.log(`✅ Fully paid: Adding ₹${amount}`);
           return sum + amount;
         } else if (payment.status === 'partially paid' || payment.status === 'partial' || payment.paymentStatus === 'Partially Paid') {
           // Partially paid - use only the paid amount (not due amount)
-          const paidAmount = payment.paidAmount || 0;
+          const paidAmount = parseFloat(payment.paidAmount) || 0;
           console.log(`🔄 Partially paid: Adding ₹${paidAmount} (out of ₹${payment.amount || payment.totalAmount || 0})`);
           return sum + paidAmount;
         }
@@ -1263,31 +1263,28 @@ export const AppProvider = ({ children }) => {
       // Add revenue from paid appointments (OP payments) - only count fully paid
       const appointmentRevenue = appState.appointments
         .filter(apt => apt.paymentStatus === 'Paid')
-        .reduce((sum, apt) => sum + (apt.amount || apt.totalAmount || apt.consultationFee || 0), 0);
+        .reduce((sum, apt) => sum + (parseFloat(apt.amount || apt.totalAmount || apt.consultationFee) || 0), 0);
       totalRevenue += appointmentRevenue;
       console.log(`🏥 Appointment revenue (Paid only): ₹${appointmentRevenue}`);
       
       // Add revenue from patient payments (IP payments) - only count the PAID amount
       const patientRevenue = appState.patients
         .filter(patient => patient.paymentDetails && patient.paymentDetails.totalPaid > 0)
-        .reduce((sum, patient) => sum + (patient.paymentDetails.totalPaid || 0), 0);
+        .reduce((sum, patient) => sum + (parseFloat(patient.paymentDetails.totalPaid) || 0), 0);
       totalRevenue += patientRevenue;
       console.log(`🏨 Patient revenue (Paid amount only): ₹${patientRevenue}`);
       
       // Add revenue from invoices that are paid
       const invoiceRevenue = appState.invoices
         .filter(invoice => invoice.status === 'Paid' || invoice.paymentStatus === 'Paid')
-        .reduce((sum, invoice) => sum + (invoice.totalAmount || invoice.amount || 0), 0);
+        .reduce((sum, invoice) => sum + (parseFloat(invoice.totalAmount || invoice.amount) || 0), 0);
       totalRevenue += invoiceRevenue;
       console.log(`🧾 Invoice revenue (Paid only): ₹${invoiceRevenue}`);
       
       // Add revenue from direct payments collection
-      const directRevenue = appState.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      const directRevenue = appState.payments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
       totalRevenue += directRevenue;
       console.log(`💰 Direct payments revenue: ₹${directRevenue}`);
-      // Fallback to individual source calculation
-      // Add revenue from direct payments collection
-      totalRevenue += appState.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
       
       // Add revenue from paid appointments (OP payments)
       totalRevenue += appState.appointments
@@ -1310,7 +1307,7 @@ export const AppProvider = ({ children }) => {
     const stats = {
       totalUsers: appState.patients.length,
       totalAppointments: appState.appointments.length,
-      totalRevenue: totalRevenue,
+      totalRevenue: Math.round(totalRevenue * 100) / 100, // Round to 2 decimal places to avoid floating point issues
       activeDoctors: appState.doctors.filter(doc => doc.status === 'Active' || doc.availability === 'Available').length || appState.doctors.length,
       todayAppointments: appState.appointments.filter(apt => {
         const today = new Date().toISOString().split('T')[0];
