@@ -114,7 +114,44 @@ const AuthModal = ({ visible, onClose, navigation }) => {
           ]);
         }
       } catch (error) {
-        Alert.alert('Sign In Failed', error.message || 'Please check your credentials and try again.');
+        // Don't log the error to console to avoid showing error notification in development
+        // console.error('Sign in error:', error);
+        
+        // Convert Firebase errors to user-friendly messages
+        let errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        
+        if (error.code) {
+          switch (error.code) {
+            case 'auth/user-not-found':
+              errorMessage = 'No account found with this email address.';
+              break;
+            case 'auth/wrong-password':
+              errorMessage = 'Invalid password. Please try again.';
+              break;
+            case 'auth/invalid-email':
+              errorMessage = 'Please enter a valid email address.';
+              break;
+            case 'auth/user-disabled':
+              errorMessage = 'This account has been disabled.';
+              break;
+            case 'auth/too-many-requests':
+              errorMessage = 'Too many failed attempts. Please try again later.';
+              break;
+            case 'auth/network-request-failed':
+              errorMessage = 'Network error. Please check your connection and try again.';
+              break;
+            case 'auth/invalid-credential':
+            case 'auth/invalid-login-credentials':
+              errorMessage = 'Invalid email or password. Please check your credentials.';
+              break;
+            default:
+              // For any other Firebase errors, show generic message
+              errorMessage = 'Login failed. Please check your email and password.';
+              break;
+          }
+        }
+        
+        Alert.alert('Sign In Failed', errorMessage);
       } finally {
         setLoading(false);
       }
@@ -157,7 +194,37 @@ const AuthModal = ({ visible, onClose, navigation }) => {
           ]);
         }
       } catch (error) {
-        Alert.alert('Registration Failed', error.message || 'Please try again.');
+        // Don't log the error to console to avoid showing error notification in development
+        // console.error('Registration error:', error);
+        
+        // Convert Firebase errors to user-friendly messages
+        let errorMessage = 'Registration failed. Please try again.';
+        
+        if (error.code) {
+          switch (error.code) {
+            case 'auth/email-already-in-use':
+              errorMessage = 'An account with this email already exists. Please use a different email or sign in.';
+              break;
+            case 'auth/invalid-email':
+              errorMessage = 'Please enter a valid email address.';
+              break;
+            case 'auth/weak-password':
+              errorMessage = 'Password is too weak. Please choose a stronger password.';
+              break;
+            case 'auth/operation-not-allowed':
+              errorMessage = 'Account creation is currently disabled. Please contact support.';
+              break;
+            case 'auth/network-request-failed':
+              errorMessage = 'Network error. Please check your connection and try again.';
+              break;
+            default:
+              // For any other Firebase errors, show generic message
+              errorMessage = 'Registration failed. Please check your information and try again.';
+              break;
+          }
+        }
+        
+        Alert.alert('Registration Failed', errorMessage);
       } finally {
         setLoading(false);
       }

@@ -20,7 +20,8 @@ export class AuthService {
       
       return response;
     } catch (error) {
-      console.error('Login failed:', error);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Login failed:', error);
       throw error;
     }
   }
@@ -43,7 +44,8 @@ export class AuthService {
       
       return response;
     } catch (error) {
-      console.error('Registration failed:', error);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Registration failed:', error);
       throw error;
     }
   }

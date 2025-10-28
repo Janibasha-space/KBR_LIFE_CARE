@@ -82,7 +82,8 @@ export class FirebaseAuthService {
         message: 'Login successful'
       };
     } catch (error) {
-      console.error('Firebase login error:', error);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Firebase login error:', error);
       throw new Error(this.getErrorMessage(error.code));
     }
   }
@@ -124,7 +125,8 @@ export class FirebaseAuthService {
         message: 'Registration successful'
       };
     } catch (error) {
-      console.error('Firebase registration error:', error);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Firebase registration error:', error);
       throw new Error(this.getErrorMessage(error.code));
     }
   }

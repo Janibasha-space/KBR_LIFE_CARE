@@ -24,8 +24,7 @@ import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
-import firebaseMedicalReportsService from '../../services/firebaseMedicalReportsService';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
@@ -179,21 +178,23 @@ const MedicalReportsScreen = ({ navigation }) => {
   const handleView = async (report) => {
     console.log('📋 Viewing report:', report.title);
     
-    // Mark report as viewed using Firebase service
+    // Mark report as viewed by updating Firebase directly
     try {
       if (report.id && !report.originalReport?.isViewed) {
-        await firebaseMedicalReportsService.markReportAsViewed(report.id);
+        // Update Firebase document to mark as viewed
+        const reportRef = doc(db, 'reports', report.id);
+        await updateDoc(reportRef, {
+          isViewed: true,
+          viewedAt: new Date().toISOString(),
+          viewedByPatient: true,
+          updatedAt: new Date().toISOString()
+        });
         console.log('✅ Report marked as viewed:', report.id);
         
         // Update local state immediately for better UX
         setUserReports(prev => prev.map(r => 
-          r.id === report.id ? { ...r, isViewed: true, viewedAt: new Date() } : r
+          r.id === report.id ? { ...r, isViewed: true, viewedAt: new Date(), viewedByPatient: true } : r
         ));
-        
-        // Mark in notification context if available
-        if (markAsRead) {
-          await markAsRead(report.id);
-        }
       }
     } catch (error) {
       console.error('Error marking report as viewed:', error);
@@ -639,22 +640,10 @@ const MedicalReportsScreen = ({ navigation }) => {
             showBackButton={true}
           />
           <View style={styles.centerContainer}>
-            <Ionicons name="alert-circle-outline" size={64} color={Colors.danger} />
+            <Ionicons name="document-text-outline" size={64} color={Colors.textSecondary} />
             <Text style={[styles.errorTitle, { color: theme?.textPrimary || Colors.text }]}>
-              Unable to Load Reports
+              Login to see reports
             </Text>
-            <Text style={[styles.errorText, { color: theme?.textSecondary || Colors.textSecondary }]}>
-              {error}
-            </Text>
-            <TouchableOpacity 
-              style={styles.retryButton} 
-              onPress={() => {
-                setLoading(true);
-                setError(null);
-              }}
-            >
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
@@ -803,6 +792,12 @@ const MedicalReportsScreen = ({ navigation }) => {
                   </View>
                   <View style={styles.reportActions}>
                     <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleView(report)}
+                    >
+                      <Ionicons name="eye-outline" size={20} color={Colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
                       style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
                       onPress={() => handleShare(report)}
                       disabled={sharingReports.has(report.id)}
@@ -850,6 +845,12 @@ const MedicalReportsScreen = ({ navigation }) => {
                     <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date} • {report.time}</Text>
                   </View>
                   <View style={styles.reportActions}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleView(report)}
+                    >
+                      <Ionicons name="eye-outline" size={20} color={Colors.primary} />
+                    </TouchableOpacity>
                     <TouchableOpacity 
                       style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
                       onPress={() => handleShare(report)}
