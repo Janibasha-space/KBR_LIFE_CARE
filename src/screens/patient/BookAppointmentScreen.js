@@ -84,6 +84,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     }
     if (isServiceCentricFlow) {
       console.log('🔄 Service-centric flow detected with service:', preSelectedService?.name);
+      console.log('🔄 Service doctorDetails:', preSelectedService?.doctorDetails?.length || 0);
+      console.log('🔄 Service assignedDoctors:', preSelectedService?.assignedDoctors?.length || 0);
     }
     if (isTestCentricFlow) {
       console.log('🔄 Test-centric flow detected with test category:', testCategory);
@@ -92,6 +94,36 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       console.log('🔄 Normal booking flow detected');
     }
   }, [isDoctorCentricFlow, isServiceCentricFlow, isTestCentricFlow, preSelectedDoctor, preSelectedService, testCategory]);
+  
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backAction = () => {
+      if (currentStep === 1) {
+        // Check if we came from Services page
+        const navigationSource = route.params?.navigationSource;
+        const previousScreen = route.params?.previousScreen;
+        
+        if (navigationSource === 'Services' || previousScreen === 'Services') {
+          // Navigate back to Services page specifically
+          console.log('🔄 Hardware back pressed - navigating to Services');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'PatientMain', params: { screen: 'Services' } }],
+          });
+          return true; // Prevent default back behavior
+        }
+      } else {
+        // If we're in a multi-step flow, go back to previous step
+        goToPreviousStep();
+        return true; // Prevent default back behavior
+      }
+      return false; // Allow default back behavior
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, [currentStep, route.params, navigation]);
   
   // Reset to step 1 when component mounts and load Firebase data
   useEffect(() => {
@@ -253,11 +285,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   useEffect(() => {
     const backAction = () => {
       if (currentStep === 1) {
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('PatientMain');
-        }
+        // Always go back to Services tab when on step 1
+        console.log('🔄 Hardware back pressed from step 1 - navigating to Services tab');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'PatientMain', params: { screen: 'Services' } }],
+        });
       } else {
         goToPreviousStep();
       }
@@ -494,11 +527,29 @@ const BookAppointmentScreen = ({ navigation, route }) => {
   };
 
   const goToPreviousStep = () => {
-    const newStep = Math.max(currentStep - 1, 1);
-    setCurrentStep(newStep);
-    // Show tab bar again when returning to step 1
-    if (newStep === 1) {
-      setBookingStarted(false);
+    if (currentStep === 1) {
+      // If we're at step 1, go back to the previous screen
+      const navigationSource = route.params?.navigationSource;
+      const previousScreen = route.params?.previousScreen;
+      
+      if (navigationSource === 'Services' || previousScreen === 'Services') {
+        // Navigate back to Services page specifically
+        navigation.navigate('PatientMain', { screen: 'Services' });
+      } else if (navigation.canGoBack()) {
+        // Use normal navigation for other sources
+        navigation.goBack();
+      } else {
+        // Default fallback to Home
+        navigation.navigate('PatientMain', { screen: 'Home' });
+      }
+    } else {
+      // Normal multi-step navigation within booking process
+      const newStep = Math.max(currentStep - 1, 1);
+      setCurrentStep(newStep);
+      // Show tab bar again when returning to step 1
+      if (newStep === 1) {
+        setBookingStarted(false);
+      }
     }
   };
 
@@ -1609,7 +1660,35 @@ const BookAppointmentScreen = ({ navigation, route }) => {
               borderRadius: 12,
               alignItems: 'center',
             }}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              // Check if user wants to go to initial BookAppointment or Services
+              const navigationSource = route.params?.navigationSource;
+              
+              if (navigationSource === 'Services') {
+                // If they came from Services tab, offer both options
+                Alert.alert(
+                  'Where would you like to go?',
+                  'Choose your destination',
+                  [
+                    {
+                      text: 'Services Page',
+                      onPress: () => navigation.navigate('PatientMain', { screen: 'Services' })
+                    },
+                    {
+                      text: 'Book Appointment',
+                      onPress: () => navigation.navigate('PatientMain', { screen: 'BookAppointment' })
+                    },
+                    {
+                      text: 'Cancel',
+                      style: 'cancel'
+                    }
+                  ]
+                );
+              } else {
+                // Default to BookAppointment tab
+                navigation.navigate('PatientMain', { screen: 'BookAppointment' });
+              }
+            }}
           >
             <Text style={{fontSize: 14, fontWeight: '600', color: 'white'}}>
               Back to Services
@@ -1722,7 +1801,15 @@ const BookAppointmentScreen = ({ navigation, route }) => {
             borderRadius: 12,
             alignItems: 'center',
           }}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            // Always navigate back to Services page when this button is pressed
+            console.log('🔄 Back to Services button pressed');
+            // Use replace to ensure we properly go back to Services tab
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'PatientMain', params: { screen: 'Services' } }],
+            });
+          }}
         >
           <Text style={{fontSize: 14, fontWeight: '600', color: 'white'}}>
             Back to Services
@@ -2733,8 +2820,20 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           showBackButton={true}
           customBackAction={() => {
             if (currentStep === 1) {
-              // Just go back using normal navigation - don't force to home
-              navigation.goBack();
+              // Check if we came from Services page
+              const navigationSource = route.params?.navigationSource;
+              const previousScreen = route.params?.previousScreen;
+              
+              if (navigationSource === 'Services' || previousScreen === 'Services') {
+                // Navigate back to Services page specifically
+                navigation.navigate('PatientMain', { screen: 'Services' });
+              } else if (navigation.canGoBack()) {
+                // Use normal navigation for other sources
+                navigation.goBack();
+              } else {
+                // Default fallback to Home
+                navigation.navigate('PatientMain', { screen: 'Home' });
+              }
             } else {
               // If we're in a multi-step flow, go back to previous step
               goToPreviousStep();

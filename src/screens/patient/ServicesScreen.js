@@ -18,6 +18,8 @@ import { useServices } from '../../contexts/ServicesContext';
 import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { firebaseHospitalServices } from '../../services/firebaseHospitalServices';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase.config';
 import AppHeader from '../../components/AppHeader';
 
 const ServicesScreen = ({ navigation, route }) => {
@@ -62,28 +64,15 @@ const ServicesScreen = ({ navigation, route }) => {
   // Reference for tests section position
   const [testsPosition, setTestsPosition] = useState(0);
   
-  // Get services data from context
-  const { getServicesByCategory } = useServices();
+  // Get services data from context (now Firebase-only)
+  const { getServicesByCategory, loading: servicesLoading, error: servicesError, refreshServices } = useServices();
   
-  // Get services by category
-  const services = {
-    medical: getServicesByCategory('medical'),
-    surgical: getServicesByCategory('surgical'),
-    specialized: getServicesByCategory('specialized')
+  // Use Firebase services exclusively
+  const serviceCounts = {
+    medical: firebaseServices.filter(s => s.category === 'medical').length,
+    surgical: firebaseServices.filter(s => s.category === 'surgical').length,
+    specialized: firebaseServices.filter(s => s.category === 'specialized').length
   };
-  
-  // Calculate service counts from Firebase data
-  const getFirebaseServiceCounts = () => {
-    const counts = { medical: 0, surgical: 0, specialized: 0 };
-    firebaseServices.forEach(service => {
-      if (counts.hasOwnProperty(service.category)) {
-        counts[service.category]++;
-      }
-    });
-    return counts;
-  };
-
-  const serviceCounts = getFirebaseServiceCounts();
   const allServices = firebaseServices;
 
   // Reference to the diagnostic tests section
@@ -93,70 +82,160 @@ const ServicesScreen = ({ navigation, route }) => {
   const [contentLoaded, setContentLoaded] = useState(preloaded);
 
   // Load services with doctor details from Firebase - Now works for everyone
-  useEffect(() => {
-    const loadServicesWithDoctors = async () => {
-      try {
-        console.log('� Loading Firebase services for all users...');
-        setLoadingFirebaseServices(true);
-        
-        const result = await firebaseHospitalServices.getServicesWithDoctors();
-        if (result.success) {
-          setFirebaseServices(result.data);
-          console.log('✅ Successfully loaded services:', result.data.length);
-        } else {
-          console.error('❌ Failed to load services:', result.message);
-          setFirebaseServices([]);
-        }
-      } catch (error) {
-        console.error('❌ Error loading services with doctors:', error);
+  const loadServicesFromFirebase = async () => {
+    try {
+      console.log('🔄 Loading Firebase services for all users...');
+      setLoadingFirebaseServices(true);
+      
+      const result = await firebaseHospitalServices.getServicesWithDoctors();
+      if (result.success) {
+        setFirebaseServices(result.data);
+        console.log('✅ Successfully loaded services:', result.data.length);
+      } else {
+        console.error('❌ Failed to load services:', result.message);
         setFirebaseServices([]);
-      } finally {
-        setLoadingFirebaseServices(false);
       }
-    };
+    } catch (error) {
+      console.error('❌ Error loading services with doctors:', error);
+      setFirebaseServices([]);
+    } finally {
+      setLoadingFirebaseServices(false);
+    }
+  };
 
-    loadServicesWithDoctors();
-  }, []); // Removed dependency on isLoggedIn
-  
-  // Load tests from Firebase - Now works for everyone
   useEffect(() => {
-    const loadFirebaseTests = async () => {
+    // Set up real-time listener for services
+    console.log('🔄 ServicesScreen: Setting up real-time listener...');
+    
+    try {
+      const servicesRef = collection(db, 'hospitalServices');
+      
+      // Set up real-time listener
+      const unsubscribe = onSnapshot(
+        servicesRef,
+        async (snapshot) => {
+          try {
+            console.log('🔄 ServicesScreen: Real-time update received');
+            setLoadingFirebaseServices(true);
+            
+            // Use getServicesWithDoctors to properly map doctor details
+            const result = await firebaseHospitalServices.getServicesWithDoctors();
+            
+            if (result.success) {
+              setFirebaseServices(result.data);
+              console.log('✅ ServicesScreen: Real-time services updated with doctor details:', result.data.length);
+              
+              // Debug log sample service data structure
+              if (result.data.length > 0) {
+                console.log('🔍 Sample Firebase service structure:', JSON.stringify(result.data[0], null, 2));
+              }
+            } else {
+              console.error('❌ Failed to load services with doctors:', result.message);
+              setFirebaseServices([]);
+            }
+            
+            setLoadingFirebaseServices(false);
+          } catch (error) {
+            console.error('❌ ServicesScreen: Error processing real-time update:', error);
+            setLoadingFirebaseServices(false);
+          }
+        },
+        (error) => {
+          console.error('❌ ServicesScreen: Real-time listener error:', error);
+          setLoadingFirebaseServices(false);
+          // Fallback to one-time load
+          loadServicesFromFirebase();
+        }
+      );
+
+      // Cleanup function
+      return () => {
+        console.log('🔄 ServicesScreen: Cleaning up real-time listener');
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error('❌ ServicesScreen: Error setting up real-time listener:', error);
+      // Fallback to one-time load
+      loadServicesFromFirebase();
+    }
+  }, []); // Set up listener on component mount
+  
+  // Set up real-time listener for tests
+  useEffect(() => {
+    console.log('🧪 ServicesScreen: Setting up real-time listener for tests...');
+    
+    // Fallback function for one-time test loading
+    const loadFirebaseTestsOnce = async () => {
       try {
-        console.log('🧪 Starting to load tests from Firebase for all users...');
-        console.log('🧪 Firebase services available:', Object.keys(firebaseHospitalServices));
+        console.log('🧪 Loading tests from Firebase...');
         setLoadingFirebaseTests(true);
         
-        // Check if getTests method exists
-        if (typeof firebaseHospitalServices.getTests !== 'function') {
-          console.error('🧪 getTests method not found in firebaseHospitalServices');
-          setFirebaseTests([]);
-          return;
-        }
-        
-        const result = await firebaseHospitalServices.getTests();
-        console.log('🧪 Firebase tests response:', result);
-        
-        if (result && result.success) {
-          setFirebaseTests(result.data || []);
-          console.log('🧪 Successfully loaded Firebase tests:', (result.data || []).length, 'tests found');
-          if (result.data && result.data.length > 0) {
-            console.log('🧪 Test data sample:', result.data.slice(0, 2));
+        if (typeof firebaseHospitalServices.getTests === 'function') {
+          const result = await firebaseHospitalServices.getTests();
+          if (result && result.success) {
+            setFirebaseTests(result.data || []);
+            console.log('🧪 Successfully loaded tests:', (result.data || []).length);
+          } else {
+            setFirebaseTests([]);
           }
         } else {
-          console.error('🧪 Failed to load tests:', result?.message || 'Unknown error');
           setFirebaseTests([]);
         }
       } catch (error) {
         console.error('🧪 Error loading tests:', error);
-        console.error('🧪 Error details:', error.message);
         setFirebaseTests([]);
       } finally {
         setLoadingFirebaseTests(false);
       }
     };
 
-    loadFirebaseTests();
-  }, []); // Removed dependency on isLoggedIn
+    try {
+      const testsRef = collection(db, 'tests');
+      
+      // Set up real-time listener for tests
+      const unsubscribe = onSnapshot(
+        testsRef,
+        (snapshot) => {
+          try {
+            console.log('🧪 ServicesScreen: Real-time tests update received');
+            setLoadingFirebaseTests(true);
+            
+            const testsData = [];
+            snapshot.forEach((doc) => {
+              const testData = doc.data();
+              testsData.push({
+                id: doc.id,
+                ...testData
+              });
+            });
+            
+            setFirebaseTests(testsData);
+            console.log('🧪 ServicesScreen: Real-time tests updated:', testsData.length, 'tests');
+            setLoadingFirebaseTests(false);
+          } catch (error) {
+            console.error('🧪 ServicesScreen: Error processing real-time tests update:', error);
+            setLoadingFirebaseTests(false);
+          }
+        },
+        (error) => {
+          console.error('🧪 ServicesScreen: Real-time tests listener error:', error);
+          setLoadingFirebaseTests(false);
+          // Fallback to one-time load
+          loadFirebaseTestsOnce();
+        }
+      );
+
+      // Cleanup function
+      return () => {
+        console.log('🧪 ServicesScreen: Cleaning up real-time tests listener');
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error('🧪 ServicesScreen: Error setting up real-time tests listener:', error);
+      // Fallback to one-time load
+      loadFirebaseTestsOnce();
+    }
+  }, []); // Set up tests listener on component mount
   
   // Function to scroll to tests section smoothly
   const scrollToTestsSection = () => {
@@ -209,6 +288,10 @@ const ServicesScreen = ({ navigation, route }) => {
   useEffect(() => {
     // When focusing on this screen
     const focusListener = navigation.addListener('focus', () => {
+      console.log('📋 ServicesScreen: Screen focused/navigated to');
+      console.log('📋 Route params:', route?.params);
+      console.log('📋 Current firebaseServices count:', firebaseServices?.length || 0);
+      
       // Only expand if explicitly provided in route params - otherwise reset
       if (route?.params?.expandedSpecialty) {
         setExpandedSpecialty(route.params.expandedSpecialty);
@@ -369,17 +452,36 @@ const ServicesScreen = ({ navigation, route }) => {
           service.category === id
         ) || [];
         
+        console.log(`🔍 Found ${categoryServices.length} services for category: ${id}`);
+        
+        // Debug log all services to check doctor data
+        console.log(`🔍 All services for category ${id}:`, categoryServices.map(s => ({
+          name: s.name,
+          id: s.id,
+          doctorDetails: s.doctorDetails,
+          assignedDoctors: s.assignedDoctors,
+          doctorDetailsCount: s.doctorDetails?.length || 0,
+          assignedDoctorsCount: s.assignedDoctors?.length || 0
+        })));
+        
+        // Debug log first service to check doctor data
+        if (categoryServices.length > 0) {
+          const firstService = categoryServices[0];
+          console.log(`🔍 First service raw data:`, JSON.stringify(firstService, null, 2));
+        }
+        
         // Map the services to include icons and other UI properties
         return categoryServices.map(service => {
-          // Define default tags if none are present
+          // Use tags from Firebase data or provide meaningful defaults
           let tags = service.tags || [];
           if (!tags.length) {
+            // Only add default tags if none exist in Firebase
             if (id === 'medical') {
-              tags = ['Health Check-ups', 'Chronic Disease Management'];
+              tags = ['Medical Care', 'Health Services'];
             } else if (id === 'surgical') {
-              tags = ['Surgery', 'Consultation'];
+              tags = ['Surgical Procedures', 'Surgery'];
             } else if (id === 'specialized') {
-              tags = ['Specialized Care', 'Expert Consultation'];
+              tags = ['Specialized Treatment', 'Expert Care'];
             }
           }
           
@@ -388,12 +490,14 @@ const ServicesScreen = ({ navigation, route }) => {
             // Use service icon from the Firebase data or derive a default one
             icon: service.icon || getServiceIcon(service.name || ''),
             tags: tags,
-            // Include doctor details from Firebase
-            assignedDoctors: service.doctorDetails || []
+            // Include doctor details from Firebase - prioritize doctorDetails over assignedDoctors
+            assignedDoctors: service.doctorDetails || service.assignedDoctors || [],
+            // Also preserve doctorDetails for other uses
+            doctorDetails: service.doctorDetails || service.assignedDoctors || []
           };
         });
       } catch (error) {
-        console.error(`Error getting services for ${id}:`, error);
+        console.error(`❌ Error getting services for ${id}:`, error);
         return [];
       }
     };
@@ -581,7 +685,10 @@ const ServicesScreen = ({ navigation, route }) => {
                         service: service.name,
                         serviceId: service.id,
                         serviceDetails: service,
-                        assignedDoctors: service.assignedDoctors
+                        assignedDoctors: service.assignedDoctors,
+                        // Navigation source information
+                        navigationSource: 'Services',
+                        previousScreen: 'Services'
                       });
                     } else {
                       Alert.alert(
@@ -627,7 +734,10 @@ const ServicesScreen = ({ navigation, route }) => {
             testCategory: test.id,
             testCentricFlow: true,
             type: 'test',
-            category: test.id
+            category: test.id,
+            // Navigation source information
+            navigationSource: 'Services',
+            previousScreen: 'Services'
           });
         } else {
           Alert.alert(
@@ -750,7 +860,11 @@ const ServicesScreen = ({ navigation, route }) => {
             
             <TouchableOpacity 
               style={styles.bookServiceButton}
-              onPress={() => navigation.navigate('BookAppointment', { service: service.name })}
+              onPress={() => navigation.navigate('BookAppointment', { 
+                service: service.name,
+                navigationSource: 'Services',
+                previousScreen: 'Services'
+              })}
             >
               <Ionicons name="calendar" size={16} color="#FFFFFF" />
               <Text style={styles.bookServiceText}>Book Appointment</Text>
@@ -772,11 +886,41 @@ const ServicesScreen = ({ navigation, route }) => {
           showBackButton={true}
         />
         
-        {/* Loading Overlay - Shown when content is still loading */}
-        {!contentLoaded && (
+        {/* Loading Overlay - Shown when services are loading */}
+        {(loadingFirebaseServices || servicesLoading) && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors.kbrBlue} />
-            <Text style={styles.loadingText}>Loading services...</Text>
+            <Text style={styles.loadingText}>Loading services from database...</Text>
+          </View>
+        )}
+
+        {/* Error State */}
+        {servicesError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="warning-outline" size={48} color="#DC2626" />
+            <Text style={styles.errorTitle}>Failed to Load Services</Text>
+            <Text style={styles.errorMessage}>{servicesError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={refreshServices}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Empty State - When no services exist in Firebase */}
+        {!loadingFirebaseServices && !servicesLoading && !servicesError && firebaseServices.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="medical-outline" size={64} color="#9CA3AF" />
+            <Text style={styles.emptyTitle}>No Services Available</Text>
+            <Text style={styles.emptyMessage}>
+              Services will appear here once they are added by the hospital administrator.
+            </Text>
+            <TouchableOpacity style={styles.refreshButton} onPress={() => {
+              refreshServices();
+              loadServicesFromFirebase();
+            }}>
+              <Ionicons name="refresh-outline" size={16} color={Colors.kbrBlue} />
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1572,6 +1716,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.kbrBlue,
     fontWeight: '600',
+  },
+  
+  // Error State Styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Sizes.xl,
+    backgroundColor: Colors.white,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#DC2626',
+    marginTop: Sizes.md,
+    marginBottom: Sizes.sm,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: Sizes.lg,
+    lineHeight: 22,
+  },
+  retryButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: Sizes.xl,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Empty State Styles
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Sizes.xl,
+    backgroundColor: Colors.white,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginTop: Sizes.lg,
+    marginBottom: Sizes.sm,
+  },
+  emptyMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: Sizes.xl,
+    lineHeight: 24,
+    paddingHorizontal: Sizes.md,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(66, 133, 244, 0.1)',
+    paddingHorizontal: Sizes.lg,
+    paddingVertical: Sizes.md,
+    borderRadius: Sizes.radiusMedium,
+    borderWidth: 1,
+    borderColor: Colors.kbrBlue,
+  },
+  refreshButtonText: {
+    color: Colors.kbrBlue,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: Sizes.xs,
   },
 });
 

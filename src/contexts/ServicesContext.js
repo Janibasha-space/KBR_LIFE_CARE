@@ -1,34 +1,158 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { firebaseHospitalServices } from '../services/firebaseHospitalServices';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase.config';
 
-// Initial services - will be populated from AppContext and Firebase database
-const initialServices = {
-  medical: [
-    { id: 'general-consultation', name: 'General Consultation', price: 600, category: 'medical' },
-    { id: 'prenatal-checkup', name: 'Prenatal Checkup', price: 800, category: 'medical' },
-    { id: 'diabetes-consultation', name: 'Diabetes Consultation', price: 700, category: 'medical' },
-    { id: 'hypertension-checkup', name: 'Hypertension Checkup', price: 650, category: 'medical' },
-  ],
-  surgical: [
-    { id: 'minor-surgery', name: 'Minor Surgery', price: 5000, category: 'surgical' },
-    { id: 'appendectomy', name: 'Appendectomy', price: 25000, category: 'surgical' },
-    { id: 'hernia-repair', name: 'Hernia Repair', price: 30000, category: 'surgical' },
-  ],
-  specialized: [
-    { id: 'ecg-consultation', name: 'ECG & Consultation', price: 800, category: 'specialized' },
-    { id: 'dental-consultation', name: 'Dental Consultation', price: 500, category: 'specialized' },
-    { id: 'eye-examination', name: 'Eye Examination', price: 600, category: 'specialized' },
-    { id: 'orthopedic-consultation', name: 'Orthopedic Consultation', price: 900, category: 'specialized' },
-    { id: 'cardiology-consultation', name: 'Cardiology Consultation', price: 1200, category: 'specialized' },
-  ],
-};
+// Services will be loaded exclusively from Firebase - no dummy data
 
 // Create the context
 const ServicesContext = createContext();
 
 // Provider component
 export const ServicesProvider = ({ children }) => {
-  const [services, setServices] = useState(initialServices);
-  const [doctors, setDoctors] = useState([]); // Will be populated from Firebase only
+  const [services, setServices] = useState({ medical: [], surgical: [], specialized: [] });
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Set up real-time listener for services
+  useEffect(() => {
+    console.log('🔄 ServicesContext: Setting up real-time listener for services...');
+    
+    const servicesRef = collection(db, 'hospitalServices');
+    
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(
+      servicesRef,
+      (snapshot) => {
+        try {
+          console.log('🔄 ServicesContext: Real-time update received');
+          setLoading(true);
+          setError(null);
+          
+          const servicesData = [];
+          snapshot.forEach((doc) => {
+            const serviceData = doc.data();
+            servicesData.push({
+              id: doc.id,
+              ...serviceData,
+              assignedDoctors: serviceData.assignedDoctors || [],
+              doctorDetails: serviceData.doctorDetails || [],
+              doctorCount: serviceData.assignedDoctors ? serviceData.assignedDoctors.length : 0
+            });
+          });
+          
+          // Organize services by category
+          const organizedServices = {
+            medical: [],
+            surgical: [],
+            specialized: []
+          };
+          
+          servicesData.forEach(service => {
+            const category = service.category?.toLowerCase();
+            if (organizedServices[category]) {
+              organizedServices[category].push({
+                ...service,
+                icon: getServiceIcon(service.name || ''),
+                color: '#4285F4'
+              });
+            } else {
+              // Default to medical if category is not recognized
+              organizedServices.medical.push({
+                ...service,
+                icon: getServiceIcon(service.name || ''),
+                color: '#4285F4'
+              });
+            }
+          });
+
+          setServices(organizedServices);
+          console.log('✅ ServicesContext: Real-time services updated:', {
+            medical: organizedServices.medical.length,
+            surgical: organizedServices.surgical.length,
+            specialized: organizedServices.specialized.length
+          });
+          
+          setLoading(false);
+        } catch (error) {
+          console.error('❌ ServicesContext: Error processing real-time update:', error);
+          setError(error.message);
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error('❌ ServicesContext: Real-time listener error:', error);
+        setError(error.message);
+        setLoading(false);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => {
+      console.log('🔄 ServicesContext: Cleaning up real-time listener');
+      unsubscribe();
+    };
+  }, []);
+
+  // Load services from Firebase
+  const loadServicesFromFirebase = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 ServicesContext: Loading services from Firebase...');
+      
+      const result = await firebaseHospitalServices.getServicesWithDoctors();
+      
+      if (result.success && result.data) {
+        // Organize services by category
+        const organizedServices = {
+          medical: [],
+          surgical: [],
+          specialized: []
+        };
+        
+        result.data.forEach(service => {
+          const category = service.category?.toLowerCase();
+          if (organizedServices[category]) {
+            organizedServices[category].push({
+              ...service,
+              icon: getServiceIcon(service.name || ''),
+              color: '#4285F4'
+            });
+          } else {
+            // Default to medical if category is not recognized
+            organizedServices.medical.push({
+              ...service,
+              icon: getServiceIcon(service.name || ''),
+              color: '#4285F4'
+            });
+          }
+        });
+
+        setServices(organizedServices);
+        console.log('✅ ServicesContext: Successfully loaded services:', {
+          medical: organizedServices.medical.length,
+          surgical: organizedServices.surgical.length,
+          specialized: organizedServices.specialized.length
+        });
+      } else {
+        console.warn('⚠️ ServicesContext: No services found in Firebase');
+        setServices({ medical: [], surgical: [], specialized: [] });
+      }
+    } catch (error) {
+      console.error('❌ ServicesContext: Error loading services from Firebase:', error);
+      setError(error.message);
+      setServices({ medical: [], surgical: [], specialized: [] });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh services data
+  const refreshServices = () => {
+    loadServicesFromFirebase();
+  };
 
   // Add a new service
   const addService = (categoryId, serviceData) => {
@@ -144,6 +268,8 @@ export const ServicesProvider = ({ children }) => {
   const value = {
     services,
     doctors,
+    loading,
+    error,
     addService,
     updateService,
     deleteService,
@@ -151,6 +277,7 @@ export const ServicesProvider = ({ children }) => {
     getAllServices,
     getServicesByCategory,
     getServiceCounts,
+    refreshServices,
   };
 
   return (
