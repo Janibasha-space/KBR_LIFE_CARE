@@ -523,6 +523,7 @@ export default function App() {
                     <Stack.Screen name="PatientMedicalReports" component={PatientMedicalReportsScreen} />
                     <Stack.Screen name="PatientPaymentInvoices" component={PatientPaymentInvoicesScreen} />
                     <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+                    <Stack.Screen name="PaymentManagement" component={PaymentManagementScreen} />
                     <Stack.Screen name="TreatmentDetails" component={TreatmentDetailsScreen} />
                     <Stack.Screen name="DiagnosticTests" component={DiagnosticTestsScreen} />
                     <Stack.Screen name="FirebaseTest" component={ExampleApiUsageScreen} />

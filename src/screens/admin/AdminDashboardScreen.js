@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const { user, isAuthenticated } = useFirebaseAuth();
   const { appState, adminStats } = useApp();
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     totalUsers: 0,
     totalAppointments: 0,
@@ -43,10 +44,12 @@ const AdminDashboardScreen = ({ navigation }) => {
     pendingInvoicesCount: 0
   });
 
-  console.log('🏥 AdminDashboardScreen rendered, isAuthenticated:', isAuthenticated);
+  console.log('🏥 AdminDashboardScreen rendered, isAuthenticated:', isAuthenticated, 'Render timestamp:', Date.now());
 
   // Fetch real-time dashboard data from Firebase
   useEffect(() => {
+    if (isInitialized) return; // Prevent multiple initializations
+    
     console.log('🔄 AdminDashboard useEffect triggered, isAuthenticated:', isAuthenticated);
     
     // Force fetch data even if authentication status is being checked
@@ -108,6 +111,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         };
 
         setDashboardData(newDashboardData);
+        setIsInitialized(true); // Mark as initialized
 
         console.log('📊 Dashboard Stats Updated:', {
           registeredUsers: totalRegisteredUsers,
@@ -130,6 +134,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           recentAppointments: [],
           pendingInvoicesCount: 0
         });
+        setIsInitialized(true); // Mark as initialized even on error
       } finally {
         setLoading(false);
       }
@@ -143,7 +148,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       return;
     }
 
-    // Set up real-time listeners for live updates
+    // Set up real-time listeners for live updates (only once)
     const appointmentsQuery = query(
       collection(db, 'appointments'), 
       orderBy('createdAt', 'desc'),
@@ -152,27 +157,27 @@ const AdminDashboardScreen = ({ navigation }) => {
     
     const unsubscribeAppointments = onSnapshot(appointmentsQuery, (snapshot) => {
       console.log('🔄 Appointments updated, refreshing dashboard...');
-      fetchData();
+      if (isInitialized) fetchData();
     });
 
     const doctorsQuery = query(collection(db, 'doctors'));
     const unsubscribeDoctors = onSnapshot(doctorsQuery, (snapshot) => {
       console.log('🔄 Doctors updated, refreshing dashboard...');
-      fetchData();
+      if (isInitialized) fetchData();
     });
 
     // Listen to users collection for real-time user count updates
     const usersQuery = query(collection(db, 'users'));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       console.log('🔄 Users updated, refreshing dashboard...');
-      fetchData();
+      if (isInitialized) fetchData();
     });
 
     // Listen to payments collection for real-time revenue updates
     const paymentsQuery = query(collection(db, 'payments'));
     const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
       console.log('🔄 Payments updated, refreshing dashboard...');
-      fetchData();
+      if (isInitialized) fetchData();
     });
 
     // Cleanup listeners
@@ -182,24 +187,46 @@ const AdminDashboardScreen = ({ navigation }) => {
       unsubscribeUsers();
       unsubscribePayments();
     };
-  }, [isAuthenticated, appState.adminStats?.totalRevenue, adminStats?.totalRevenue]);
+  }, [isAuthenticated]); // Removed problematic dependencies
+
+  // Memoize adminStats to prevent unnecessary re-renders
+  const memoizedAdminStats = useMemo(() => {
+    return {
+      totalRevenue: appState.adminStats?.totalRevenue || adminStats?.totalRevenue || 0,
+      totalUsers: appState.adminStats?.totalUsers || adminStats?.totalUsers || 0,
+      totalAppointments: appState.adminStats?.totalAppointments || adminStats?.totalAppointments || 0,
+      activeDoctors: appState.adminStats?.activeDoctors || adminStats?.activeDoctors || 0,
+      todayAppointments: appState.adminStats?.todayAppointments || adminStats?.todayAppointments || 0,
+    };
+  }, [
+    appState.adminStats?.totalRevenue, 
+    appState.adminStats?.totalUsers,
+    appState.adminStats?.totalAppointments,
+    appState.adminStats?.activeDoctors,
+    appState.adminStats?.todayAppointments,
+    adminStats?.totalRevenue,
+    adminStats?.totalUsers,
+    adminStats?.totalAppointments,
+    adminStats?.activeDoctors,
+    adminStats?.todayAppointments
+  ]);
 
   // Update dashboard data when adminStats change (without refetching from Firebase)
   useEffect(() => {
-    if (appState.adminStats || adminStats) {
+    if (memoizedAdminStats.totalRevenue > 0 || memoizedAdminStats.totalUsers > 0) {
       console.log('🔄 AdminStats changed - updating dashboard display');
-      console.log('💰 New revenue from adminStats:', appState.adminStats?.totalRevenue || adminStats?.totalRevenue || 0);
+      console.log('💰 New revenue from adminStats:', memoizedAdminStats.totalRevenue);
       
       setDashboardData(prev => ({
         ...prev,
-        totalRevenue: appState.adminStats?.totalRevenue || adminStats?.totalRevenue || prev.totalRevenue || 0,
-        totalUsers: appState.adminStats?.totalUsers || adminStats?.totalUsers || prev.totalUsers || 0,
-        totalAppointments: appState.adminStats?.totalAppointments || adminStats?.totalAppointments || prev.totalAppointments || 0,
-        activeDoctors: appState.adminStats?.activeDoctors || adminStats?.activeDoctors || prev.activeDoctors || 0,
-        todayAppointments: appState.adminStats?.todayAppointments || adminStats?.todayAppointments || prev.todayAppointments || 0,
+        totalRevenue: memoizedAdminStats.totalRevenue || prev.totalRevenue || 0,
+        totalUsers: memoizedAdminStats.totalUsers || prev.totalUsers || 0,
+        totalAppointments: memoizedAdminStats.totalAppointments || prev.totalAppointments || 0,
+        activeDoctors: memoizedAdminStats.activeDoctors || prev.activeDoctors || 0,
+        todayAppointments: memoizedAdminStats.todayAppointments || prev.todayAppointments || 0,
       }));
     }
-  }, [appState.adminStats, adminStats]);
+  }, [memoizedAdminStats]);
 
   if (loading) {
     return (
@@ -352,7 +379,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => navigation.navigate('PaymentManagement')}
+              onPress={() => navigation.navigate('Payments')}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' + '15' }]}>
                 <Ionicons name="wallet-outline" size={24} color="#3B82F6" />
@@ -405,7 +432,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           <View style={styles.financialCards}>
             <TouchableOpacity 
               style={[styles.financialCard, { backgroundColor: '#10B981' + '10' }]}
-              onPress={() => navigation.navigate('PaymentManagement')}
+              onPress={() => navigation.navigate('Payments')}
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="trending-up" size={24} color="#10B981" />
