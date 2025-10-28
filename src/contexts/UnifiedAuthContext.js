@@ -108,7 +108,8 @@ export const UnifiedAuthProvider = ({ children }) => {
         error: null
       }));
     } catch (error) {
-      console.error('Error handling Firebase user:', error);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Error handling Firebase user:', error);
       setAuthState(prev => ({ 
         ...prev, 
         isLoading: false, 
@@ -154,7 +155,8 @@ export const UnifiedAuthProvider = ({ children }) => {
       }
       
     } catch (error) {
-      console.error('Firebase login failed:', error.message);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Firebase login failed:', error.message);
       
       setAuthState(prev => ({ 
         ...prev, 
@@ -193,7 +195,8 @@ export const UnifiedAuthProvider = ({ children }) => {
       return response;
       
     } catch (error) {
-      console.error('Registration failed:', error.message);
+      // Don't log to console to avoid error notifications in development
+      // console.error('Registration failed:', error.message);
       
       setAuthState(prev => ({ 
         ...prev, 

@@ -505,6 +505,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
     }
 
     setCurrentStep(prev => {
+      // Special handling for test-centric flow - skip doctor selection
+      if (prev === 1 && isTestCentricFlow) {
+        return 3; // Skip step 2 (doctor selection) and go directly to date/time
+      }
       // Special handling for step 3 (Date/Time selection)
       if (prev === 3 && !isLoggedIn) {
         // Show login/signup step for non-logged users after date selection
@@ -514,13 +518,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       if (prev === 4 && !isLoggedIn) {
         return 5; // Patient details for newly logged in users
       }
-      // For logged-in users after patient details, skip OTP and go to payment
-      if (prev === 4 && isLoggedIn) {
-        return 6; // Skip step 5 (OTP) and go directly to payment
-      }
-      // For newly registered users after patient details, also skip OTP
-      if (prev === 5) {
-        return 6; // Skip OTP for all users
+      // For all users after patient details, skip OTP and go directly to payment
+      if (prev === 4) {
+        return 6; // Skip step 5 (OTP) completely
       }
       return Math.min(prev + 1, 7);
     });
@@ -544,7 +544,23 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       }
     } else {
       // Normal multi-step navigation within booking process
-      const newStep = Math.max(currentStep - 1, 1);
+      let newStep = Math.max(currentStep - 1, 1);
+      
+      // Special handling for test-centric flow - skip doctor selection
+      if (currentStep === 3 && isTestCentricFlow) {
+        newStep = 1; // Skip step 2 (doctor selection) and go back to step 1
+      }
+      
+      // Special handling for payment step - skip removed OTP step
+      if (currentStep === 6) {
+        newStep = 4; // Go back to step 4 (Patient Details) since step 5 (OTP) is removed
+      }
+      
+      // Special handling for confirmation step - go back to payment
+      if (currentStep === 7) {
+        newStep = 6; // Go back to step 6 (Payment)
+      }
+      
       setCurrentStep(newStep);
       // Show tab bar again when returning to step 1
       if (newStep === 1) {
@@ -695,7 +711,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       console.log('❌ Service missing:', bookingData.service);
     }
 
-    if (!bookingData.doctor) {
+    // Only require doctor selection for non-test bookings
+    if (!isTestCentricFlow && !bookingData.doctor) {
       validationErrors.push('Doctor selection is required');
       console.log('❌ Doctor missing:', bookingData.doctor);
     }
@@ -773,7 +790,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         return;
       }
 
-      if (!bookingData.doctor) {
+      // Only require doctor for non-test bookings
+      if (!isTestCentricFlow && !bookingData.doctor) {
         Alert.alert('Missing Information', 'Please select a doctor before booking.');
         setLoading(false);
         return;
@@ -791,12 +809,12 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Additional safety checks for properties
-      const doctorFees = (bookingData.doctor && bookingData.doctor.fees) || 0;
+      // Additional safety checks for properties - handle test bookings
+      const doctorFees = isTestCentricFlow ? 500 : ((bookingData.doctor && bookingData.doctor.fees) || 0);
       const serviceId = (bookingData.service && bookingData.service.id) || 'unknown-service';
-      const doctorId = (bookingData.doctor && bookingData.doctor.id) || 'unknown-doctor';
+      const doctorId = isTestCentricFlow ? 'test-technician' : ((bookingData.doctor && bookingData.doctor.id) || 'unknown-doctor');
       const serviceName = (bookingData.service && bookingData.service.name) || 'Unknown Service';
-      const doctorName = (bookingData.doctor && bookingData.doctor.name) || 'Unknown Doctor';
+      const doctorName = isTestCentricFlow ? 'Test Technician' : ((bookingData.doctor && bookingData.doctor.name) || 'Unknown Doctor');
 
       const finalBookingData = {
         id: `apt-${Date.now()}`,
@@ -1015,8 +1033,6 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         return <Step3SelectDateTime />;
       case 4:
         return <Step4PatientDetails />;
-      case 5:
-        return <Step5VerifyMobile />;
       case 6:
         return <Step6Payment />;
       case 7:
@@ -2061,18 +2077,6 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                   </TouchableOpacity>
                 ))}
               </View>
-              
-              <View style={{
-                backgroundColor: '#FEF3C7',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 20,
-                alignItems: 'center'
-              }}>
-                <Text style={{fontSize: 14, color: '#92400E', fontWeight: '600'}}>
-                  Tokens booked today: 7 / 30
-                </Text>
-              </View>
             </>
           )}
           
@@ -2850,7 +2854,9 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           borderBottomColor: '#E5E7EB'
         }}>
           <Text style={{fontSize: 20, fontWeight: 'bold', color: '#1F2937'}}>Book Appointment</Text>
-          <Text style={{fontSize: 14, color: '#6B7280'}}>Step {currentStep} of 7</Text>
+          <Text style={{fontSize: 14, color: '#6B7280'}}>
+            Step {currentStep > 5 ? currentStep - 1 : currentStep} of 6
+          </Text>
         </View>
 
         {/* Step Content */}
