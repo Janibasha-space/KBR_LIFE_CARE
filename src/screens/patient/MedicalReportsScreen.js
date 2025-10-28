@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { useUnifiedAuth } from '../../contexts/UnifiedAuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppHeader from '../../components/AppHeader';
 import { useApp } from '../../contexts/AppContext';
+import firebaseMedicalReportsService from '../../services/firebaseMedicalReportsService';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
 import * as FileSystem from 'expo-file-system';
@@ -173,6 +174,65 @@ const MedicalReportsScreen = ({ navigation }) => {
     };
     return icons[category] || 'document-text-outline';
   };
+
+  // View report functionality
+  const handleView = async (report) => {
+    console.log('📋 Viewing report:', report.title);
+    
+    // Mark report as viewed using Firebase service
+    try {
+      if (report.id && !report.originalReport?.isViewed) {
+        await firebaseMedicalReportsService.markReportAsViewed(report.id);
+        console.log('✅ Report marked as viewed:', report.id);
+        
+        // Update local state immediately for better UX
+        setUserReports(prev => prev.map(r => 
+          r.id === report.id ? { ...r, isViewed: true, viewedAt: new Date() } : r
+        ));
+        
+        // Mark in notification context if available
+        if (markAsRead) {
+          await markAsRead(report.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error marking report as viewed:', error);
+      // Continue with navigation even if marking as viewed fails
+    }
+    
+    navigation.navigate('ReportDetail', { report });
+  };
+
+  // View category reports functionality
+  const handleCategoryView = useCallback((categoryName, reports) => {
+    console.log(`📁 Viewing ${categoryName} category with ${reports.length} reports`);
+    
+    if (reports.length === 0) {
+      Alert.alert(
+        'No Reports',
+        `You don't have any reports in the ${categoryName} category yet.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // For now, show an alert with report list - you can enhance this to navigate to a detailed screen
+    const reportList = reports.map((report, index) => 
+      `${index + 1}. ${report.title} (${report.date})`
+    ).join('\n');
+
+    Alert.alert(
+      `${categoryName} Reports`,
+      `You have ${reports.length} report${reports.length !== 1 ? 's' : ''} in this category:\n\n${reportList}`,
+      [
+        { text: 'Close' },
+        { 
+          text: 'View Latest', 
+          onPress: () => handleView(reports[0])
+        }
+      ]
+    );
+  }, []);
 
   // Share functionality
   const handleShare = async (report) => {
@@ -429,13 +489,78 @@ const MedicalReportsScreen = ({ navigation }) => {
     }
   };
 
-  // Convert Firebase reports to categorized format
+  // Enhanced Smart Categorization Function
+  const getSmartCategory = useCallback((report) => {
+    const title = (report.type || report.testName || report.reportTitle || report.title || '').toLowerCase();
+    const description = (report.notes || report.description || '').toLowerCase();
+    const category = (report.category || '').toLowerCase();
+    const text = `${title} ${description} ${category}`;
+
+    // Blood Tests patterns
+    if (text.includes('blood') || text.includes('cbc') || text.includes('hemoglobin') || 
+        text.includes('glucose') || text.includes('cholesterol') || text.includes('lipid') ||
+        text.includes('thyroid') || text.includes('hba1c') || text.includes('serum')) {
+      return 'Blood Tests';
+    }
+    
+    // Imaging patterns
+    if (text.includes('x-ray') || text.includes('xray') || text.includes('ct') || 
+        text.includes('mri') || text.includes('ultrasound') || text.includes('scan') ||
+        text.includes('imaging') || text.includes('mammography') || text.includes('nuclear')) {
+      return 'Imaging';
+    }
+    
+    // Cardiology patterns
+    if (text.includes('heart') || text.includes('cardiac') || text.includes('ecg') || 
+        text.includes('ekg') || text.includes('echo') || text.includes('cardiology') ||
+        text.includes('coronary') || text.includes('angiogram')) {
+      return 'Cardiology';
+    }
+    
+    // Pathology patterns
+    if (text.includes('biopsy') || text.includes('pathology') || text.includes('histology') || 
+        text.includes('cytology') || text.includes('tissue') || text.includes('specimen') ||
+        text.includes('microscopic') || text.includes('cancer') || text.includes('tumor')) {
+      return 'Pathology';
+    }
+    
+    // Radiology patterns
+    if (text.includes('radiology') || text.includes('fluoroscopy') || text.includes('contrast') ||
+        text.includes('angiography') || text.includes('interventional') || text.includes('radiation')) {
+      return 'Radiology';
+    }
+    
+    // Urine Tests patterns
+    if (text.includes('urine') || text.includes('urinalysis') || text.includes('kidney') ||
+        text.includes('creatinine') || text.includes('protein') || text.includes('microalbumin')) {
+      return 'Urine Tests';
+    }
+    
+    // Consultation patterns
+    if (text.includes('consultation') || text.includes('visit') || text.includes('follow') ||
+        text.includes('checkup') || text.includes('assessment') || text.includes('evaluation') ||
+        text.includes('appointment') || text.includes('clinic')) {
+      return 'Consultation';
+    }
+    
+    // Orthopedic patterns
+    if (text.includes('bone') || text.includes('joint') || text.includes('orthopedic') ||
+        text.includes('fracture') || text.includes('spine') || text.includes('muscle') ||
+        text.includes('tendon') || text.includes('ligament') || text.includes('arthritis')) {
+      return 'Orthopedic';
+    }
+    
+    // Default category
+    return report.category || 'General';
+  }, []);
+
+  // Convert Firebase reports to categorized format with smart categorization
   const categoriesMap = React.useMemo(() => {
     if (!userReports.length) return {};
     
     const categorized = {};
     userReports.forEach(report => {
-      const category = report.category || 'General';
+      const category = getSmartCategory(report);
       if (!categorized[category]) {
         categorized[category] = [];
       }
@@ -443,14 +568,14 @@ const MedicalReportsScreen = ({ navigation }) => {
       // Convert Firebase report format to display format
       categorized[category].push({
         id: report.id,
-        title: report.type || report.testName || report.reportTitle || 'Medical Report',
+        title: report.type || report.testName || report.reportTitle || report.title || 'Medical Report',
         doctor: report.doctorName || 'Dr. Unknown',
-        date: new Date(report.sentAt || report.createdAt).toLocaleDateString('en-US', {
+        date: new Date(report.sentAt || report.createdAt || report.timestamp).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric'
         }),
-        time: new Date(report.sentAt || report.createdAt).toLocaleTimeString('en-US', {
+        time: new Date(report.sentAt || report.createdAt || report.timestamp).toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true
@@ -462,12 +587,13 @@ const MedicalReportsScreen = ({ navigation }) => {
         iconColor: getCategoryColor(category),
         type: (report.type || 'general').toLowerCase().replace(/\s+/g, ''),
         category: category,
+        timestamp: report.timestamp || report.createdAt || report.sentAt,
         originalReport: report // Keep reference to original Firebase data
       });
     });
     
     return categorized;
-  }, [userReports]);
+  }, [userReports, getSmartCategory]);
 
   // Get all reports data
   const allReportsData = Object.values(categoriesMap).flat();
@@ -475,7 +601,7 @@ const MedicalReportsScreen = ({ navigation }) => {
   // Recent reports data (last 5 recent reports)
   const recentReportsData = React.useMemo(() => {
     return allReportsData
-      .sort((a, b) => new Date(b.originalReport.sentAt || b.originalReport.createdAt) - new Date(a.originalReport.sentAt || a.originalReport.createdAt))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 5);
   }, [allReportsData]);
 
@@ -758,28 +884,110 @@ const MedicalReportsScreen = ({ navigation }) => {
               </View>
             ))}
 
-            {activeTab === 'Categories' && Object.keys(categoriesMap).map((category) => (
-              <View key={category} style={[styles.categorySection, { backgroundColor: theme?.cardBackground || Colors.white }]}>
-                <View style={styles.categoryHeader}>
-                  <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(category) + '20' }]}>
-                    <Ionicons name={getCategoryIcon(category)} size={20} color={getCategoryColor(category)} />
-                  </View>
-                  <Text style={[styles.categoryTitle, { color: theme?.textPrimary || Colors.text }]}>{category}</Text>
-                  <Text style={[styles.categoryCount, { color: theme?.textSecondary || Colors.textSecondary }]}>({categoriesMap[category].length})</Text>
-                </View>
-                {categoriesMap[category].slice(0, 2).map((report) => (
-                  <View key={report.id} style={styles.categoryReportItem}>
-                    <Text style={[styles.categoryReportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
-                    <Text style={[styles.categoryReportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date}</Text>
-                  </View>
-                ))}
-                {categoriesMap[category].length > 2 && (
-                  <TouchableOpacity style={styles.viewMoreButton}>
-                    <Text style={[styles.viewMoreText, { color: Colors.primary }]}>View {categoriesMap[category].length - 2} more</Text>
-                  </TouchableOpacity>
-                )}
+            {/* Modern Categories Grid */}
+            {activeTab === 'Categories' && (
+              <View style={styles.categoriesGrid}>
+                {/* Predefined Medical Categories */}
+                {[
+                  { 
+                    name: 'Blood Tests', 
+                    icon: 'water-outline', 
+                    color: '#E53E3E',
+                    bgColor: '#FED7D7'
+                  },
+                  { 
+                    name: 'Imaging', 
+                    icon: 'camera-outline', 
+                    color: '#3182CE',
+                    bgColor: '#BEE3F8'
+                  },
+                  { 
+                    name: 'Cardiology', 
+                    icon: 'heart-outline', 
+                    color: '#E53E3E',
+                    bgColor: '#FED7D7'
+                  },
+                  { 
+                    name: 'Pathology', 
+                    icon: 'flask-outline', 
+                    color: '#38A169',
+                    bgColor: '#C6F6D5'
+                  },
+                  { 
+                    name: 'Radiology', 
+                    icon: 'radio-outline', 
+                    color: '#805AD5',
+                    bgColor: '#E9D8FD'
+                  },
+                  { 
+                    name: 'Urine Tests', 
+                    icon: 'beaker-outline', 
+                    color: '#D69E2E',
+                    bgColor: '#FAF089'
+                  },
+                  { 
+                    name: 'Consultation', 
+                    icon: 'people-outline', 
+                    color: '#3182CE',
+                    bgColor: '#BEE3F8'
+                  },
+                  { 
+                    name: 'Orthopedic', 
+                    icon: 'fitness-outline', 
+                    color: '#D69E2E',
+                    bgColor: '#FAF089'
+                  }
+                ].map((category) => {
+                  const categoryReports = categoriesMap[category.name] || [];
+                  const reportCount = categoryReports.length;
+                  
+                  return (
+                    <TouchableOpacity 
+                      key={category.name}
+                      style={[styles.categoryCard, { backgroundColor: theme?.cardBackground || Colors.white }]}
+                      onPress={() => {
+                        if (reportCount > 0) {
+                          handleCategoryView(category.name, categoryReports);
+                        }
+                      }}
+                      activeOpacity={reportCount > 0 ? 0.7 : 1}
+                    >
+                      {/* Category Icon */}
+                      <View style={[styles.categoryIconContainer, { backgroundColor: category.bgColor }]}>
+                        <Ionicons 
+                          name={category.icon} 
+                          size={28} 
+                          color={category.color} 
+                        />
+                      </View>
+                      
+                      {/* Category Name */}
+                      <Text style={[styles.categoryCardTitle, { color: theme?.textPrimary || Colors.text }]}>
+                        {category.name}
+                      </Text>
+                      
+                      {/* Report Count */}
+                      <Text style={[styles.categoryCardCount, { 
+                        color: reportCount > 0 ? Colors.primary : theme?.textSecondary || Colors.textSecondary 
+                      }]}>
+                        {reportCount} report{reportCount !== 1 ? 's' : ''}
+                      </Text>
+                      
+                      {/* New Badge for recent reports */}
+                      {reportCount > 0 && categoryReports.some(report => {
+                        const reportDate = new Date(report.timestamp || report.createdAt || report.date);
+                        const daysDiff = (new Date() - reportDate) / (1000 * 60 * 60 * 24);
+                        return daysDiff <= 7; // Reports from last 7 days
+                      }) && (
+                        <View style={styles.newBadge}>
+                          <Text style={styles.newBadgeText}>NEW</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            ))}
+            )}
 
             {/* Empty state */}
             {allReportsData.length === 0 && (
@@ -1104,6 +1312,63 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  // New Categories Grid Styles
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: Sizes.screenPadding,
+    paddingBottom: Sizes.lg,
+  },
+  categoryCard: {
+    width: '47%', // Two cards per row with some spacing
+    backgroundColor: Colors.white,
+    borderRadius: Sizes.radiusLarge,
+    padding: Sizes.lg,
+    marginBottom: Sizes.md,
+    shadowColor: Colors.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: 120,
+  },
+  categoryIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Sizes.sm,
+  },
+  categoryCardTitle: {
+    fontSize: Sizes.medium,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: Sizes.xs,
+  },
+  categoryCardCount: {
+    fontSize: Sizes.small,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  newBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: Colors.success,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  newBadgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   categoryHeader: {
     flexDirection: 'row',

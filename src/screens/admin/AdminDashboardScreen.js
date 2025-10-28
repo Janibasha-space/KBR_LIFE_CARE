@@ -352,7 +352,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => navigation.navigate('PaymentManagement')}
+              onPress={() => navigation.navigate('Payments')}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: '#3B82F6' + '15' }]}>
                 <Ionicons name="wallet-outline" size={24} color="#3B82F6" />
@@ -405,7 +405,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           <View style={styles.financialCards}>
             <TouchableOpacity 
               style={[styles.financialCard, { backgroundColor: '#10B981' + '10' }]}
-              onPress={() => navigation.navigate('PaymentManagement')}
+              onPress={() => navigation.navigate('Payments')}
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="trending-up" size={24} color="#10B981" />
