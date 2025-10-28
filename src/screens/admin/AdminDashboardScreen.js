@@ -436,7 +436,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="trending-up" size={24} color="#10B981" />
-                <Text style={styles.financialAmount}>₹{dashboardData.totalRevenue.toLocaleString()}</Text>
+                <Text style={styles.financialAmount}>₹{(Math.round((dashboardData.totalRevenue || 0) * 100) / 100).toLocaleString()}</Text>
               </View>
               <Text style={styles.financialTitle}>Total Revenue</Text>
               <Text style={styles.financialSubtitle}>All payments collected</Text>
