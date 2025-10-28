@@ -1263,7 +1263,11 @@ export const AppProvider = ({ children }) => {
       // Add revenue from paid appointments (OP payments) - only count fully paid
       const appointmentRevenue = appState.appointments
         .filter(apt => apt.paymentStatus === 'Paid')
-        .reduce((sum, apt) => sum + (parseFloat(apt.amount || apt.totalAmount || apt.consultationFee) || 0), 0);
+        .reduce((sum, apt) => {
+          const amount = parseFloat(apt.amount || apt.totalAmount || apt.consultationFee) || 0;
+          console.log(`🏥 Processing appointment: ${apt.patientName} - Amount: ₹${amount} (original: ${apt.amount || apt.totalAmount || apt.consultationFee})`);
+          return sum + amount;
+        }, 0);
       totalRevenue += appointmentRevenue;
       console.log(`🏥 Appointment revenue (Paid only): ₹${appointmentRevenue}`);
       
@@ -1286,28 +1290,15 @@ export const AppProvider = ({ children }) => {
       totalRevenue += directRevenue;
       console.log(`💰 Direct payments revenue: ₹${directRevenue}`);
       
-      // Add revenue from paid appointments (OP payments)
-      totalRevenue += appState.appointments
-        .filter(apt => apt.paymentStatus === 'Paid')
-        .reduce((sum, apt) => sum + (apt.amount || apt.totalAmount || apt.consultationFee || 0), 0);
-      
-      // Add revenue from patient payments (IP payments)
-      totalRevenue += appState.patients
-        .filter(patient => patient.paymentDetails && patient.paymentDetails.totalPaid > 0)
-        .reduce((sum, patient) => sum + (patient.paymentDetails.totalPaid || 0), 0);
-      
-      // Add revenue from invoices that are paid
-      totalRevenue += appState.invoices
-        .filter(invoice => invoice.status === 'Paid' || invoice.paymentStatus === 'Paid')
-        .reduce((sum, invoice) => sum + (invoice.totalAmount || invoice.amount || 0), 0);
-      
       console.log(`💰 Revenue calculated from individual sources: ₹${totalRevenue}`);
     }
+
+    const roundedRevenue = Math.round(totalRevenue * 100) / 100; // Round to 2 decimal places to avoid floating point issues
 
     const stats = {
       totalUsers: appState.patients.length,
       totalAppointments: appState.appointments.length,
-      totalRevenue: Math.round(totalRevenue * 100) / 100, // Round to 2 decimal places to avoid floating point issues
+      totalRevenue: roundedRevenue,
       activeDoctors: appState.doctors.filter(doc => doc.status === 'Active' || doc.availability === 'Available').length || appState.doctors.length,
       todayAppointments: appState.appointments.filter(apt => {
         const today = new Date().toISOString().split('T')[0];
@@ -1318,7 +1309,14 @@ export const AppProvider = ({ children }) => {
       completedAppointments: appState.appointments.filter(apt => apt.status === 'Completed' || apt.status === 'completed').length,
     };
 
-    console.log(`✅ AppContext: Setting adminStats - totalRevenue: ₹${stats.totalRevenue}`);
+    console.log(`✅ AppContext: Setting adminStats - Raw Revenue: ${totalRevenue}, Rounded Revenue: ${roundedRevenue}, Final: ₹${stats.totalRevenue}`);
+    console.log(`📊 AppContext Stats Summary:`, {
+      totalUsers: stats.totalUsers,
+      totalAppointments: stats.totalAppointments,
+      totalRevenue: stats.totalRevenue,
+      activeDoctors: stats.activeDoctors,
+      todayAppointments: stats.todayAppointments
+    });
     setAppState(prev => ({
       ...prev,
       adminStats: stats

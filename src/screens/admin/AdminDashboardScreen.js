@@ -44,6 +44,23 @@ const AdminDashboardScreen = ({ navigation }) => {
     pendingInvoicesCount: 0
   });
 
+  // Helper function to format currency properly
+  const formatCurrency = (amount) => {
+    // Ensure we have a valid number
+    const numAmount = parseFloat(amount) || 0;
+    
+    // Handle edge cases and ensure proper formatting
+    if (isNaN(numAmount) || !isFinite(numAmount)) {
+      return '₹0';
+    }
+    
+    // Round to 2 decimal places to avoid floating point issues
+    const roundedAmount = Math.round(numAmount * 100) / 100;
+    
+    // Use Indian locale for proper number formatting
+    return `₹${roundedAmount.toLocaleString('en-IN')}`;
+  };
+
   console.log('🏥 AdminDashboardScreen rendered, isAuthenticated:', isAuthenticated, 'Render timestamp:', Date.now());
 
   // Fetch real-time dashboard data from Firebase
@@ -237,6 +254,14 @@ const AdminDashboardScreen = ({ navigation }) => {
     );
   }
 
+  // Add debugging for revenue amount
+  console.log('💰 Dashboard Revenue Debug:', {
+    totalRevenue: dashboardData.totalRevenue,
+    type: typeof dashboardData.totalRevenue,
+    isNaN: isNaN(dashboardData.totalRevenue),
+    formatted: formatCurrency(dashboardData.totalRevenue)
+  });
+
   // Real-time stats cards with live Firebase data
   const statsCards = [
     {
@@ -260,7 +285,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: 'revenue',
       title: 'Revenue',
-      value: `₹${dashboardData.totalRevenue.toLocaleString()}`,
+      value: formatCurrency(dashboardData.totalRevenue),
       change: 'Total collected',
       icon: 'trending-up-outline',
       backgroundColor: Colors.revenue || '#E8F5E8',
@@ -436,7 +461,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             >
               <View style={styles.financialCardHeader}>
                 <Ionicons name="trending-up" size={24} color="#10B981" />
-                <Text style={styles.financialAmount}>₹{(Math.round((dashboardData.totalRevenue || 0) * 100) / 100).toLocaleString()}</Text>
+                <Text style={styles.financialAmount}>{formatCurrency(dashboardData.totalRevenue)}</Text>
               </View>
               <Text style={styles.financialTitle}>Total Revenue</Text>
               <Text style={styles.financialSubtitle}>All payments collected</Text>
