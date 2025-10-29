@@ -1160,14 +1160,6 @@ const ServicesScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* Expand All Categories Button */}
-        <View style={styles.expandSection}>
-          <TouchableOpacity style={styles.expandButton}>
-            <Text style={styles.expandText}>Expand All Categories</Text>
-            <Ionicons name="add" size={20} color={Colors.kbrRed} />
-          </TouchableOpacity>
-        </View>
-
         {/* Emergency Services */}
         <View style={styles.emergencySection}>
           {renderEmergencyCard()}
@@ -1369,38 +1361,6 @@ const styles = StyleSheet.create({
     fontSize: Sizes.small,
     color: Colors.white,
     fontWeight: '600',
-  },
-  expandSection: {
-    paddingHorizontal: Sizes.screenPadding,
-    paddingVertical: Sizes.md,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-  },
-  expandButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.kbrRed,
-    borderRadius: Sizes.radiusMedium,
-    paddingHorizontal: Sizes.lg,
-    paddingVertical: Sizes.sm,
-  },
-  expandText: {
-    fontSize: Sizes.medium,
-    color: Colors.kbrRed,
-    fontWeight: '500',
-    marginRight: Sizes.xs,
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  expandButtonText: {
-    color: Colors.kbrRed,
-    fontSize: Sizes.regular,
-    fontWeight: '600',
-    marginRight: Sizes.sm,
   },
   emergencySection: {
     paddingHorizontal: Sizes.screenPadding,
