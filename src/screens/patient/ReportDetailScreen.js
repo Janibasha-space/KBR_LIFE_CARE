@@ -420,39 +420,126 @@ const ReportDetailScreen = ({ route, navigation }) => {
         }
         
       case 'images':
-        if (reportData.type === 'imaging') {
-          return (
-            <View style={styles.tabContent}>
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>X-Ray Images</Text>
-                <View style={styles.imageContainer}>
-                  <View style={styles.imagePlaceholder}>
-                    <Ionicons name="image" size={40} color={Colors.textSecondary} />
-                    <Text style={styles.imagePlaceholderText}>X-Ray Image 1</Text>
-                    <Text style={styles.imagePlaceholderSubtext}>Anterior/Posterior View</Text>
+        // Debug log to check the report structure
+        console.log('Report data for images:', JSON.stringify(report, null, 2));
+        console.log('Files available:', report?.originalReport?.files);
+        
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Report Images</Text>
+              
+              {/* Display actual images from the report */}
+              {report?.originalReport?.files && report.originalReport.files.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <View style={styles.imagesGrid}>
+                    {report.originalReport.files.map((file, index) => {
+                      // Check if the file is an image
+                      if (file.type?.includes('image') || file.downloadUrl?.includes('image') || 
+                          file.name?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
+                        return (
+                          <View 
+                            key={index} 
+                            style={styles.imageItemFullWidth}
+                          >
+                            <Image 
+                              source={{ uri: file.downloadUrl || file.url }} 
+                              style={styles.fullWidthImage}
+                              resizeMode="contain"
+                              onError={(error) => {
+                                console.log('Image load error:', error.nativeEvent?.error);
+                              }}
+                              onLoad={() => {
+                                console.log('Image loaded successfully:', file.name);
+                              }}
+                              onLoadStart={() => {
+                                console.log('Starting to load image:', file.downloadUrl || file.url);
+                              }}
+                            />
+                            <View style={styles.imageInfoOverlay}>
+                              <Text style={styles.imageNameOverlay} numberOfLines={1}>
+                                {file.name || `Image ${index + 1}`}
+                              </Text>
+                              <Text style={styles.imageSizeOverlay}>
+                                {file.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'Unknown size'}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      }
+                      return null;
+                    })}
                   </View>
-                  <View style={styles.imagePlaceholder}>
-                    <Ionicons name="image" size={40} color={Colors.textSecondary} />
-                    <Text style={styles.imagePlaceholderText}>X-Ray Image 2</Text>
-                    <Text style={styles.imagePlaceholderSubtext}>Lateral View</Text>
+                  
+                  {/* Show files that are not images */}
+                  {report.originalReport.files.some(file => 
+                    !(file.type?.includes('image') || file.downloadUrl?.includes('image') || 
+                      file.name?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i))
+                  ) && (
+                    <View style={styles.filesSection}>
+                      <Text style={styles.filesSectionTitle}>Other Files</Text>
+                      {report.originalReport.files
+                        .filter(file => !(file.type?.includes('image') || file.downloadUrl?.includes('image') || 
+                                        file.name?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)))
+                        .map((file, index) => (
+                          <TouchableOpacity 
+                            key={index} 
+                            style={styles.fileItem}
+                            onPress={() => {
+                              Alert.alert(
+                                'Download File',
+                                `Would you like to download ${file.name}?`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  { text: 'Download', onPress: () => {
+                                    // Handle file download
+                                    console.log('Downloading file:', file.name);
+                                  }}
+                                ]
+                              );
+                            }}
+                          >
+                            <View style={styles.fileInfo}>
+                              <Ionicons name="document-outline" size={24} color={Colors.kbrBlue} />
+                              <View style={styles.fileDetails}>
+                                <Text style={styles.fileName}>{file.name || 'Unknown file'}</Text>
+                                <Text style={styles.fileSize}>
+                                  {file.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'Unknown size'}
+                                </Text>
+                              </View>
+                            </View>
+                            <Ionicons name="download-outline" size={20} color={Colors.textSecondary} />
+                          </TouchableOpacity>
+                        ))}
+                    </View>
+                  )}
+                  
+                  <Text style={styles.imageDisclaimerText}>
+                    Report images are displayed above. Files can be downloaded from other sections.
+                  </Text>
+                </ScrollView>
+              ) : reportData.type === 'imaging' ? (
+                // Show placeholder for imaging reports without actual images
+                <View style={styles.imagesGrid}>
+                  <View style={styles.imagePlaceholderFullWidth}>
+                    <Ionicons name="image" size={60} color={Colors.textSecondary} />
+                    <Text style={styles.imagePlaceholderText}>X-Ray Images</Text>
+                    <Text style={styles.imagePlaceholderSubtext}>Images will appear here when available</Text>
                   </View>
                 </View>
-                <Text style={styles.imageDisclaimerText}>
-                  Note: These are placeholder images. Actual medical images would be available in a production environment.
-                </Text>
-              </View>
+              ) : (
+                // No images available
+                <View style={styles.noImagesContainer}>
+                  <Ionicons name="image-outline" size={64} color={Colors.textSecondary} />
+                  <Text style={styles.noImagesTitle}>No Images Available</Text>
+                  <Text style={styles.noImagesText}>
+                    This report doesn't contain any images. Images will appear here when available.
+                  </Text>
+                </View>
+              )}
             </View>
-          );
-        } else {
-          return (
-            <View style={styles.tabContent}>
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Report Images</Text>
-                <Text style={styles.sectionText}>No images available for this report type.</Text>
-              </View>
-            </View>
-          );
-        }
+          </View>
+        );
         
       case 'history':
         return (
@@ -1030,11 +1117,172 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Sizes.xs,
   },
+  imagePlaceholderFullWidth: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.lightBackground,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 16,
+  },
   imageDisclaimerText: {
     fontSize: Sizes.small,
     fontStyle: 'italic',
     color: Colors.textSecondary,
     marginTop: Sizes.sm,
+  },
+  // Images grid layout
+  imagesGrid: {
+    flex: 1,
+    marginTop: 12,
+  },
+  // Full width image display for mobile
+  imageItemFullWidth: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    overflow: 'hidden',
+  },
+  fullWidthImage: {
+    width: '100%',
+    minHeight: 200,
+    maxHeight: 400,
+    backgroundColor: Colors.lightBackground,
+  },
+  imageInfoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  imageNameOverlay: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
+  },
+  imageSizeOverlay: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  // New image and file display styles
+  imageItem: {
+    width: '48%',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  imageContainer: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  reportImage: {
+    width: '100%',
+    height: 140,
+    backgroundColor: Colors.lightBackground,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 20,
+    padding: 6,
+  },
+  imageFileName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  imageFileSize: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  noImagesContainer: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  noImagesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginTop: 12,
+  },
+  noImagesText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  filesSection: {
+    marginTop: 24,
+  },
+  filesSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
+  fileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  fileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  fileDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  fileSize: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   examText: {
     fontSize: Sizes.medium,
