@@ -1,247 +1,373 @@
-# KBR Hospital Mobile App
+# KBR Life Care Hospital Mobile App
 
-A comprehensive React Native mobile application for KBR Hospital, providing seamless healthcare services for both Android and iOS platforms.
+A comprehensive **React Native hospital management application** built with **Expo** and **Firebase**, providing complete healthcare management solutions for both patients and administrators.
 
-## Features
+---
 
-### 🏥 Core Functionality
-- **Splash Screen** with hospital branding
-- **User Onboarding** with interactive walkthrough
-- **User Authentication** (Login/Register)
-- **Home Dashboard** with quick access to services
-- **Appointment Booking** system
-- **User Profile Management**
+## 🏥 **Overview**
 
-### 📱 Screens
-1. **Splash Screen** - Hospital logo and branding
-2. **Onboarding** - Feature introduction with smooth navigation
-3. **Login Screen** - Secure authentication with social login options
-4. **Home Screen** - Dashboard with services, appointments, and quick actions
-5. **Appointment Screen** - Complete booking system with doctor selection
-6. **Profile Screen** - User information management and settings
+**KBR Life Care** is a full-featured hospital management mobile application designed to streamline healthcare operations. The app serves both **patients** and **hospital administrators** with dedicated interfaces for appointment booking, patient management, medical records, payments, and comprehensive hospital administration.
 
-### 🎨 Design Features
-- Modern Material Design principles
-- Consistent color scheme and typography
-- Smooth animations and transitions
-- Responsive layout for various screen sizes
-- Professional medical app aesthetics
+### **Key Highlights**
+- 🔥 **Firebase Integration** - Real-time data synchronization and authentication
+- 👨‍⚕️ **Multi-Role System** - Patient and Admin interfaces with role-based access
+- 📱 **Cross-Platform** - iOS, Android, and Web support via Expo
+- 🏗️ **Production-Ready** - Complete hospital management features
+- 🎨 **Modern UI/UX** - Professional medical app design
 
-## Technology Stack
+---
 
-- **Framework**: React Native with Expo
-- **Navigation**: React Navigation 6
-- **Icons**: Expo Vector Icons (Ionicons)
-- **Styling**: StyleSheet with theme constants
-- **Platform Support**: Android & iOS
-- **Development**: VS Code with Expo CLI
+## 🚀 **Features**
 
-## Prerequisites
+### **For Patients**
+- 📋 **Appointment Booking** - Schedule appointments with doctors
+- 👤 **Profile Management** - Manage personal and medical information
+- 🏥 **Service Booking** - Access hospital services and diagnostics
+- 📊 **Medical Reports** - View and manage medical test results
+- 💰 **Payment History** - Track payments and invoices
+- 📞 **Doctor Directory** - Browse and contact healthcare providers
 
-Before running this application, make sure you have the following installed:
+### **For Administrators**
+- 📈 **Admin Dashboard** - Real-time hospital metrics and analytics
+- 👥 **Patient Management** - Complete patient record management
+- 👨‍⚕️ **Doctor Management** - Manage healthcare staff and schedules
+- 🏨 **Room Management** - Hospital room and bed management
+- 💼 **Service Management** - Configure hospital services and pricing
+- 📋 **Appointment Management** - Oversee all patient appointments
+- 🧾 **Invoice Management** - Handle billing and payment processing
+- 📊 **Reports & Analytics** - Generate hospital performance reports
 
-- Node.js (v14 or higher)
-- npm or yarn
-- Expo CLI (`npm install -g expo-cli`)
-- Expo Go app on your mobile device (for testing)
+---
 
-## Installation
+## 🛠️ **Technology Stack**
 
-1. **Clone or navigate to the project directory**
+### **Core Technologies**
+- **Framework**: React Native 0.81.5 with Expo 54.0.20
+- **Backend**: Firebase (Firestore, Authentication, Storage)
+- **Navigation**: React Navigation 7.x (Stack, Tab, Drawer)
+- **State Management**: React Context API with custom hooks
+- **UI Components**: Custom components with Expo Vector Icons
+
+### **Key Dependencies**
+- **Firebase**: `@react-native-firebase/app`, `@react-native-firebase/auth`, `@react-native-firebase/firestore`
+- **Navigation**: `@react-navigation/native`, `@react-navigation/stack`, `@react-navigation/drawer`
+- **UI**: `expo-linear-gradient`, `react-native-vector-icons`, `@expo/vector-icons`
+- **Media**: `expo-image-picker`, `expo-document-picker`, `expo-media-library`
+- **Storage**: `@react-native-async-storage/async-storage`
+
+---
+
+## 📱 **App Architecture**
+
+### **Screen Structure**
+```
+├── 🌟 Splash & Onboarding
+├── 🔐 Authentication System
+├── 👤 Patient Portal
+│   ├── Home Dashboard
+│   ├── Appointment Booking
+│   ├── Services & Diagnostics
+│   ├── Medical Reports
+│   ├── Payment History
+│   ├── Doctor Directory
+│   └── Profile Management
+└── 🏥 Admin Portal
+    ├── Dashboard & Analytics
+    ├── Patient Management
+    ├── Doctor Management
+    ├── Room Management
+    ├── Service Management
+    ├── Appointment Management
+    ├── Invoice Management
+    └── Reports & Admin Profile
+```
+
+### **Project Structure**
+```
+KBR_LIFE_CARE/
+├── 📱 App.js                          # Main app entry point
+├── ⚙️ app.json                       # Expo configuration
+├── 📦 package.json                   # Dependencies
+├── 🔧 babel.config.js               # Babel configuration
+├── 🔥 firebase.json                 # Firebase configuration
+├── 🌐 .env.development              # Development environment
+├── 🌐 .env.production               # Production environment
+├── 🖼️ assets/                       # Images and static files
+├── 📚 docs/                         # Documentation
+│   ├── FIREBASE_INTEGRATION_GUIDE.md
+│   ├── PERFORMANCE_GUIDE.md
+│   ├── BACKEND_CONNECTION_GUIDE.md
+│   └── ASSETS_GUIDE.md
+└── 💻 src/
+    ├── 🧩 components/              # Reusable UI components
+    │   ├── AppHeader.js
+    │   ├── AuthModal.js
+    │   ├── LoadingScreen.js
+    │   └── FirebaseInitializer.js
+    ├── ⚙️ config/                  # App configuration
+    │   ├── firebase.config.js
+    │   └── firebaseDataSetup.js
+    ├── 📐 constants/               # Theme and constants
+    │   └── theme.js
+    ├── 🔄 contexts/                # React contexts
+    │   ├── AppContext.js
+    │   ├── FirebaseAuthContext.js
+    │   └── UnifiedAuthContext.js
+    ├── 🖥️ screens/                  # App screens
+    │   ├── SplashScreen.js
+    │   ├── OnboardingScreen.js
+    │   ├── patient/               # Patient screens
+    │   │   ├── PatientHomeScreen.js
+    │   │   ├── AppointmentScreen.js
+    │   │   ├── ServicesScreen.js
+    │   │   ├── MedicalReportsScreen.js
+    │   │   └── ProfileScreen.js
+    │   └── admin/                 # Admin screens
+    │       ├── AdminDashboardScreen.js
+    │       ├── PatientManagementScreen.js
+    │       ├── DoctorManagementScreen.js
+    │       └── ServiceManagementScreen.js
+    ├── 🔧 services/                # API and business logic
+    │   ├── authService.js
+    │   ├── firebaseAuthService.js
+    │   ├── hospitalServices.js
+    │   └── firebaseHospitalServices.js
+    ├── 🎨 styles/                  # Global styles
+    └── 🛠️ utils/                   # Utility functions
+        ├── firebaseDebug.js
+        └── firebaseTest.js
+```
+
+---
+
+## 🔥 **Firebase Integration**
+
+### **Services Configured**
+- **🔐 Firebase Authentication** - Email/password login with user roles
+- **📊 Firestore Database** - Real-time data storage and synchronization
+- **💾 Firebase Storage** - Image and document storage
+- **🔒 Security Rules** - Proper data access control
+- **📱 Real-time Listeners** - Live data updates across the app
+
+### **Data Collections**
+```
+Firestore Database:
+├── 👥 users/              # User profiles and authentication data
+├── 👨‍⚕️ doctors/            # Doctor profiles and availability
+├── 📋 appointments/       # Patient appointments
+├── 🏥 services/           # Hospital services and pricing
+├── 🏨 rooms/              # Room and bed management
+├── 📊 medicalReports/     # Patient medical test results
+├── 💰 payments/           # Payment history and invoices
+└── 🔧 admissions/         # Patient admission records
+```
+
+---
+
+## 🚀 **Getting Started**
+
+### **Prerequisites**
+- **Node.js** (v16 or higher)
+- **npm** or **yarn**
+- **Expo CLI** (`npm install -g @expo/cli`)
+- **Expo Go** app on mobile device
+- **Firebase Project** with Firestore enabled
+
+### **Installation**
+
+1. **Clone the Repository**
    ```bash
-   cd "c:\Users\JANI BASHA\Downloads\New folder (4)"
+   git clone https://github.com/Janibasha-space/KBR_LIFE_CARE.git
+   cd KBR_LIFE_CARE
    ```
 
-2. **Install dependencies**
+2. **Install Dependencies**
    ```bash
    npm install
    ```
 
-3. **Start the development server**
+3. **Configure Firebase**
+   - Update `src/config/firebase.config.js` with your Firebase credentials
+   - Ensure Firestore and Authentication are enabled in Firebase Console
+
+4. **Start Development Server**
    ```bash
-   npm start
-   # or
-   expo start
+   npx expo start
    ```
 
-4. **Run on device/simulator**
-   - Scan the QR code with Expo Go app (Android/iOS)
-   - Press 'a' for Android emulator
-   - Press 'i' for iOS simulator
-
-## Project Structure
-
-```
-├── App.js                 # Main app component with navigation
-├── app.json              # Expo configuration
-├── package.json          # Dependencies and scripts
-├── babel.config.js       # Babel configuration
-├── assets/               # Images and static assets
-│   ├── Gemini_Generated_Image_5ppbdb5ppbdb5ppb.png
-│   - `hospital-logo.jpeg`: Main hospital logo/branding image
-└── src/
-    ├── components/       # Reusable components
-    │   ├── Button.js     # Custom button component
-    │   ├── Input.js      # Custom input component
-    │   └── Card.js       # Custom card component
-    ├── constants/        # App constants
-    │   └── theme.js      # Colors, fonts, and styling constants
-    ├── screens/          # App screens
-    │   ├── SplashScreen.js
-    │   ├── OnboardingScreen.js
-    │   ├── LoginScreen.js
-    │   ├── HomeScreen.js
-    │   ├── AppointmentScreen.js
-    │   └── ProfileScreen.js
-    └── services/         # API and service files
-```
-
-## Key Components
-
-### Theme System
-- Centralized color palette in `src/constants/theme.js`
-- Consistent sizing and typography
-- Easy customization and maintenance
-
-### Navigation Flow
-```
-Splash → Onboarding → Login → Home ↔ Appointment
-                             ↕
-                           Profile
-```
-
-### Reusable Components
-- **Button**: Customizable with variants (primary, secondary, outline, danger)
-- **Input**: Form input with icons, validation, and error states
-- **Card**: Flexible container with optional headers and icons
-
-## Customization
-
-### Colors
-Edit `src/constants/theme.js` to modify the app's color scheme:
-```javascript
-export const Colors = {
-  primary: '#007BFF',    // Main brand color
-  secondary: '#6C757D',  // Secondary actions
-  success: '#28A745',    // Success states
-  danger: '#DC3545',     // Error states
-  // ... more colors
-};
-```
-
-### Assets
-Replace images in the `assets/` folder:
-- Update hospital logo and splash screen images
-- Ensure proper naming conventions
-- Optimize images for mobile performance
-
-## Features Breakdown
-
-### 🔐 Authentication
-- Email/password login
-- Social login integration ready
-- Form validation
-- Secure token handling
-
-### 📅 Appointment System
-- Department selection
-- Doctor browsing with ratings
-- Date and time slot selection
-- Patient information form
-- Booking confirmation
-
-### 👤 Profile Management
-- Personal information editing
-- Medical history access
-- Notification preferences
-- Account settings
-
-### 🏠 Dashboard
-- Quick service access
-- Upcoming appointments
-- Health tips and news
-- Emergency contact options
-
-## Development Guidelines
-
-### Code Style
-- Use functional components with hooks
-- Follow ESLint and Prettier configurations
-- Maintain consistent file naming
-- Add comments for complex logic
-
-### State Management
-- Local state with useState for simple data
-- Consider Redux/Context API for complex state
-- Implement proper error handling
-
-### Performance
-- Optimize images and assets
-- Use FlatList for large data sets
-- Implement proper loading states
-- Cache API responses where appropriate
-
-## Testing
-
-### Running Tests
-```bash
-npm test
-```
-
-### Testing on Devices
-1. **iOS**: Use Expo Go app or iOS Simulator
-2. **Android**: Use Expo Go app or Android Emulator
-3. **Web**: Open browser at localhost when running `expo start --web`
-
-## Deployment
-
-### Building for Production
-
-**Android (APK)**
-```bash
-expo build:android
-```
-
-**iOS (IPA)**
-```bash
-expo build:ios
-```
-
-**App Stores**
-```bash
-expo upload:android
-expo upload:ios
-```
-
-## Environment Variables
-
-Create a `.env` file for configuration:
-```
-API_BASE_URL=https://your-api-url.com
-GOOGLE_CLIENT_ID=your-google-client-id
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## Support
-
-For technical support or questions:
-- Check the [Expo documentation](https://docs.expo.dev/)
-- Review [React Navigation docs](https://reactnavigation.org/)
-- Contact the development team
-
-## License
-
-This project is proprietary to KBR Hospital. All rights reserved.
+5. **Run on Device/Simulator**
+   - **Mobile**: Scan QR code with Expo Go app
+   - **Android Emulator**: Press `a` in terminal
+   - **iOS Simulator**: Press `i` in terminal
+   - **Web Browser**: Press `w` in terminal
 
 ---
 
-**Built with ❤️ for KBR Hospital**
+## 👥 **User Roles & Access**
 
-*Ensuring quality healthcare through innovative technology solutions.*
+### **Patient Users**
+- Register and login with email/password
+- Book and manage appointments
+- Access medical reports and payment history
+- Update personal profile information
+- Browse hospital services and doctors
+
+### **Admin Users**
+- Full hospital management dashboard
+- Manage all patient records and appointments  
+- Configure hospital services and pricing
+- Generate reports and analytics
+- Manage doctor schedules and availability
+- Process payments and generate invoices
+
+---
+
+## 🔧 **Development**
+
+### **Environment Configuration**
+```bash
+# .env.development
+API_BASE_URL=https://your-dev-api.com
+FIREBASE_ENVIRONMENT=development
+
+# .env.production  
+API_BASE_URL=https://your-prod-api.com
+FIREBASE_ENVIRONMENT=production
+```
+
+### **Running Tests**
+```bash
+# Start the test Firebase screen
+npx expo start
+# Navigate to Firebase Test screen in the app
+```
+
+### **Code Style Guidelines**
+- Use **functional components** with React hooks
+- Follow **consistent naming conventions**
+- Implement **proper error handling**
+- Add **TypeScript** (optional but recommended)
+- Use **ESLint** and **Prettier** for code formatting
+
+---
+
+## 📱 **Platform Support**
+
+### **iOS**
+- Minimum iOS version: 11.0
+- Bundle identifier: `com.kbrhospital.app`
+- Supports iPhone and iPad
+
+### **Android**
+- Minimum SDK version: 21 (Android 5.0)
+- Package name: `com.kbrhospital.app`
+- Supports all Android devices
+
+### **Web**
+- Modern browsers with ES6 support
+- Responsive design for desktop and mobile web
+
+---
+
+## 🚢 **Deployment**
+
+### **Building for Production**
+
+**Expo Application Services (EAS)**
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Configure build
+eas build:configure
+
+# Build for Android
+eas build --platform android
+
+# Build for iOS
+eas build --platform ios
+
+# Submit to app stores
+eas submit --platform ios
+eas submit --platform android
+```
+
+**Classic Expo Build**
+```bash
+# Build APK
+expo build:android
+
+# Build IPA
+expo build:ios
+```
+
+---
+
+## 🔒 **Security Features**
+
+- **Firebase Authentication** - Secure user login and registration
+- **Firestore Security Rules** - Database access control
+- **Role-based Access Control** - Patient vs Admin permissions
+- **Data Validation** - Input sanitization and validation
+- **Secure Storage** - Encrypted local data storage
+
+---
+
+## 📊 **Performance Optimization**
+
+- **Image Optimization** - Compressed assets and lazy loading
+- **FlatList Implementation** - Efficient large data rendering
+- **Real-time Listeners** - Optimized Firebase subscriptions
+- **Memory Management** - Proper cleanup of listeners and timers
+- **Bundle Splitting** - Optimized app bundle size
+
+---
+
+## 🤝 **Contributing**
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/AmazingFeature`)
+3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** to the branch (`git push origin feature/AmazingFeature`)
+5. **Open** a Pull Request
+
+---
+
+## 📞 **Support & Documentation**
+
+### **Additional Documentation**
+- 🔥 [Firebase Integration Guide](docs/FIREBASE_INTEGRATION_GUIDE.md)
+- ⚡ [Performance Guide](docs/PERFORMANCE_GUIDE.md)
+- 🔌 [Backend Connection Guide](docs/BACKEND_CONNECTION_GUIDE.md)
+- 🖼️ [Assets Guide](docs/ASSETS_GUIDE.md)
+
+### **Help & Resources**
+- **Expo Documentation**: [https://docs.expo.dev/](https://docs.expo.dev/)
+- **React Navigation**: [https://reactnavigation.org/](https://reactnavigation.org/)
+- **Firebase Documentation**: [https://firebase.google.com/docs](https://firebase.google.com/docs)
+
+---
+
+## 📄 **License**
+
+This project is proprietary to **KBR Life Care Hospital**. All rights reserved.
+
+---
+
+## 🏆 **About KBR Life Care**
+
+**KBR Life Care Hospital** is committed to providing exceptional healthcare services through innovative technology solutions. This mobile application represents our dedication to digital transformation in healthcare management.
+
+---
+
+<div align="center">
+
+**🏥 Built with ❤️ for KBR Life Care Hospital**
+
+*Empowering Healthcare Through Technology*
+
+[![Expo](https://img.shields.io/badge/Expo-54.0.20-blue?style=for-the-badge&logo=expo)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.81.5-blue?style=for-the-badge&logo=react)](https://reactnative.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-12.4.0-orange?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
+
+</div>
