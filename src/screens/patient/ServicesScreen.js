@@ -401,7 +401,16 @@ const ServicesScreen = ({ navigation, route }) => {
     console.log('🧪 Calculating test counts from Firebase data...');
     console.log('🧪 Total firebaseTests available:', firebaseTests.length);
     
-    const counts = { 'blood-tests': 0, 'imaging-tests': 0, 'cardiac-tests': 0 };
+    const counts = { 
+      'blood-tests': 0, 
+      'imaging-tests': 0, 
+      'cardiac-tests': 0, 
+      'specialized-tests': 0,
+      'urine-tests': 0,
+      'stool-tests': 0,
+      'health-packages': 0,
+      'emergency-tests': 0
+    };
     
     firebaseTests.forEach((test, index) => {
       console.log(`🧪 Processing test ${index + 1}:`, {
@@ -414,7 +423,7 @@ const ServicesScreen = ({ navigation, route }) => {
       if (test.category && typeof test.category === 'string') {
         const category = test.category.toLowerCase().trim();
         
-        // Match blood tests - flexible matching
+        // Match blood tests
         if (category.includes('blood') || category === 'blood test' || category === 'blood') {
           counts['blood-tests']++;
           console.log(`✅ Matched "${test.name}" as blood test (category: "${test.category}")`);
@@ -428,6 +437,31 @@ const ServicesScreen = ({ navigation, route }) => {
         else if (category.includes('imaging') || category.includes('x-ray') || category.includes('scan') || category === 'imaging') {
           counts['imaging-tests']++;
           console.log(`✅ Matched "${test.name}" as imaging test (category: "${test.category}")`);
+        }
+        // Match specialized tests
+        else if (category.includes('specialized') || category === 'specialized') {
+          counts['specialized-tests']++;
+          console.log(`✅ Matched "${test.name}" as specialized test (category: "${test.category}")`);
+        }
+        // Match urine tests
+        else if (category.includes('urine') || category === 'urine test' || category === 'urine') {
+          counts['urine-tests']++;
+          console.log(`✅ Matched "${test.name}" as urine test (category: "${test.category}")`);
+        }
+        // Match stool tests
+        else if (category.includes('stool') || category === 'stool test' || category === 'stool') {
+          counts['stool-tests']++;
+          console.log(`✅ Matched "${test.name}" as stool test (category: "${test.category}")`);
+        }
+        // Match health packages
+        else if (category.includes('health package') || category === 'health package' || category.includes('package')) {
+          counts['health-packages']++;
+          console.log(`✅ Matched "${test.name}" as health package (category: "${test.category}")`);
+        }
+        // Match emergency tests
+        else if (category.includes('emergency') || category === 'emergency') {
+          counts['emergency-tests']++;
+          console.log(`✅ Matched "${test.name}" as emergency test (category: "${test.category}")`);
         }
         else {
           console.log(`🧪 No match for test "${test.name}" - category: "${test.category}"`);
@@ -474,6 +508,56 @@ const ServicesScreen = ({ navigation, route }) => {
       color: '#FFFFFF',
       backgroundColor: '#059669', // Green
       description: 'ECG, Echo, and cardiac evaluations',
+    },
+    {
+      id: 'specialized-tests',
+      title: 'Specialized',
+      subtitle: 'Advanced Tests',
+      count: testCounts['specialized-tests'] || 0,
+      icon: 'analytics',
+      color: '#FFFFFF',
+      backgroundColor: '#EA580C', // Orange
+      description: 'Specialized diagnostic and screening tests',
+    },
+    {
+      id: 'urine-tests',
+      title: 'Urine Test',
+      subtitle: 'Urinalysis',
+      count: testCounts['urine-tests'] || 0,
+      icon: 'beaker',
+      color: '#FFFFFF',
+      backgroundColor: '#0891B2', // Cyan
+      description: 'Complete urine analysis and examination',
+    },
+    {
+      id: 'stool-tests',
+      title: 'Stool Test',
+      subtitle: 'Stool Analysis',
+      count: testCounts['stool-tests'] || 0,
+      icon: 'flask',
+      color: '#FFFFFF',
+      backgroundColor: '#7C2D12', // Brown
+      description: 'Comprehensive stool examination and analysis',
+    },
+    {
+      id: 'health-packages',
+      title: 'Health Package',
+      subtitle: 'Complete Checkup',
+      count: testCounts['health-packages'] || 0,
+      icon: 'medical',
+      color: '#FFFFFF',
+      backgroundColor: '#BE185D', // Pink
+      description: 'Comprehensive health checkup packages',
+    },
+    {
+      id: 'emergency-tests',
+      title: 'Emergency',
+      subtitle: 'Urgent Tests',
+      count: testCounts['emergency-tests'] || 0,
+      icon: 'warning',
+      color: '#FFFFFF',
+      backgroundColor: '#B91C1C', // Dark Red
+      description: 'Emergency and urgent diagnostic tests',
     },
   ];
 

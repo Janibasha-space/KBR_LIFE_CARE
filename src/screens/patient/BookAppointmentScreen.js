@@ -184,21 +184,42 @@ const BookAppointmentScreen = ({ navigation, route }) => {
       }
       setFirebaseServices(loadedServices);
       
-      // Load tests from AppContext (real-time) first, then Firebase as fallback
+      // ALWAYS load tests directly from Firebase - ignore AppContext to ensure all admin tests
       let loadedTests = [];
-      if (tests && tests.length > 0) {
-        loadedTests = tests;
-        console.log('✅ Using real-time tests from AppContext:', tests.length);
-      } else {
+      console.log('🔄 FORCING Firebase test load - bypassing AppContext completely...');
+      console.log('� AppContext has:', tests?.length || 0, 'tests (ignoring for complete data)');
+      
+      try {
         const testsResponse = await firebaseHospitalServices.getTests();
-        if (testsResponse.success && testsResponse.data) {
+        if (testsResponse.success && testsResponse.data && testsResponse.data.length > 0) {
           loadedTests = testsResponse.data;
-          console.log('✅ Loaded tests from Firebase fallback:', testsResponse.data.length);
+          console.log('✅ SUCCESS: Loaded ALL tests from Firebase database:', loadedTests.length);
+          console.log('🧪 Categories found:', [...new Set(loadedTests.map(test => test.category))]);
+          console.log('📋 First 3 tests:', loadedTests.slice(0, 3).map(t => ({name: t.name, category: t.category})));
         } else {
-          console.error('❌ Failed to load tests:', testsResponse.message);
+          console.error('❌ FAILED: Firebase returned no test data:', testsResponse.message);
+          // EMERGENCY fallback only if Firebase completely fails
+          if (tests && tests.length > 0) {
+            loadedTests = tests;
+            console.log('⚠️ EMERGENCY FALLBACK: Using limited AppContext tests:', tests.length);
+          } else {
+            loadedTests = [];
+            console.error('💥 CRITICAL: No tests available from any source!');
+          }
+        }
+      } catch (error) {
+        console.error('💥 CRITICAL ERROR loading tests from Firebase:', error);
+        // Emergency fallback
+        if (tests && tests.length > 0) {
+          loadedTests = tests;
+          console.log('⚠️ EMERGENCY: Using AppContext due to Firebase error:', tests.length);
+        } else {
           loadedTests = [];
+          console.error('💥 TOTAL FAILURE: No tests available!');
         }
       }
+      
+      console.log('📊 FINAL TEST COUNT for BookAppointmentScreen:', loadedTests.length);
       setFirebaseTests(loadedTests);
       
       console.log('📊 Final data loaded - Doctors:', loadedDoctors.length, 'Services:', loadedServices.length, 'Tests:', loadedTests.length);
@@ -1407,37 +1428,89 @@ const BookAppointmentScreen = ({ navigation, route }) => {
 
     // Get tests for the selected category - improved filtering logic
     const categoryTests = firebaseTests.filter(test => {
-      if (!test.category) return false;
+      if (!test.category) {
+        console.log('⚠️ Test without category found:', test.name);
+        return false;
+      }
       
       const testCat = test.category.toLowerCase().trim();
       const selectedCat = testCategory?.toLowerCase();
       
+      console.log(`🔍 Checking test "${test.name}" (category: "${test.category}") against selected category: "${testCategory}"`);
+      
       // Match blood tests
       if (selectedCat === 'blood-tests') {
-        return testCat.includes('blood') || testCat === 'blood test' || testCat === 'blood';
+        const matches = testCat.includes('blood') || testCat === 'blood test' || testCat === 'blood';
+        if (matches) console.log(`✅ "${test.name}" matches blood-tests`);
+        return matches;
       }
       // Match cardiac tests  
       else if (selectedCat === 'cardiac-tests') {
-        return testCat.includes('cardiac') || testCat.includes('heart') || testCat === 'cardiac';
+        const matches = testCat.includes('cardiac') || testCat.includes('heart') || testCat === 'cardiac';
+        if (matches) console.log(`✅ "${test.name}" matches cardiac-tests`);
+        return matches;
       }
       // Match imaging tests
       else if (selectedCat === 'imaging-tests') {
-        return testCat.includes('imaging') || testCat.includes('x-ray') || testCat.includes('scan') || testCat === 'imaging';
+        const matches = testCat.includes('imaging') || testCat.includes('x-ray') || testCat.includes('scan') || testCat === 'imaging';
+        if (matches) console.log(`✅ "${test.name}" matches imaging-tests`);
+        return matches;
+      }
+      // Match specialized tests
+      else if (selectedCat === 'specialized-tests') {
+        const matches = testCat.includes('specialized') || testCat === 'specialized' || testCat === 'specialized test';
+        if (matches) console.log(`✅ "${test.name}" matches specialized-tests`);
+        return matches;
+      }
+      // Match urine tests
+      else if (selectedCat === 'urine-tests') {
+        const matches = testCat.includes('urine') || testCat === 'urine test' || testCat === 'urine';
+        if (matches) console.log(`✅ "${test.name}" matches urine-tests`);
+        return matches;
+      }
+      // Match stool tests
+      else if (selectedCat === 'stool-tests') {
+        const matches = testCat.includes('stool') || testCat === 'stool test' || testCat === 'stool';
+        if (matches) console.log(`✅ "${test.name}" matches stool-tests`);  
+        return matches;
+      }
+      // Match health packages
+      else if (selectedCat === 'health-packages') {
+        const matches = testCat.includes('health package') || testCat === 'health package' || testCat.includes('package');
+        if (matches) console.log(`✅ "${test.name}" matches health-packages`);
+        return matches;
+      }
+      // Match emergency tests
+      else if (selectedCat === 'emergency-tests') {
+        const matches = testCat.includes('emergency') || testCat === 'emergency';
+        if (matches) console.log(`✅ "${test.name}" matches emergency-tests`);
+        return matches;
       }
       
+      console.log(`❌ "${test.name}" (${test.category}) does not match any category for ${testCategory}`);
       return false;
     });
 
     // Debug logging for test filtering
     console.log('🧪 Step1TestConfirmation - testCategory:', testCategory);
     console.log('🧪 Step1TestConfirmation - firebaseTests count:', firebaseTests.length);
+    console.log('🔍 All available tests:', firebaseTests.map(t => ({id: t.id, name: t.name, category: t.category})));
     console.log('🧪 Step1TestConfirmation - filtered categoryTests:', categoryTests.length, categoryTests.map(t => ({name: t.name, category: t.category})));
+    
+    // Additional debug: Show what categories we have
+    const availableCategories = [...new Set(firebaseTests.map(test => test.category))];
+    console.log('📋 Available test categories in data:', availableCategories);
 
     const getCategoryTitle = (category) => {
       switch(category?.toLowerCase()) {
         case 'blood-tests': return 'Blood Tests';
         case 'imaging-tests': return 'Imaging Tests';
         case 'cardiac-tests': return 'Cardiac Tests';
+        case 'specialized-tests': return 'Specialized Tests';
+        case 'urine-tests': return 'Urine Tests';
+        case 'stool-tests': return 'Stool Tests';
+        case 'health-packages': return 'Health Packages';
+        case 'emergency-tests': return 'Emergency Tests';
         default: return `${category} Tests`;
       }
     };
@@ -1447,6 +1520,11 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         case 'blood-tests': return 'water';
         case 'imaging-tests': return 'scan';
         case 'cardiac-tests': return 'heart';
+        case 'specialized-tests': return 'analytics';
+        case 'urine-tests': return 'beaker';
+        case 'stool-tests': return 'flask';
+        case 'health-packages': return 'medical';
+        case 'emergency-tests': return 'warning';
         default: return 'flask';
       }
     };
@@ -1456,23 +1534,62 @@ const BookAppointmentScreen = ({ navigation, route }) => {
         case 'blood-tests': return '#DC2626';
         case 'imaging-tests': return '#7C3AED';
         case 'cardiac-tests': return '#059669';
+        case 'specialized-tests': return '#EA580C';
+        case 'urine-tests': return '#0891B2';
+        case 'stool-tests': return '#7C2D12';
+        case 'health-packages': return '#BE185D';
+        case 'emergency-tests': return '#B91C1C';
         default: return '#4285F4';
       }
     };
 
     return (
       <View style={{flex: 1, backgroundColor: '#f5f5f5'}}>
-        <ScrollView 
-          style={{flex: 1}} 
-          contentContainerStyle={{paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120}}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={{flex: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120}}>
+          <ScrollView 
+            style={{flex: 1}} 
+            contentContainerStyle={{flexGrow: 1}}
+            showsVerticalScrollIndicator={false}
+          >
           <Text style={{fontSize: 24, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 8}}>
             Test Category Selected
           </Text>
-          <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 30}}>
+          <Text style={{fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 20}}>
             Confirm your test category and proceed to schedule
           </Text>
+
+          {/* Debug: Force Refresh Tests Button */}
+          <TouchableOpacity 
+            style={{
+              backgroundColor: firebaseTests.length >= 10 ? '#10B981' : '#EF4444',
+              paddingVertical: 8,
+              paddingHorizontal: 16,
+              borderRadius: 6,
+              alignSelf: 'center',
+              marginBottom: 20,
+            }}
+            onPress={async () => {
+              console.log('🔄 FORCE REFRESH: Reloading all tests from Firebase...');
+              setServicesLoading(true);
+              try {
+                const testsResponse = await firebaseHospitalServices.getTests();
+                if (testsResponse.success && testsResponse.data) {
+                  setFirebaseTests(testsResponse.data);
+                  console.log('✅ FORCE REFRESH SUCCESS:', testsResponse.data.length, 'tests loaded');
+                } else {
+                  console.error('❌ FORCE REFRESH FAILED:', testsResponse.message);
+                }
+              } catch (error) {
+                console.error('💥 FORCE REFRESH ERROR:', error);
+              } finally {
+                setServicesLoading(false);
+              }
+            }}
+          >
+            <Text style={{fontSize: 12, fontWeight: '600', color: 'white'}}>
+              🔄 Force Refresh ({firebaseTests.length} tests)
+            </Text>
+          </TouchableOpacity>
 
         {/* Selected Test Category Display */}
         <View style={{
@@ -1528,7 +1645,6 @@ const BookAppointmentScreen = ({ navigation, route }) => {
             borderRadius: 12,
             padding: 16,
             marginBottom: 20,
-            maxHeight: 300,
           }}>
             <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
               <Text style={{fontSize: 16, fontWeight: '600', color: '#1F2937'}}>
@@ -1554,12 +1670,17 @@ const BookAppointmentScreen = ({ navigation, route }) => {
                 </Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{maxHeight: 220}} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+              style={{maxHeight: 300}} 
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{paddingBottom: 10}}
+            >
               {categoryTests.map((test, index) => {
                 const selected = isTestSelected(test.id);
                 return (
                   <TouchableOpacity 
-                    key={test.id || index} 
+                    key={test.id || index}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -1615,8 +1736,80 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           </View>
         )}
 
+        {/* Show All Tests if no category matches - Debug Mode */}
+        {categoryTests.length === 0 && firebaseTests.length > 0 && (
+          <View style={{
+            backgroundColor: '#FEF3C7',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            borderWidth: 1,
+            borderColor: '#F59E0B',
+          }}>
+            <Text style={{fontSize: 16, fontWeight: '600', color: '#92400E', marginBottom: 8}}>
+              Debug: Showing All Available Tests ({firebaseTests.length})
+            </Text>
+            <Text style={{fontSize: 12, color: '#78350F', marginBottom: 12}}>
+              No tests matched "{testCategory}" - displaying all admin tests for debugging
+            </Text>
+            <ScrollView 
+              style={{maxHeight: 250}} 
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              contentContainerStyle={{paddingBottom: 10}}
+            >
+              {firebaseTests.map((test, index) => {
+                const selected = isTestSelected(test.id);
+                return (
+                  <TouchableOpacity 
+                    key={test.id || index}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      marginBottom: 6,
+                      backgroundColor: selected ? '#FCD34D15' : '#FFFBEB',
+                      borderRadius: 8,
+                      borderLeftWidth: 3,
+                      borderLeftColor: '#F59E0B',
+                      borderWidth: selected ? 1 : 0,
+                      borderColor: selected ? '#F59E0B' : 'transparent',
+                    }}
+                    onPress={() => handleTestSelection(test)}
+                  >
+                    <View style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 3,
+                      borderWidth: 2,
+                      borderColor: selected ? '#F59E0B' : '#D1D5DB',
+                      backgroundColor: selected ? '#F59E0B' : 'transparent',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 10,
+                    }}>
+                      {selected && (
+                        <Ionicons name="checkmark" size={10} color="white" />
+                      )}
+                    </View>
+                    <View style={{flex: 1}}>
+                      <Text style={{fontSize: 13, fontWeight: '500', color: '#92400E', marginBottom: 1}}>
+                        {test.name}
+                      </Text>
+                      <Text style={{fontSize: 11, color: '#78350F'}}>
+                        Category: {test.category} • ID: {test.id}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {/* No Tests Available Message */}
-        {categoryTests.length === 0 && (
+        {categoryTests.length === 0 && firebaseTests.length === 0 && (
           <View style={{
             backgroundColor: 'white',
             borderRadius: 12,
@@ -1626,10 +1819,10 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           }}>
             <Ionicons name="flask-outline" size={48} color="#9CA3AF" />
             <Text style={{fontSize: 16, fontWeight: '500', color: '#6B7280', marginTop: 12, textAlign: 'center'}}>
-              No tests available in this category
+              No tests available from database
             </Text>
             <Text style={{fontSize: 14, color: '#9CA3AF', marginTop: 4, textAlign: 'center'}}>
-              Please select a different category or contact support
+              Please check database connection or contact support
             </Text>
           </View>
         )}
@@ -1653,7 +1846,8 @@ const BookAppointmentScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        </ScrollView>
+          </ScrollView>
+        </View>
 
         {/* Fixed buttons at bottom */}
         <View style={{

@@ -989,35 +989,20 @@ const TestManagementScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.customModalSubtitle}>Choose a test category</Text>
-              <View style={styles.customModalOptions}>
-                <TouchableOpacity 
-                  style={styles.categoryOption}
-                  onPress={() => {
-                    setTestForm({ ...testForm, category: "BLOOD TEST" });
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text style={styles.categoryOptionText}>BLOOD TEST</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.categoryOption}
-                  onPress={() => {
-                    setTestForm({ ...testForm, category: "IMAGING" });
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text style={styles.categoryOptionText}>IMAGING</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.categoryOption}
-                  onPress={() => {
-                    setTestForm({ ...testForm, category: "CARDIAC" });
-                    setShowCategoryModal(false);
-                  }}
-                >
-                  <Text style={styles.categoryOptionText}>CARDIAC</Text>
-                </TouchableOpacity>
-              </View>
+              <ScrollView style={styles.customModalScrollView}>
+                {testCategories.filter(category => category !== 'All').map((category, index) => (
+                  <TouchableOpacity 
+                    key={index}
+                    style={styles.categoryOption}
+                    onPress={() => {
+                      setTestForm({ ...testForm, category: category });
+                      setShowCategoryModal(false);
+                    }}
+                  >
+                    <Text style={styles.categoryOptionText}>{category.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </TouchableOpacity>
         </Modal>

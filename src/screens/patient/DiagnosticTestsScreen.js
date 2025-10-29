@@ -46,6 +46,11 @@ const DiagnosticTestsScreen = ({ navigation, route }) => {
               if (category === 'blood-tests' && test.category === 'Blood Test') return true;
               if (category === 'imaging-tests' && test.category === 'Imaging') return true;
               if (category === 'cardiac-tests' && test.category === 'Cardiac') return true;
+              if (category === 'specialized-tests' && test.category === 'Specialized') return true;
+              if (category === 'urine-tests' && test.category === 'Urine Test') return true;
+              if (category === 'stool-tests' && test.category === 'Stool Test') return true;
+              if (category === 'health-packages' && test.category === 'Health Package') return true;
+              if (category === 'emergency-tests' && test.category === 'Emergency') return true;
               
               // Fallback to the old filtering method
               const categoryFilter = getCategoryFilter(category);
@@ -73,6 +78,11 @@ const DiagnosticTestsScreen = ({ navigation, route }) => {
     if (categoryId === 'blood-tests') return 'blood';
     if (categoryId === 'imaging-tests') return 'imaging';
     if (categoryId === 'cardiac-tests') return 'cardiac';
+    if (categoryId === 'specialized-tests') return 'specialized';
+    if (categoryId === 'urine-tests') return 'urine';
+    if (categoryId === 'stool-tests') return 'stool';
+    if (categoryId === 'health-packages') return 'package';
+    if (categoryId === 'emergency-tests') return 'emergency';
     return null;
   };
   
@@ -81,6 +91,11 @@ const DiagnosticTestsScreen = ({ navigation, route }) => {
     if (categoryId === 'blood-tests' && testCategory === 'Blood Test') return true;
     if (categoryId === 'imaging-tests' && testCategory === 'Imaging') return true;
     if (categoryId === 'cardiac-tests' && testCategory === 'Cardiac') return true;
+    if (categoryId === 'specialized-tests' && testCategory === 'Specialized') return true;
+    if (categoryId === 'urine-tests' && testCategory === 'Urine Test') return true;
+    if (categoryId === 'stool-tests' && testCategory === 'Stool Test') return true;
+    if (categoryId === 'health-packages' && testCategory === 'Health Package') return true;
+    if (categoryId === 'emergency-tests' && testCategory === 'Emergency') return true;
     return false;
   };
   
