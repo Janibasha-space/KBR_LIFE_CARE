@@ -230,7 +230,7 @@ const MedicalReportsScreen = ({ navigation }) => {
     
     // Mark report as viewed by updating Firebase directly
     try {
-      if (report.id && !report.originalReport?.isViewed) {
+      if (report.id && !report.originalReport?.isViewed && !report.originalReport?.viewedByPatient) {
         // Update Firebase document to mark as viewed
         const reportRef = doc(db, 'reports', report.id);
         await updateDoc(reportRef, {
@@ -245,6 +245,13 @@ const MedicalReportsScreen = ({ navigation }) => {
         setUserReports(prev => prev.map(r => 
           r.id === report.id ? { ...r, isViewed: true, viewedAt: new Date(), viewedByPatient: true } : r
         ));
+        
+        // Show feedback to user
+        Alert.alert(
+          'Report Viewed', 
+          'This report has been marked as read and moved to your All Reports section.',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
       console.error('Error marking report as viewed:', error);
@@ -649,11 +656,12 @@ const MedicalReportsScreen = ({ navigation }) => {
   // Get all reports data
   const allReportsData = Object.values(categoriesMap).flat();
 
-  // Recent reports data (last 5 recent reports)
-  const recentReportsData = React.useMemo(() => {
-    return allReportsData
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 5);
+  // Unread reports data (reports that haven't been viewed by patient)
+  const unreadReportsData = React.useMemo(() => {
+    return allReportsData.filter(report => 
+      !report.originalReport?.isViewed && 
+      !report.originalReport?.viewedByPatient
+    );
   }, [allReportsData]);
 
   // Loading state
@@ -789,8 +797,8 @@ const MedicalReportsScreen = ({ navigation }) => {
                 <Text style={styles.statLabel}>Available Reports</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: Colors.kbrBlue + '15' }]}>
-                <Text style={[styles.statNumber, { color: Colors.kbrBlue }]}>{recentReportsData.length}</Text>
-                <Text style={styles.statLabel}>Recently Viewed</Text>
+                <Text style={[styles.statNumber, { color: Colors.kbrBlue }]}>{unreadReportsData.length}</Text>
+                <Text style={styles.statLabel}>Unread</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: Colors.warning + '15' }]}>
                 <Text style={[styles.statNumber, { color: Colors.warning }]}>0</Text>
@@ -812,16 +820,18 @@ const MedicalReportsScreen = ({ navigation }) => {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.tabButton, activeTab === 'Recent' && styles.activeTabButton]}
-                  onPress={() => setActiveTab('Recent')}
+                  style={[styles.tabButton, activeTab === 'Unread' && styles.activeTabButton]}
+                  onPress={() => setActiveTab('Unread')}
                 >
                   <View style={styles.tabWithBadge}>
-                    <Text style={activeTab === 'Recent' ? styles.activeTabButtonText : styles.tabButtonText}>
-                      Recent
+                    <Text style={activeTab === 'Unread' ? styles.activeTabButtonText : styles.tabButtonText}>
+                      Unread
                     </Text>
-                    <View style={styles.tabBadge}>
-                      <Text style={styles.tabBadgeText}>{recentReportsData.length}</Text>
-                    </View>
+                    {unreadReportsData.length > 0 && (
+                      <View style={styles.tabBadge}>
+                        <Text style={styles.tabBadgeText}>{unreadReportsData.length}</Text>
+                      </View>
+                    )}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity 
@@ -839,109 +849,222 @@ const MedicalReportsScreen = ({ navigation }) => {
           {/* Reports Content */}
           <View style={styles.reportsSection}>
             {activeTab === 'All Reports' && allReportsData.map((report) => (
-              <View key={report.id} style={[styles.reportCard, { backgroundColor: theme?.cardBackground || Colors.white }]}>
+              <View key={report.id} style={[
+                styles.reportCard, 
+                { backgroundColor: theme?.cardBackground || Colors.white },
+                // Add border for unread reports
+                (!report.originalReport?.isViewed && !report.originalReport?.viewedByPatient) && styles.unreadReportCard
+              ]}>
+                {/* Unread indicator */}
+                {(!report.originalReport?.isViewed && !report.originalReport?.viewedByPatient) && (
+                  <View style={styles.unreadIndicator}>
+                    <Text style={styles.unreadIndicatorText}>NEW</Text>
+                  </View>
+                )}
                 <View style={styles.reportHeader}>
                   <View style={styles.reportIconContainer}>
-                    <View style={[styles.reportIcon, { backgroundColor: report.iconColor + '20' }]}>
-                      <Ionicons name={report.icon} size={24} color={report.iconColor} />
-                    </View>
+                    <Ionicons name={report.icon} size={20} color={report.iconColor} />
                   </View>
                   <View style={styles.reportInfo}>
-                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
-                    <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>Dr. {report.doctor}</Text>
-                    <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date} • {report.time}</Text>
+                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>
+                      {report.title}
+                    </Text>
+                    <View style={styles.reportMetaRow}>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="person-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.doctor}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.reportMetaRow}>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="calendar-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.date}
+                        </Text>
+                      </View>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="time-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportTime, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.time}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.reportActions}>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => handleView(report)}
-                    >
-                      <Ionicons name="eye-outline" size={20} color={Colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
-                      onPress={() => handleShare(report)}
-                      disabled={sharingReports.has(report.id)}
-                    >
-                      {sharingReports.has(report.id) ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                      ) : (
-                        <Ionicons name="share-outline" size={20} color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
-                      onPress={() => handleDownload(report)}
-                      disabled={downloadingReports.has(report.id)}
-                    >
-                      {downloadingReports.has(report.id) ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                      ) : (
-                        <Ionicons name="download-outline" size={20} color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
+                  <View style={styles.statusContainer}>
+                    <View style={[styles.statusBadge, { backgroundColor: '#D4EDDA' }]}>
+                      <Text style={[styles.statusText, { color: '#155724' }]}>available</Text>
+                    </View>
                   </View>
                 </View>
-                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.description}</Text>
+                
+                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                  {report.description}
+                </Text>
+                
                 <View style={styles.reportFooter}>
-                  <Text style={[styles.reportSize, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.size}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: Colors.success + '20' }]}>
-                    <Text style={[styles.statusText, { color: Colors.success }]}>Available</Text>
+                  <View style={styles.reportDetailsRow}>
+                    <Text style={styles.reportCategory}>Category</Text>
+                    <Text style={styles.reportFiles}>Files</Text>
                   </View>
+                  <View style={styles.reportValuesRow}>
+                    <Text style={[styles.reportCategoryValue, { color: theme?.textPrimary || Colors.text }]}>
+                      {report.category || 'Normal'}
+                    </Text>
+                    <Text style={[styles.reportFilesValue, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                      {report.size}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.reportActions}>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.viewButton]}
+                    onPress={() => handleView(report)}
+                  >
+                    <Ionicons name="eye-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.viewButtonText}>View</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.shareButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
+                    onPress={() => handleShare(report)}
+                    disabled={sharingReports.has(report.id)}
+                  >
+                    {sharingReports.has(report.id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="share-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.shareButtonText}>Share</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.downloadButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
+                    onPress={() => handleDownload(report)}
+                    disabled={downloadingReports.has(report.id)}
+                  >
+                    {downloadingReports.has(report.id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="download-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.downloadButtonText}>Download</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
 
-            {activeTab === 'Recent' && recentReportsData.map((report) => (
-              <View key={report.id} style={[styles.reportCard, { backgroundColor: theme?.cardBackground || Colors.white }]}>
+            {activeTab === 'Unread' && unreadReportsData.map((report) => (
+              <View key={report.id} style={[
+                styles.reportCard, 
+                { backgroundColor: theme?.cardBackground || Colors.white },
+                styles.unreadReportCard
+              ]}>
+                {/* Unread indicator */}
+                <View style={styles.unreadIndicator}>
+                  <Text style={styles.unreadIndicatorText}>NEW</Text>
+                </View>
                 <View style={styles.reportHeader}>
                   <View style={styles.reportIconContainer}>
-                    <View style={[styles.reportIcon, { backgroundColor: report.iconColor + '20' }]}>
-                      <Ionicons name={report.icon} size={24} color={report.iconColor} />
-                    </View>
+                    <Ionicons name={report.icon} size={20} color={report.iconColor} />
                   </View>
                   <View style={styles.reportInfo}>
-                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>{report.title}</Text>
-                    <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>Dr. {report.doctor}</Text>
-                    <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.date} • {report.time}</Text>
+                    <Text style={[styles.reportTitle, { color: theme?.textPrimary || Colors.text }]}>
+                      {report.title}
+                    </Text>
+                    <View style={styles.reportMetaRow}>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="person-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportDoctor, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.doctor}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.reportMetaRow}>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="calendar-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportDate, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.date}
+                        </Text>
+                      </View>
+                      <View style={styles.reportMetaItem}>
+                        <Ionicons name="time-outline" size={14} color="#718096" />
+                        <Text style={[styles.reportTime, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                          {report.time}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.reportActions}>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => handleView(report)}
-                    >
-                      <Ionicons name="eye-outline" size={20} color={Colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
-                      onPress={() => handleShare(report)}
-                      disabled={sharingReports.has(report.id)}
-                    >
-                      {sharingReports.has(report.id) ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                      ) : (
-                        <Ionicons name="share-outline" size={20} color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
-                      onPress={() => handleDownload(report)}
-                      disabled={downloadingReports.has(report.id)}
-                    >
-                      {downloadingReports.has(report.id) ? (
-                        <ActivityIndicator size="small" color={Colors.primary} />
-                      ) : (
-                        <Ionicons name="download-outline" size={20} color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
+                  <View style={styles.statusContainer}>
+                    <View style={[styles.statusBadge, { backgroundColor: '#D4EDDA' }]}>
+                      <Text style={[styles.statusText, { color: '#155724' }]}>available</Text>
+                    </View>
                   </View>
                 </View>
-                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.description}</Text>
+                
+                <Text style={[styles.reportDescription, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                  {report.description}
+                </Text>
+                
                 <View style={styles.reportFooter}>
-                  <Text style={[styles.reportSize, { color: theme?.textSecondary || Colors.textSecondary }]}>{report.size}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: Colors.success + '20' }]}>
-                    <Text style={[styles.statusText, { color: Colors.success }]}>Available</Text>
+                  <View style={styles.reportDetailsRow}>
+                    <Text style={styles.reportCategory}>Category</Text>
+                    <Text style={styles.reportFiles}>Files</Text>
                   </View>
+                  <View style={styles.reportValuesRow}>
+                    <Text style={[styles.reportCategoryValue, { color: theme?.textPrimary || Colors.text }]}>
+                      {report.category || 'Normal'}
+                    </Text>
+                    <Text style={[styles.reportFilesValue, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                      {report.size}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.reportActions}>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.viewButton]}
+                    onPress={() => handleView(report)}
+                  >
+                    <Ionicons name="eye-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.viewButtonText}>View</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.shareButton, sharingReports.has(report.id) && styles.actionButtonLoading]}
+                    onPress={() => handleShare(report)}
+                    disabled={sharingReports.has(report.id)}
+                  >
+                    {sharingReports.has(report.id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="share-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.shareButtonText}>Share</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.downloadButton, downloadingReports.has(report.id) && styles.actionButtonLoading]}
+                    onPress={() => handleDownload(report)}
+                    disabled={downloadingReports.has(report.id)}
+                  >
+                    {downloadingReports.has(report.id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="download-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.downloadButtonText}>Download</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -1052,7 +1175,27 @@ const MedicalReportsScreen = ({ navigation }) => {
             )}
 
             {/* Empty state */}
-            {allReportsData.length === 0 && (
+            {(activeTab === 'All Reports' && allReportsData.length === 0) && (
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text-outline" size={100} color={Colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: theme?.textPrimary || Colors.text }]}>No Reports Found</Text>
+                <Text style={[styles.emptyText, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                  You don't have any medical reports yet. Reports will appear here once they are available.
+                </Text>
+              </View>
+            )}
+            
+            {(activeTab === 'Unread' && unreadReportsData.length === 0) && (
+              <View style={styles.emptyState}>
+                <Ionicons name="checkmark-circle-outline" size={100} color={Colors.success} />
+                <Text style={[styles.emptyTitle, { color: theme?.textPrimary || Colors.text }]}>All Caught Up!</Text>
+                <Text style={[styles.emptyText, { color: theme?.textSecondary || Colors.textSecondary }]}>
+                  You have no unread reports. All your reports have been viewed and are available in the "All Reports" section.
+                </Text>
+              </View>
+            )}
+            
+            {(activeTab === 'Categories' && allReportsData.length === 0) && (
               <View style={styles.emptyState}>
                 <Ionicons name="document-text-outline" size={100} color={Colors.textSecondary} />
                 <Text style={[styles.emptyTitle, { color: theme?.textPrimary || Colors.text }]}>No Reports Found</Text>
@@ -1275,94 +1418,182 @@ const styles = StyleSheet.create({
   },
   reportCard: {
     backgroundColor: Colors.white,
-    borderRadius: Sizes.radiusLarge,
-    padding: Sizes.lg,
-    marginBottom: Sizes.md,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   reportHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: Sizes.md,
+    marginBottom: 12,
   },
   reportIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Sizes.md,
-  },
-  reportIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 12,
   },
   reportInfo: {
     flex: 1,
   },
   reportTitle: {
-    fontSize: Sizes.regular,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.textPrimary,
-    marginBottom: Sizes.xs,
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  reportMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  reportMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
   },
   reportDoctor: {
-    fontSize: Sizes.medium,
-    color: Colors.textSecondary,
-    marginBottom: Sizes.xs,
+    fontSize: 14,
+    color: '#4A90E2',
+    marginLeft: 4,
+    fontWeight: '500',
   },
   reportDate: {
-    fontSize: Sizes.small,
+    fontSize: 14,
     color: Colors.textSecondary,
+    marginLeft: 4,
   },
-  reportDescription: {
-    fontSize: Sizes.medium,
-    color: Colors.textPrimary,
-    marginBottom: Sizes.xs,
-  },
-  reportFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  reportSize: {
-    fontSize: Sizes.small,
+  reportTime: {
+    fontSize: 14,
     color: Colors.textSecondary,
+    marginLeft: 4,
+  },
+  statusContainer: {
+    alignItems: 'flex-end',
   },
   statusBadge: {
-    paddingHorizontal: Sizes.sm,
-    paddingVertical: 2,
-    borderRadius: Sizes.radiusSmall,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
-    fontSize: Sizes.small,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  reportDescription: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  reportFooter: {
+    marginBottom: 16,
+  },
+  reportDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  reportValuesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  reportCategory: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  reportFiles: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  reportCategoryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  reportFilesValue: {
+    fontSize: 14,
     fontWeight: '500',
   },
   reportActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Sizes.sm,
+    justifyContent: 'space-between',
+    gap: 8,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.background,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    flex: 1,
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+  },
+  viewButton: {
+    backgroundColor: '#4A90E2',
+  },
+  shareButton: {
+    backgroundColor: '#FF6B35',
+  },
+  downloadButton: {
+    backgroundColor: '#10B981',
+  },
+  viewButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  downloadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  
+  // Unread Report Styles
+  unreadReportCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B35',
+    backgroundColor: '#FFF8F6',
+  },
+  unreadIndicator: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  unreadIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   actionButtonLoading: {
     opacity: 0.6,
-    backgroundColor: Colors.primary + '10',
   },
   categorySection: {
     backgroundColor: Colors.white,
