@@ -4,7 +4,7 @@
     "slug": "kbr-hospital-app",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/hospital-logo.jpeg",
     "userInterfaceStyle": "light",
     "privacy": "public",
@@ -45,7 +45,8 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "supportsTablet": true
     },
     "plugins": [
       "expo-build-properties",

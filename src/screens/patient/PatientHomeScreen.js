@@ -841,30 +841,52 @@ const PatientHomeScreen = ({ navigation }) => {
         >
           {/* Hero Section - Simplified for better loading */}
           <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
-            <Image 
-              source={require('../../../assets/hospital-building.jpg.jpeg')}
+            <Image
+              source={require('../../../assets/hospital-building.jpg.jpeg.png')}
               style={styles.heroBackgroundImage}
               resizeMode="cover"
             />
-            <View style={styles.heroFallback}>
-              <View style={styles.heroIcon}>
-                <Image 
-                  source={require('../../../assets/hospital-logo.jpeg')}
-                  style={styles.heroLogoImage}
-                  resizeMode="contain"
-                />
-              </View>
-              <Text style={[styles.heroTitle, { color: '#000000', fontWeight: 'bold', fontSize: 22 }]}>Welcome to KBR Life Care Hospitals, Sangareddy</Text>
-              <Text style={[styles.heroSubtitle, { color: '#000000', fontWeight: '600', fontSize: 16 }]}>
-                We blend compassionate care with cutting-edge medicine, driven by a dedicated team prioritizing your well-being.
+            
+            {/* Dark overlay for better text visibility */}
+            <View style={styles.heroOverlay} />
+          </View>
+
+          {/* Welcome Section with Animation */}
+          <View style={styles.welcomeSection}>
+            <View style={styles.welcomeContainer}>
+              <Text style={styles.welcomeTitle}>Welcome to KBR LIFE CARE HOSPITAL</Text>
+              <View style={styles.welcomeUnderline} />
+              <Text style={styles.welcomeSubtitle}>Your Trusted Healthcare Partner</Text>
+              <Text style={styles.welcomeDescription}>
+                Experience world-class medical care with our team of expert doctors, cutting-edge technology, and compassionate patient service. We are committed to providing exceptional healthcare solutions for you and your family.
               </Text>
+              
+              {/* Quick Action Buttons */}
+              <View style={styles.quickActions}>
+                <TouchableOpacity style={styles.primaryActionBtn} onPress={() => navigation.navigate('BookAppointment')}>
+                  <View style={styles.actionBtnIcon}>
+                    <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.actionBtnText}>Book Appointment</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.secondaryActionBtn} onPress={() => Linking.openURL('tel:+919876543210')}>
+                  <View style={styles.actionBtnIcon}>
+                    <Ionicons name="call-outline" size={24} color="#4AA3DF" />
+                  </View>
+                  <Text style={styles.secondaryActionBtnText}>Emergency Call</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
-          {/* Vision & Mission */}
+          {/* Vision & Mission - Enhanced with Material Design */}
           <View style={styles.visionMissionSection}>
             <View style={styles.visionMissionHeader}>
-              <Text style={styles.visionMissionMainTitle}>Our Foundation</Text>
+              <View style={styles.foundationTitleContainer}>
+                <Text style={styles.foundationIcon}>🏥</Text>
+                <Text style={styles.visionMissionMainTitle}>Our Foundation</Text>
+              </View>
               <Text style={styles.visionMissionSubtitle}>Building healthcare excellence through our core values</Text>
             </View>
             
@@ -873,28 +895,42 @@ const PatientHomeScreen = ({ navigation }) => {
               <View style={[styles.visionMissionCard, styles.visionCard]}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.cardIcon, styles.visionIcon]}>
-                    <Ionicons name="eye" size={24} color="#FFFFFF" />
+                    <Text style={styles.cardEmojiIcon}>👁️</Text>
                   </View>
                   <Text style={styles.cardTitle}>Our Vision</Text>
                 </View>
                 <Text style={styles.cardDescription}>
                   To be the preferred healthcare provider in Sangareddy and beyond, delivering world-class medical services with compassion, innovation, and excellence.
                 </Text>
-                <View style={styles.cardAccent} />
+                <View style={[styles.cardAccent, styles.visionAccent]} />
               </View>
 
               {/* Mission Card */}
               <View style={[styles.visionMissionCard, styles.missionCard]}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.cardIcon, styles.missionIcon]}>
-                    <Ionicons name="medical" size={24} color="#FFFFFF" />
+                    <Text style={styles.cardEmojiIcon}>💉</Text>
                   </View>
                   <Text style={styles.cardTitle}>Our Mission</Text>
                 </View>
                 <Text style={styles.cardDescription}>
                   Providing accessible, affordable, and advanced healthcare through dedicated professionals, state-of-the-art facilities, and patient-centered approach.
                 </Text>
-                <View style={styles.cardAccent} />
+                <View style={[styles.cardAccent, styles.missionAccent]} />
+              </View>
+
+              {/* Values Card */}
+              <View style={[styles.visionMissionCard, styles.valuesCard]}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, styles.valuesIcon]}>
+                    <Text style={styles.cardEmojiIcon}>❤️</Text>
+                  </View>
+                  <Text style={styles.cardTitle}>Our Values</Text>
+                </View>
+                <Text style={styles.cardDescription}>
+                  Compassion, integrity, excellence, and innovation guide every aspect of our healthcare delivery, ensuring the best outcomes for our patients.
+                </Text>
+                <View style={[styles.cardAccent, styles.valuesAccent]} />
               </View>
             </View>
           </View>
@@ -1121,7 +1157,7 @@ const PatientHomeScreen = ({ navigation }) => {
                 onPress={() => handlePackageSelect(1)}
               >
                 <Text style={styles.quickPackageName}>Basic Checkup</Text>
-                <Text style={styles.quickPackagePrice}>₹1,999</Text>
+                <Text style={styles.quickPackagePrice} numberOfLines={1}>₹1,999</Text>
                 <Text style={styles.quickPackageButton}>Book Now</Text>
               </TouchableOpacity>
               
@@ -1136,7 +1172,7 @@ const PatientHomeScreen = ({ navigation }) => {
                   <Text style={styles.quickPopularText}>Popular</Text>
                 </View>
                 <Text style={styles.quickPackageName}>Comprehensive</Text>
-                <Text style={styles.quickPackagePrice}>₹4,999</Text>
+                <Text style={styles.quickPackagePrice} numberOfLines={1}>₹4,999</Text>
                 <Text style={styles.quickPackageButton}>Book Now</Text>
               </TouchableOpacity>
               
@@ -1148,7 +1184,7 @@ const PatientHomeScreen = ({ navigation }) => {
                 onPress={() => handlePackageSelect(3)}
               >
                 <Text style={styles.quickPackageName}>Executive</Text>
-                <Text style={styles.quickPackagePrice}>₹8,999</Text>
+                <Text style={styles.quickPackagePrice} numberOfLines={1}>₹8,999</Text>
                 <Text style={styles.quickPackageButton}>Book Now</Text>
               </TouchableOpacity>
             </View>
@@ -1184,8 +1220,8 @@ const PatientHomeScreen = ({ navigation }) => {
                   <Ionicons name="call" size={24} color="#C62828" />
                 </View>
                 <Text style={styles.contactTitle}>Phone</Text>
-                <Text style={styles.contactText}>+91 8466 999 000</Text>
-                <Text style={styles.contactSubtext}>24/7 Emergency</Text>
+                <Text style={styles.contactText} numberOfLines={1}>+91 8466 999 000</Text>
+                <Text style={styles.contactSubtext} numberOfLines={1}>24/7 Emergency</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.contactCard} onPress={() => sendEmail('info@kbrhospitals.com')}>
@@ -1193,8 +1229,8 @@ const PatientHomeScreen = ({ navigation }) => {
                   <Ionicons name="mail" size={24} color="#4AA3DF" />
                 </View>
                 <Text style={styles.contactTitle}>Email</Text>
-                <Text style={styles.contactText}>info@kbrhospitals.com</Text>
-                <Text style={styles.contactSubtext}>support@kbrhospitals.com</Text>
+                <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="middle">info@kbrhospitals.com</Text>
+                <Text style={styles.contactSubtext} numberOfLines={1} ellipsizeMode="middle">support@kbrhospitals.com</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.contactCard} onPress={openLocation}>
@@ -1202,8 +1238,8 @@ const PatientHomeScreen = ({ navigation }) => {
                   <Ionicons name="location" size={24} color="#10B981" />
                 </View>
                 <Text style={styles.contactTitle}>Location</Text>
-                <Text style={styles.contactText}>Sangareddy</Text>
-                <Text style={styles.contactSubtext}>Tap to open maps</Text>
+                <Text style={styles.contactText} numberOfLines={1}>Sangareddy</Text>
+                <Text style={styles.contactSubtext} numberOfLines={1}>Tap to open maps</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.contactCard} onPress={showHospitalInfo}>
@@ -1211,8 +1247,8 @@ const PatientHomeScreen = ({ navigation }) => {
                   <Ionicons name="time" size={24} color="#F59E0B" />
                 </View>
                 <Text style={styles.contactTitle}>Hours</Text>
-                <Text style={styles.contactText}>Mon - Sun</Text>
-                <Text style={styles.contactSubtext}>Tap for details</Text>
+                <Text style={styles.contactText} numberOfLines={1}>Mon - Sun</Text>
+                <Text style={styles.contactSubtext} numberOfLines={1}>Tap for details</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1567,11 +1603,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // Hero Section - Simplified for better performance
+  // Hero Section - Modern healthcare design
   heroSection: {
-    height: 300,
-    backgroundColor: 'linear-gradient(135deg, #4AA3DF 0%, #2563EB 100%)',
+    width: Dimensions.get('window').width,
+    height: 280,
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#E3F2FD',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   heroBackgroundImage: {
     position: 'absolute',
@@ -1581,55 +1621,199 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
-    opacity: 0.8,
-  },
-  heroFallback: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(74, 163, 223, 0.3)',
-    padding: Sizes.screenPadding,
-  },
-  heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Sizes.lg,
-    overflow: 'hidden',
-  },
-  heroLogoImage: {
-    width: 60,
-    height: 60,
   },
   heroOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+
+  // Welcome Section - Animated and Mobile Optimized
+  welcomeSection: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    position: 'relative',
+    zIndex: 10,
+  },
+  welcomeContainer: {
+    alignItems: 'center',
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1A365D',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  welcomeUnderline: {
+    width: 80,
+    height: 3,
+    backgroundColor: '#4AA3DF',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4AA3DF',
+    textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: 0.3,
+  },
+  welcomeDescription: {
+    fontSize: 14,
+    color: '#718096',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+    paddingHorizontal: 10,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+    paddingHorizontal: 10,
+  },
+  primaryActionBtn: {
+    flex: 1,
+    backgroundColor: '#4AA3DF',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4AA3DF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#4AA3DF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionBtnIcon: {
+    marginRight: 8,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  secondaryActionBtnText: {
+    color: '#4AA3DF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  heroContent: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: Sizes.screenPadding,
+    padding: 20,
+    paddingBottom: 40,
   },
-  heroContent: {
-    maxWidth: '100%',
-  },
-  heroTitle: {
-    fontSize: Sizes.large,
+  heroMainTitle: {
+    fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.white,
-    marginBottom: Sizes.sm,
-    textAlign: 'center',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   heroSubtitle: {
-    fontSize: Sizes.medium,
-    color: Colors.white,
+    fontSize: 18,
+    color: '#E3F2FD',
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  heroDescription: {
+    fontSize: 14,
+    color: '#FFFFFF',
     lineHeight: 20,
-    textAlign: 'center',
+    opacity: 0.9,
+    marginBottom: 24,
+  },
+  heroButtons: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  bookAppointmentBtn: {
+    flex: 1,
+    backgroundColor: '#2196F3',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  bookAppointmentText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  emergencyBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: '#FF4444',
+  },
+  emergencyBtnText: {
+    color: '#FF4444',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   
   // Vision & Mission Section - Modern Design
+  // Vision & Mission Section - Enhanced with Material Design & Brand Colors
   visionMissionSection: {
     backgroundColor: '#F8FAFC',
     padding: Sizes.screenPadding,
@@ -1639,11 +1823,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Sizes.xl,
   },
+  foundationTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Sizes.sm,
+  },
+  foundationIcon: {
+    fontSize: 32,
+    marginRight: 12,
+  },
   visionMissionMainTitle: {
     fontSize: Sizes.xlarge,
     fontWeight: 'bold',
     color: Colors.textPrimary,
-    marginBottom: Sizes.sm,
     textAlign: 'center',
   },
   visionMissionSubtitle: {
@@ -1657,24 +1849,33 @@ const styles = StyleSheet.create({
   },
   visionMissionCard: {
     backgroundColor: Colors.white,
-    borderRadius: Sizes.radiusLarge,
-    padding: Sizes.lg,
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderLeftWidth: 4,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
     position: 'relative',
     overflow: 'hidden',
+    transform: [{ scale: 1 }],
   },
   visionCard: {
-    borderLeftColor: '#4AA3DF',
-    backgroundColor: '#FAFBFF',
+    backgroundColor: '#F0F8FF',
+    borderTopWidth: 4,
+    borderTopColor: '#4AA3DF',
   },
   missionCard: {
-    borderLeftColor: '#10B981',
-    backgroundColor: '#FAFFFE',
+    backgroundColor: '#F0FDF4',
+    borderTopWidth: 4,
+    borderTopColor: '#22C55E',
+  },
+  valuesCard: {
+    backgroundColor: '#FFF1F1',
+    borderTopWidth: 4,
+    borderTopColor: '#EF4444',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1682,22 +1883,33 @@ const styles = StyleSheet.create({
     marginBottom: Sizes.md,
   },
   cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Sizes.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  cardEmojiIcon: {
+    fontSize: 28,
   },
   visionIcon: {
     backgroundColor: '#4AA3DF',
   },
   missionIcon: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#22C55E',
+  },
+  valuesIcon: {
+    backgroundColor: '#EF4444',
   },
   cardTitle: {
     fontSize: Sizes.large,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: Colors.textPrimary,
     flex: 1,
   },
@@ -1711,10 +1923,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    width: 60,
-    height: 60,
-    backgroundColor: 'rgba(74, 163, 223, 0.1)',
-    borderBottomLeftRadius: 30,
+    width: 80,
+    height: 80,
+    borderBottomLeftRadius: 40,
+    opacity: 0.1,
+  },
+  visionAccent: {
+    backgroundColor: '#4AA3DF',
+  },
+  missionAccent: {
+    backgroundColor: '#22C55E',
+  },
+  valuesAccent: {
+    backgroundColor: '#EF4444',
   },
   
   // Doctors Section
@@ -1967,6 +2188,7 @@ const styles = StyleSheet.create({
     borderRadius: Sizes.radiusLarge,
     width: '31%',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Sizes.md,
     shadowColor: Colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
@@ -1976,6 +2198,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.border,
     position: 'relative',
+    minHeight: 120,
   },
   popularQuickPackage: {
     borderColor: '#4AA3DF',
@@ -2001,10 +2224,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quickPackagePrice: {
-    fontSize: Sizes.large,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#4AA3DF',
     marginBottom: Sizes.sm,
+    textAlign: 'center',
+    width: '100%',
+    flexShrink: 0,
   },
   quickPackageButton: {
     fontSize: Sizes.small,
@@ -2056,7 +2282,7 @@ const styles = StyleSheet.create({
   contactCard: {
     width: '48%',
     backgroundColor: Colors.white,
-    padding: Sizes.lg,
+    padding: Sizes.md,
     borderRadius: Sizes.radiusLarge,
     alignItems: 'center',
     marginBottom: Sizes.md,
@@ -2065,29 +2291,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    minHeight: 140,
+    justifyContent: 'center',
   },
   contactIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Sizes.md,
+    marginBottom: Sizes.sm,
   },
   contactTitle: {
     fontSize: Sizes.regular,
     fontWeight: 'bold',
     color: Colors.textPrimary,
-    marginBottom: Sizes.sm,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   contactText: {
-    fontSize: Sizes.medium,
+    fontSize: 12,
     color: Colors.textSecondary,
     marginBottom: 4,
+    textAlign: 'center',
+    width: '100%',
+    flexShrink: 1,
   },
   contactSubtext: {
-    fontSize: Sizes.medium,
+    fontSize: 12,
     color: Colors.textSecondary,
+    textAlign: 'center',
+    width: '100%',
+    flexShrink: 1,
   },
   
   // Emergency Banner

@@ -11,7 +11,7 @@ import {
 } from '@react-navigation/drawer';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from './src/constants/theme';
 import { ServicesProvider } from './src/contexts/ServicesContext';
@@ -69,6 +69,26 @@ import ExampleApiUsageScreen from './src/screens/ExampleApiUsageScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
+
+// Simple device detection
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+
+// Basic responsive styling for tablets
+const tabStyles = {
+  tabBarStyle: {
+    height: isTablet ? 80 : 60,
+    paddingBottom: isTablet ? 10 : 5,
+    paddingTop: isTablet ? 10 : 5,
+  },
+  tabBarLabelStyle: {
+    fontSize: isTablet ? 14 : 12,
+    fontWeight: '500',
+  },
+  tabBarIconStyle: {
+    marginBottom: isTablet ? 5 : 2,
+  },
+};
 
 // Custom Drawer Content with Profile and Logout
 function CustomDrawerContent(props) {
@@ -205,6 +225,7 @@ function PatientTabNavigator() {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
+          const iconSize = isTablet ? 28 : 20;
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
@@ -218,7 +239,7 @@ function PatientTabNavigator() {
             iconName = focused ? 'people' : 'people-outline';
           }
 
-          return <Ionicons name={iconName} size={20} color={color} />;
+          return <Ionicons name={iconName} size={iconSize} color={color} />;
         },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: '#8E8E93',
@@ -226,9 +247,9 @@ function PatientTabNavigator() {
           backgroundColor: Colors.white,
           borderTopWidth: 2,
           borderTopColor: Colors.primary,
-          height: 70,
-          paddingBottom: 12,
-          paddingTop: 8,
+          height: isTablet ? 90 : 70,
+          paddingBottom: isTablet ? 16 : 12,
+          paddingTop: isTablet ? 12 : 8,
           shadowColor: '#000',
           shadowOffset: {
             width: 0,
@@ -239,9 +260,9 @@ function PatientTabNavigator() {
           elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: isTablet ? 14 : 12,
           fontWeight: '600',
-          marginBottom: 4,
+          marginBottom: isTablet ? 6 : 4,
         },
         headerShown: false,
       })}
@@ -268,6 +289,7 @@ function AdminTabNavigator() {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
+          const iconSize = isTablet ? 28 : 20;
 
           if (route.name === 'Dashboard') {
             iconName = focused ? 'bar-chart' : 'bar-chart-outline';
@@ -281,7 +303,7 @@ function AdminTabNavigator() {
             iconName = focused ? 'analytics' : 'analytics-outline';
           }
 
-          return <Ionicons name={iconName} size={20} color={color} />;
+          return <Ionicons name={iconName} size={iconSize} color={color} />;
         },
         tabBarActiveTintColor: Colors.kbrBlue,
         tabBarInactiveTintColor: '#8E8E93',
@@ -289,9 +311,9 @@ function AdminTabNavigator() {
           backgroundColor: Colors.white,
           borderTopWidth: 2,
           borderTopColor: Colors.kbrBlue,
-          height: 70,
-          paddingBottom: 12,
-          paddingTop: 8,
+          height: isTablet ? 90 : 70,
+          paddingBottom: isTablet ? 16 : 12,
+          paddingTop: isTablet ? 12 : 8,
           shadowColor: '#000',
           shadowOffset: {
             width: 0,
@@ -302,9 +324,9 @@ function AdminTabNavigator() {
           elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: isTablet ? 14 : 12,
           fontWeight: '600',
-          marginBottom: 4,
+          marginBottom: isTablet ? 6 : 4,
         },
         headerShown: false,
       })}

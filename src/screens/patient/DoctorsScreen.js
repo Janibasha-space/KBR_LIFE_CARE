@@ -168,8 +168,7 @@ const DoctorsScreen = ({ navigation }) => {
       <View style={styles.safeArea}>
         {/* App Header */}
         <AppHeader 
-          title="Our Doctors"
-          subtitle="Expert Healthcare Professionals"
+          subtitle="Meet Our Expert Doctors"
           showBackButton={true}
           navigation={navigation}
         />

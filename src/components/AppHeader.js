@@ -8,6 +8,7 @@ import {
   Alert,
   StatusBar,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,10 @@ import { Colors, Sizes } from '../constants/theme';
 import { useUnifiedAuth } from '../contexts/UnifiedAuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AuthModal from './AuthModal';
+
+// Device detection for responsive design
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
 
 const AppHeader = ({
   title,
@@ -296,13 +301,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     overflow: 'hidden',
-    marginRight: 4, // Ensure there's space for the right section
+    marginRight: 2, // Reduced margin to give more space for title
+    minWidth: 0, // Allow proper flex shrinking
   },
   headerLogoImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 8,
+    width: isTablet ? 28 : 22,
+    height: isTablet ? 28 : 22,
+    borderRadius: isTablet ? 14 : 11,
+    marginRight: isTablet ? 8 : 6,
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.5)',
   },
@@ -310,20 +316,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     flexShrink: 1,
-    marginRight: 10,
+    marginRight: 5,
     overflow: 'hidden',
+    minWidth: 0, // Allow flex to shrink
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: isTablet ? 16 : 13,
     fontWeight: '600',
     color: Colors.white,
-    letterSpacing: 0.2,
+    letterSpacing: isTablet ? 0.2 : 0.1,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
     flexShrink: 1,
     marginRight: 4,
-    maxWidth: '95%',
+    maxWidth: '100%',
     overflow: 'hidden',
-    // Ensure text truncates if too long
+    // Allow full title to display with responsive font
     ellipsizeMode: 'tail',
     numberOfLines: 1,
   },
