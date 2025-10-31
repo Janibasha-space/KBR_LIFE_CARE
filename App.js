@@ -92,7 +92,7 @@ const tabStyles = {
 
 // Custom Drawer Content with Profile and Logout
 function CustomDrawerContent(props) {
-  const { logout } = useUnifiedAuth(); // Import the logout function from UnifiedAuthContext
+  const { logout, userData } = useUnifiedAuth(); // Import the logout function and userData from UnifiedAuthContext
   const { clearUserData, forceCleanupListeners } = useApp(); // Import cleanup functions from AppContext
   
   const handleLogout = () => {
@@ -176,7 +176,9 @@ function CustomDrawerContent(props) {
         <View style={styles.drawerHeaderText}>
           <Text style={styles.drawerTitle}>KBR LIFE CARE</Text>
           <Text style={styles.drawerSubtitle}>Admin Panel</Text>
-          <Text style={styles.adminName}>Admin King</Text>
+          <Text style={styles.adminName}>
+            {userData && userData.name ? userData.name : 'Admin'}
+          </Text>
         </View>
       </View>
 
